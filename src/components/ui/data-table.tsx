@@ -34,6 +34,7 @@ interface DataTableProps<TData, TValue> {
   pageSize?: number;
   showPagination?: boolean;
   emptyMessage?: string;
+  emptyState?: React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
@@ -46,6 +47,7 @@ export function DataTable<TData, TValue>({
   pageSize = 10,
   showPagination = true,
   emptyMessage = "No results found.",
+  emptyState,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -158,6 +160,12 @@ export function DataTable<TData, TValue>({
                   ))}
                 </TableRow>
               ))
+            ) : emptyState ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="p-0">
+                  {emptyState}
+                </TableCell>
+              </TableRow>
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
