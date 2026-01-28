@@ -5,7 +5,6 @@ import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Leaf,
   LayoutDashboard,
   Building2,
   BarChart3,
@@ -111,9 +110,11 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b px-4">
           <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Leaf className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <img
+              src="/microcropsymb.png"
+              alt="MicroCrop"
+              className="h-8 w-8 object-contain"
+            />
             <span className="text-lg font-bold text-sidebar-foreground">MicroCrop</span>
           </Link>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose}>

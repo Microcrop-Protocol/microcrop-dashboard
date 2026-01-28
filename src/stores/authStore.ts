@@ -67,11 +67,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'microcrop-auth',
-      partialize: (state) => ({ 
-        user: state.user, 
+      partialize: (state) => ({
+        user: state.user,
         tokens: state.tokens,
-        isAuthenticated: state.isAuthenticated 
+        isAuthenticated: state.isAuthenticated
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setLoading(false);
+      },
     }
   )
 );

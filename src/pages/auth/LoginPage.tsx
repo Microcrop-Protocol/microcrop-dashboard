@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Leaf, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -73,9 +73,11 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <Leaf className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <img
+            src="/microcropsymb.png"
+            alt="MicroCrop"
+            className="mx-auto h-16 w-16 object-contain"
+          />
           <div>
             <CardTitle className="text-2xl font-bold">MicroCrop</CardTitle>
             <CardDescription className="mt-1">
