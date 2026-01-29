@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,7 +9,7 @@ import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { ColumnDef } from "@tanstack/react-table";
 import { DamageAssessment } from "@/types";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 
 const columns: ColumnDef<DamageAssessment>[] = [
   {
@@ -59,7 +59,7 @@ const columns: ColumnDef<DamageAssessment>[] = [
   {
     accessorKey: "assessmentDate",
     header: "Date",
-    cell: ({ row }) => format(new Date(row.getValue("assessmentDate")), "MMM d, yyyy"),
+    cell: ({ row }) => formatDate(row.getValue("assessmentDate")),
   },
 ];
 
@@ -71,7 +71,7 @@ export default function DamageAnalyticsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["damageAnalytics", dateRange],
-    queryFn: () => mockApi.getDamageAnalytics(),
+    queryFn: () => api.getDamageAnalytics(),
   });
 
   return (

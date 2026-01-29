@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LineChart } from "@/components/charts/LineChart";
 import { PieChart } from "@/components/charts/PieChart";
@@ -20,8 +20,18 @@ export default function FarmersAnalyticsPage() {
 
   const { data } = useQuery({
     queryKey: ["farmersAnalytics", dateRange, granularity],
-    queryFn: () => mockApi.getFarmersAnalytics(),
+    queryFn: () => api.getFarmersAnalytics(),
   });
+
+  // Safely extract array data from API response
+  const byKycStatus = Array.isArray(data?.byKycStatus) ? data.byKycStatus : [];
+  const byCounty = Array.isArray(data?.byCounty) ? data.byCounty : [];
+  const timeSeries = Array.isArray(data?.timeSeries) ? data.timeSeries : [];
+
+  // Calculate KYC approval rate safely
+  const approvedCount = byKycStatus.find((s: { name: string; value: number }) => s.name === 'Approved')?.value ?? 0;
+  const totalFarmers = data?.totalFarmers || 1;
+  const kycApprovalRate = ((approvedCount / totalFarmers) * 100).toFixed(0);
 
   return (
     <div className="space-y-6">
@@ -52,20 +62,20 @@ export default function FarmersAnalyticsPage() {
         />
         <StatCard
           title="KYC Approved"
-          value={`${(((data?.byKycStatus?.find(s => s.name === 'Approved')?.value ?? 0) / (data?.totalFarmers || 1)) * 100).toFixed(0)}%`}
+          value={`${kycApprovalRate}%`}
           icon={FileCheck}
           trend={{ value: 5, isPositive: true }}
         />
         <StatCard
           title="Counties Covered"
-          value={data?.byCounty?.length ?? 0}
+          value={byCounty.length}
           icon={MapPin}
         />
       </div>
 
       {/* Charts */}
       <LineChart
-        data={data?.timeSeries ?? []}
+        data={timeSeries}
         xKey="date"
         yKeys={[{ key: "value", name: "Farmers Registered", color: "hsl(var(--chart-1))" }]}
         title="Farmer Registrations Over Time"
@@ -73,8 +83,8 @@ export default function FarmersAnalyticsPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <PieChart data={data?.byKycStatus ?? []} title="Farmers by KYC Status" height={280} />
-        <BarChart data={data?.byCounty ?? []} xKey="name" title="Farmers by County" horizontal height={280} />
+        <PieChart data={byKycStatus} title="Farmers by KYC Status" height={280} />
+        <BarChart data={byCounty} xKey="name" title="Farmers by County" horizontal height={280} />
       </div>
     </div>
   );

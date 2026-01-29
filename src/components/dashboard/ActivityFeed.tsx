@@ -1,18 +1,31 @@
 import { cn } from "@/lib/utils";
 import { Activity, ActivityType } from "@/types";
-import { 
-  Users, 
-  FileCheck, 
-  MapPin, 
-  FileText, 
-  CheckCircle, 
-  XCircle, 
-  DollarSign, 
-  UserPlus, 
+import {
+  Users,
+  FileCheck,
+  MapPin,
+  FileText,
+  CheckCircle,
+  XCircle,
+  DollarSign,
+  UserPlus,
   Building2,
   AlertCircle,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isValid } from "date-fns";
+
+function formatActivityTime(dateValue: string | Date | undefined | null): string {
+  if (!dateValue) return "Recently";
+
+  const date = new Date(dateValue);
+  if (!isValid(date)) return "Recently";
+
+  try {
+    return formatDistanceToNow(date, { addSuffix: true });
+  } catch {
+    return "Recently";
+  }
+}
 
 interface ActivityFeedProps {
   activities: Activity[];
@@ -77,7 +90,7 @@ export function ActivityFeed({ activities, className, maxItems }: ActivityFeedPr
             <div className="flex-1 space-y-1">
               <p className="text-sm leading-tight">{activity.message}</p>
               <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}
+                {formatActivityTime(activity.createdAt)}
               </p>
             </div>
           </div>

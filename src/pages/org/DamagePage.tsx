@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColumnDef } from "@tanstack/react-table";
 import { DamageAssessment } from "@/types";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 import { DamageHeatmap } from "@/components/maps/DamageHeatmap";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AlertTriangle, ThermometerSun, Satellite, Target } from "lucide-react";
@@ -35,16 +35,19 @@ const columns: ColumnDef<DamageAssessment>[] = [
       </StatusBadge>
     ) 
   },
-  { 
-    accessorKey: "assessmentDate", 
-    header: "Date", 
-    cell: ({ row }) => format(new Date(row.getValue("assessmentDate")), "MMM d, yyyy") 
+  {
+    accessorKey: "assessmentDate",
+    header: "Date",
+    cell: ({ row }) => formatDate(row.getValue("assessmentDate"))
   },
 ];
 
 export default function DamagePage() {
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string | undefined>();
-  const { data, isLoading } = useQuery({ queryKey: ["damage"], queryFn: () => mockApi.getDamageAssessments() });
+  const { data, isLoading } = useQuery({
+    queryKey: ["damage"],
+    queryFn: () => api.getDamageAssessments(),
+  });
 
   const assessments = data?.data ?? [];
 

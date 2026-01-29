@@ -22,12 +22,26 @@ interface LineChartProps {
 }
 
 export function LineChart({ data, xKey, yKeys, title, className, height = 300, formatYAxis }: LineChartProps) {
+  // Ensure data is always an array
+  const chartData = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
+
+  if (chartData.length === 0) {
+    return (
+      <Card className={cn(className)}>
+        {title && <CardHeader className="pb-2"><CardTitle className="text-base font-medium">{title}</CardTitle></CardHeader>}
+        <CardContent className={cn("flex items-center justify-center text-muted-foreground", !title && "pt-6")} style={{ height }}>
+          No data available
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className={cn(className)}>
       {title && <CardHeader className="pb-2"><CardTitle className="text-base font-medium">{title}</CardTitle></CardHeader>}
       <CardContent className={cn(!title && "pt-6")}>
         <ResponsiveContainer width="100%" height={height}>
-          <RechartsLineChart data={data as Record<string, unknown>[]} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <RechartsLineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis dataKey={xKey} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} className="text-muted-foreground" />
             <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={formatYAxis} className="text-muted-foreground" />

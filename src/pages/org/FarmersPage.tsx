@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { Farmer } from "@/types";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 import { Plus, Upload, Download } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -30,15 +31,19 @@ const columns: ColumnDef<Farmer>[] = [
   {
     accessorKey: "createdAt",
     header: "Created",
-    cell: ({ row }) => format(new Date(row.getValue("createdAt")), "MMM d, yyyy"),
+    cell: ({ row }) => formatDate(row.getValue("createdAt")),
   },
 ];
 
 export default function FarmersPage() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const orgId = user?.organizationId || "";
+
   const { data, isLoading } = useQuery({
-    queryKey: ["farmers"],
-    queryFn: () => mockApi.getFarmers("org1"),
+    queryKey: ["farmers", orgId],
+    queryFn: () => api.getFarmers(orgId),
+    enabled: !!orgId,
   });
 
   return (

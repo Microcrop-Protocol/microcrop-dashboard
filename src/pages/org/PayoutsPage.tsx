@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { Payout } from "@/types";
 import { DollarSign, Hash, TrendingUp, CheckCircle, RefreshCw } from "lucide-react";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 
 const columns: ColumnDef<Payout>[] = [
   { accessorKey: "policyNumber", header: "Policy" },
@@ -15,12 +16,19 @@ const columns: ColumnDef<Payout>[] = [
   { accessorKey: "farmerPhone", header: "Phone" },
   { accessorKey: "amount", header: "Amount", cell: ({ row }) => `KES ${(row.getValue("amount") as number).toLocaleString()}` },
   { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("status"))}>{row.getValue("status")}</StatusBadge> },
-  { accessorKey: "createdAt", header: "Date", cell: ({ row }) => format(new Date(row.getValue("createdAt")), "MMM d, yyyy") },
+  { accessorKey: "createdAt", header: "Date", cell: ({ row }) => formatDate(row.getValue("createdAt")) },
   { id: "actions", cell: ({ row }) => row.original.status === 'FAILED' && <Button size="sm" variant="outline"><RefreshCw className="mr-1 h-3 w-3" />Retry</Button> },
 ];
 
 export default function PayoutsPage() {
-  const { data, isLoading } = useQuery({ queryKey: ["payouts"], queryFn: () => mockApi.getPayouts("org1") });
+  const { user } = useAuthStore();
+  const orgId = user?.organizationId || "";
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["payouts", orgId],
+    queryFn: () => api.getPayouts(orgId),
+    enabled: !!orgId,
+  });
   const payouts = data?.data ?? [];
   const total = payouts.reduce((s, p) => s + p.amount, 0);
   const successCount = payouts.filter(p => p.status === 'COMPLETED').length;

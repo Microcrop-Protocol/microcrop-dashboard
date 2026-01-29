@@ -1,11 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
+import { KYBStatusBadge } from "@/components/kyb/KYBStatusBadge";
 import { ColumnDef } from "@tanstack/react-table";
 import { Organization } from "@/types";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -15,14 +16,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
+import { CreateOrganizationDialog } from "@/components/platform/CreateOrganizationDialog";
+import { useToast } from "@/hooks/use-toast";
+import type { AdminCreateOrganizationFormData } from "@/lib/validations/kyb";
 
 const columns: ColumnDef<Organization>[] = [
   {
     accessorKey: "name",
     header: "Name",
     cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("name")}</div>
+      <div>
+        <div className="font-medium">{row.getValue("name")}</div>
+        {row.original.contactPersonName && (
+          <div className="text-sm text-muted-foreground">{row.original.contactPersonName}</div>
+        )}
+      </div>
     ),
   },
   {
@@ -42,6 +51,15 @@ const columns: ColumnDef<Organization>[] = [
         {row.getValue("isActive") ? "Active" : "Inactive"}
       </StatusBadge>
     ),
+  },
+  {
+    accessorKey: "kybStatus",
+    header: "KYB",
+    cell: ({ row }) => {
+      const kybStatus = row.original.kybStatus;
+      if (!kybStatus) return <span className="text-muted-foreground text-sm">-</span>;
+      return <KYBStatusBadge status={kybStatus} />;
+    },
   },
   {
     accessorKey: "farmersCount",
@@ -65,20 +83,43 @@ const columns: ColumnDef<Organization>[] = [
   {
     accessorKey: "createdAt",
     header: "Created",
-    cell: ({ row }) => format(new Date(row.getValue("createdAt")), "MMM d, yyyy"),
+    cell: ({ row }) => formatDate(row.getValue("createdAt")),
   },
 ];
 
 export default function OrganizationsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["organizations"],
-    queryFn: () => mockApi.getOrganizations(),
+    queryFn: () => api.getOrganizations(),
   });
+
+  const handleCreateOrganization = async (data: AdminCreateOrganizationFormData) => {
+    setIsCreating(true);
+    try {
+      const newOrg = await api.adminCreateOrganization(data);
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      toast({
+        title: "Organization Created",
+        description: `${newOrg.name} has been created successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create organization",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const filteredData = (data?.data ?? []).filter((org) => {
     const matchesType = typeFilter === "all" || org.type === typeFilter;
@@ -93,11 +134,17 @@ export default function OrganizationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Organizations</h1>
-        <p className="text-muted-foreground">
-          Manage all organizations on the platform
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Organizations</h1>
+          <p className="text-muted-foreground">
+            Manage all organizations on the platform
+          </p>
+        </div>
+        <CreateOrganizationDialog
+          onSubmit={handleCreateOrganization}
+          isLoading={isCreating}
+        />
       </div>
 
       {/* Filters */}

@@ -1,6 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { mockApi, mockPolicies, mockPayouts } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { PieChart } from "@/components/charts/PieChart";
@@ -8,7 +8,7 @@ import { BarChart } from "@/components/charts/BarChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle } from "lucide-react";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 
 const onboardingSteps = [
   { key: 'REGISTERED', label: 'Registered' },
@@ -24,13 +24,30 @@ export default function OrganizationDetailPage() {
 
   const { data: org, isLoading: orgLoading } = useQuery({
     queryKey: ["organization", orgId],
-    queryFn: () => mockApi.getOrganization(orgId!),
+    queryFn: () => api.getOrganization(orgId!),
+    enabled: !!orgId,
   });
 
   const { data: stats } = useQuery({
     queryKey: ["organizationStats", orgId],
-    queryFn: () => mockApi.getOrganizationStats(orgId!),
+    queryFn: () => api.getOrganizationStats(orgId!),
+    enabled: !!orgId,
   });
+
+  const { data: policiesData } = useQuery({
+    queryKey: ["orgPolicies", orgId],
+    queryFn: () => api.getPolicies(orgId!),
+    enabled: !!orgId,
+  });
+
+  const { data: payoutsData } = useQuery({
+    queryKey: ["orgPayouts", orgId],
+    queryFn: () => api.getPayouts(orgId!),
+    enabled: !!orgId,
+  });
+
+  const recentPolicies = policiesData?.data?.slice(0, 5) ?? [];
+  const recentPayouts = payoutsData?.data?.slice(0, 5) ?? [];
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -98,7 +115,7 @@ export default function OrganizationDetailPage() {
               </StatusBadge>
             </div>
             <p className="text-muted-foreground">
-              Created {format(new Date(org.createdAt), "MMMM d, yyyy")}
+              Created {formatDate(org.createdAt, "MMMM d, yyyy")}
             </p>
           </div>
         </div>
@@ -160,7 +177,7 @@ export default function OrganizationDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {mockPolicies.slice(0, 5).map((policy) => (
+              {recentPolicies.map((policy) => (
                 <div key={policy.id} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{policy.policyNumber}</p>
@@ -181,7 +198,7 @@ export default function OrganizationDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {mockPayouts.slice(0, 5).map((payout) => (
+              {recentPayouts.map((payout) => (
                 <div key={payout.id} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{payout.policyNumber}</p>

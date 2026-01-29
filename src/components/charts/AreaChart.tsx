@@ -36,6 +36,24 @@ export function AreaChart({
   stacked = false,
   formatYAxis,
 }: AreaChartProps) {
+  // Ensure data is always an array
+  const chartData = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
+
+  if (chartData.length === 0) {
+    return (
+      <Card className={cn(className)}>
+        {title && (
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium">{title}</CardTitle>
+          </CardHeader>
+        )}
+        <CardContent className={cn("flex items-center justify-center text-muted-foreground", !title && "pt-6")} style={{ height }}>
+          No data available
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className={cn(className)}>
       {title && (
@@ -45,7 +63,7 @@ export function AreaChart({
       )}
       <CardContent className={cn(!title && "pt-6")}>
         <ResponsiveContainer width="100%" height={height}>
-          <RechartsAreaChart data={data as Record<string, unknown>[]} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <RechartsAreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
               {yKeys.map((yKey) => (
                 <linearGradient key={yKey.key} id={`gradient-${yKey.key}`} x1="0" y1="0" x2="0" y2="1">
