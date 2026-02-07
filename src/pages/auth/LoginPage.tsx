@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthStore } from "@/stores/authStore";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -44,7 +44,7 @@ export default function LoginPage() {
   const onSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     try {
-      const { user, tokens } = await mockApi.login(values.email, values.password);
+      const { user, tokens } = await api.login(values.email, values.password);
       login(user, tokens);
       
       toast({
@@ -61,7 +61,7 @@ export default function LoginPage() {
     } catch (error) {
       toast({
         title: "Login failed",
-        description: "Invalid email or password. Try: admin@microcrop.io / password123",
+        description: "Invalid email or password. Please check your credentials and try again.",
         variant: "destructive",
       });
     } finally {
@@ -146,13 +146,11 @@ export default function LoginPage() {
             </form>
           </Form>
           
-          <div className="mt-6 rounded-lg bg-muted p-4">
-            <p className="text-xs font-medium text-muted-foreground">Demo Credentials:</p>
-            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-              <p><span className="font-medium">Platform Admin:</span> admin@microcrop.io</p>
-              <p><span className="font-medium">Org Admin:</span> manager@greenfields.co.ke</p>
-              <p><span className="font-medium">Password:</span> password123</p>
-            </div>
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            Want to register your organization?{" "}
+            <Link to="/register-organization" className="font-medium text-primary hover:underline">
+              Register here
+            </Link>
           </div>
         </CardContent>
       </Card>
