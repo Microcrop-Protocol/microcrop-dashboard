@@ -10,17 +10,29 @@ interface PlotMapProps {
   selectedPlotId?: string;
 }
 
+function escapeHtml(str: string): string {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+
 export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const onSelectRef = useRef(onPlotSelect);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN;
 
+  // Keep callback ref in sync without triggering marker rebuilds
+  onSelectRef.current = onPlotSelect;
+
+  // Initialize map instance
   useEffect(() => {
     if (!mapContainer.current) return;
-    
+
     if (!token) {
       setMapError('Mapbox token not configured');
       return;
@@ -29,14 +41,17 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
     mapboxgl.accessToken = token;
 
     try {
-      map.current = new mapboxgl.Map({
+      const instance = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [37.0, -1.0], // Kenya center
+        center: [37.0, -1.0],
         zoom: 6,
       });
 
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      instance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      instance.on('load', () => setMapReady(true));
+
+      map.current = instance;
     } catch (error) {
       setMapError('Failed to initialize map');
       console.error('Map initialization error:', error);
@@ -44,11 +59,14 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
 
     return () => {
       map.current?.remove();
+      map.current = null;
+      setMapReady(false);
     };
   }, [token]);
 
+  // Sync markers with data — only runs once map is loaded
   useEffect(() => {
-    if (!map.current || !token) return;
+    if (!map.current || !mapReady) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
@@ -56,10 +74,11 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
 
     if (plots.length === 0) return;
 
-    // Add markers for each plot
+    const currentMap = map.current;
+
     plots.forEach(plot => {
       const isSelected = plot.id === selectedPlotId;
-      
+
       const el = document.createElement('div');
       el.className = 'plot-marker';
       el.style.cssText = `
@@ -75,14 +94,14 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
 
       const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
         <div style="padding: 8px; min-width: 180px;">
-          <h4 style="font-weight: 600; margin-bottom: 8px; color: #16a34a;">${plot.name}</h4>
+          <h4 style="font-weight: 600; margin-bottom: 8px; color: #16a34a;">${escapeHtml(plot.name)}</h4>
           <div style="font-size: 13px; color: #666; line-height: 1.6;">
-            <div><strong>Farmer:</strong> ${plot.farmerName}</div>
-            <div><strong>Crop:</strong> ${plot.cropType}</div>
+            <div><strong>Farmer:</strong> ${escapeHtml(plot.farmerName)}</div>
+            <div><strong>Crop:</strong> ${escapeHtml(plot.cropType)}</div>
             <div><strong>Acreage:</strong> ${plot.acreage} acres</div>
-            ${plot.latestNdvi ? `<div><strong>NDVI:</strong> ${plot.latestNdvi.toFixed(2)}</div>` : ''}
-            ${plot.latestTemperature ? `<div><strong>Temp:</strong> ${plot.latestTemperature.toFixed(1)}°C</div>` : ''}
-            ${plot.latestRainfall ? `<div><strong>Rainfall:</strong> ${plot.latestRainfall.toFixed(1)}mm</div>` : ''}
+            ${plot.latestNdvi != null ? `<div><strong>NDVI:</strong> ${plot.latestNdvi.toFixed(2)}</div>` : ''}
+            ${plot.latestTemperature != null ? `<div><strong>Temp:</strong> ${plot.latestTemperature.toFixed(1)}&deg;C</div>` : ''}
+            ${plot.latestRainfall != null ? `<div><strong>Rainfall:</strong> ${plot.latestRainfall.toFixed(1)}mm</div>` : ''}
           </div>
         </div>
       `);
@@ -90,10 +109,10 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
       const marker = new mapboxgl.Marker(el)
         .setLngLat([plot.longitude, plot.latitude])
         .setPopup(popup)
-        .addTo(map.current!);
+        .addTo(currentMap);
 
       el.addEventListener('click', () => {
-        onPlotSelect?.(plot);
+        onSelectRef.current?.(plot);
       });
 
       markersRef.current.push(marker);
@@ -103,14 +122,14 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
     if (plots.length > 1) {
       const bounds = new mapboxgl.LngLatBounds();
       plots.forEach(plot => bounds.extend([plot.longitude, plot.latitude]));
-      map.current.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+      currentMap.fitBounds(bounds, { padding: 50, maxZoom: 12 });
     } else if (plots.length === 1) {
-      map.current.flyTo({
+      currentMap.flyTo({
         center: [plots[0].longitude, plots[0].latitude],
         zoom: 14,
       });
     }
-  }, [plots, selectedPlotId, onPlotSelect, token]);
+  }, [plots, selectedPlotId, mapReady]);
 
   if (mapError) {
     return (
@@ -120,7 +139,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
           <h3 className="font-semibold text-lg mb-2">Map Unavailable</h3>
           <p className="text-muted-foreground text-sm">{mapError}</p>
           <p className="text-muted-foreground text-xs mt-2">
-            Add MAPBOX_TOKEN to secrets to enable
+            Set VITE_MAPBOX_TOKEN in your .env file to enable
           </p>
         </div>
       </Card>
@@ -128,8 +147,8 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
   }
 
   return (
-    <div 
-      ref={mapContainer} 
+    <div
+      ref={mapContainer}
       className="h-full w-full rounded-lg overflow-hidden"
       style={{ minHeight: '400px' }}
     />
