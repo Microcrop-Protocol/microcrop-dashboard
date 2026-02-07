@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { DamageAssessment } from '@/types';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Map, Satellite } from 'lucide-react';
 
 interface DamageHeatmapProps {
   assessments: DamageAssessment[];
@@ -10,8 +12,20 @@ interface DamageHeatmapProps {
   selectedAssessmentId?: string;
 }
 
+const MAP_STYLES = {
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+  streets: 'mapbox://styles/mapbox/dark-v11',
+} as const;
+
+type MapStyle = keyof typeof MAP_STYLES;
+
+function escapeHtml(str: string): string {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+
 function getDamageColor(score: number): string {
-  // 0-30% green (healthy), 30-60% yellow (moderate), 60-100% red (severe)
   if (score < 0.3) return '#22c55e';
   if (score < 0.6) return '#eab308';
   return '#ef4444';
@@ -27,13 +41,28 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const onSelectRef = useRef(onAssessmentSelect);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapStyle, setMapStyle] = useState<MapStyle>('satellite');
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN;
 
+  // Keep callback ref in sync without triggering marker rebuilds
+  onSelectRef.current = onAssessmentSelect;
+
+  const toggleMapStyle = useCallback(() => {
+    setMapStyle(prev => {
+      const next = prev === 'satellite' ? 'streets' : 'satellite';
+      map.current?.setStyle(MAP_STYLES[next]);
+      return next;
+    });
+  }, []);
+
+  // Initialize map instance
   useEffect(() => {
     if (!mapContainer.current) return;
-    
+
     if (!token) {
       setMapError('Mapbox token not configured');
       return;
@@ -42,14 +71,17 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
     mapboxgl.accessToken = token;
 
     try {
-      map.current = new mapboxgl.Map({
+      const instance = new mapboxgl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/dark-v11',
+        style: MAP_STYLES['satellite'],
         center: [37.0, -1.0],
         zoom: 6,
       });
 
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      instance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      instance.on('load', () => setMapReady(true));
+
+      map.current = instance;
     } catch (error) {
       setMapError('Failed to initialize map');
       console.error('Map initialization error:', error);
@@ -57,11 +89,14 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
 
     return () => {
       map.current?.remove();
+      map.current = null;
+      setMapReady(false);
     };
   }, [token]);
 
+  // Sync markers with data — only runs once map is loaded
   useEffect(() => {
-    if (!map.current || !token) return;
+    if (!map.current || !mapReady) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
@@ -69,12 +104,13 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
 
     if (assessments.length === 0) return;
 
-    // Add markers for each assessment
+    const currentMap = map.current;
+
     assessments.forEach(assessment => {
       const isSelected = assessment.id === selectedAssessmentId;
       const color = getDamageColor(assessment.combinedDamageScore);
       const label = getDamageLabel(assessment.combinedDamageScore);
-      
+
       const el = document.createElement('div');
       el.className = 'damage-marker';
       el.style.cssText = `
@@ -92,15 +128,15 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
         <div style="padding: 8px; min-width: 200px;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
             <div style="width: 12px; height: 12px; border-radius: 50%; background: ${color};"></div>
-            <h4 style="font-weight: 600; margin: 0;">${assessment.policyNumber}</h4>
+            <h4 style="font-weight: 600; margin: 0;">${escapeHtml(assessment.policyNumber)}</h4>
           </div>
           <div style="font-size: 13px; color: #666; line-height: 1.6;">
-            <div><strong>Plot:</strong> ${assessment.plotName}</div>
-            <div><strong>Status:</strong> <span style="color: ${color}; font-weight: 500;">${label}</span></div>
+            <div><strong>Plot:</strong> ${escapeHtml(assessment.plotName)}</div>
+            <div><strong>Status:</strong> <span style="color: ${color}; font-weight: 500;">${escapeHtml(label)}</span></div>
             <div><strong>Combined Damage:</strong> ${(assessment.combinedDamageScore * 100).toFixed(0)}%</div>
             <div><strong>Weather Score:</strong> ${(assessment.weatherDamageScore * 100).toFixed(0)}%</div>
             <div><strong>Satellite Score:</strong> ${(assessment.satelliteDamageScore * 100).toFixed(0)}%</div>
-            <div><strong>Triggered:</strong> ${assessment.isTriggered ? '✓ Yes' : '✗ No'}</div>
+            <div><strong>Triggered:</strong> ${assessment.isTriggered ? '&#10003; Yes' : '&#10007; No'}</div>
           </div>
         </div>
       `);
@@ -108,10 +144,10 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
       const marker = new mapboxgl.Marker(el)
         .setLngLat([assessment.longitude, assessment.latitude])
         .setPopup(popup)
-        .addTo(map.current!);
+        .addTo(currentMap);
 
       el.addEventListener('click', () => {
-        onAssessmentSelect?.(assessment);
+        onSelectRef.current?.(assessment);
       });
 
       markersRef.current.push(marker);
@@ -121,14 +157,14 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
     if (assessments.length > 1) {
       const bounds = new mapboxgl.LngLatBounds();
       assessments.forEach(a => bounds.extend([a.longitude, a.latitude]));
-      map.current.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+      currentMap.fitBounds(bounds, { padding: 50, maxZoom: 12 });
     } else if (assessments.length === 1) {
-      map.current.flyTo({
+      currentMap.flyTo({
         center: [assessments[0].longitude, assessments[0].latitude],
         zoom: 14,
       });
     }
-  }, [assessments, selectedAssessmentId, onAssessmentSelect, token]);
+  }, [assessments, selectedAssessmentId, mapReady]);
 
   if (mapError) {
     return (
@@ -138,7 +174,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
           <h3 className="font-semibold text-lg mb-2">Heatmap Unavailable</h3>
           <p className="text-muted-foreground text-sm">{mapError}</p>
           <p className="text-muted-foreground text-xs mt-2">
-            Add MAPBOX_TOKEN to secrets to enable
+            Set VITE_MAPBOX_TOKEN in your .env file to enable
           </p>
         </div>
       </Card>
@@ -147,11 +183,34 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
 
   return (
     <div className="relative h-full w-full">
-      <div 
-        ref={mapContainer} 
+      <div
+        ref={mapContainer}
         className="h-full w-full rounded-lg overflow-hidden"
         style={{ minHeight: '400px' }}
       />
+
+      {/* Map Style Toggle */}
+      <div className="absolute top-4 left-4">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={toggleMapStyle}
+          className="bg-background/90 backdrop-blur-sm shadow-lg"
+        >
+          {mapStyle === 'satellite' ? (
+            <>
+              <Map className="h-4 w-4 mr-2" />
+              Streets
+            </>
+          ) : (
+            <>
+              <Satellite className="h-4 w-4 mr-2" />
+              Satellite
+            </>
+          )}
+        </Button>
+      </div>
+
       {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border">
         <div className="text-xs font-medium mb-2">Damage Level</div>
