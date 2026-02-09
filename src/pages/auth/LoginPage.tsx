@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { isRoleAllowedOnSubdomain, getCorrectSubdomain } from "@/lib/subdomain";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -46,7 +47,20 @@ export default function LoginPage() {
     try {
       const { user, tokens } = await api.login(values.email, values.password);
       login(user, tokens);
-      
+
+      // Check if user's role matches the current subdomain
+      if (!isRoleAllowedOnSubdomain(user.role)) {
+        const redirect = getCorrectSubdomain(user.role);
+        if (redirect) {
+          toast({
+            title: "Wrong portal",
+            description: `Redirecting you to ${redirect.label}...`,
+          });
+          window.location.href = redirect.url;
+          return;
+        }
+      }
+
       toast({
         title: "Welcome back!",
         description: `Logged in as ${user.firstName} ${user.lastName}`,
