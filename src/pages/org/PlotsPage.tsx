@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { DataTable } from "@/components/ui/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColumnDef } from "@tanstack/react-table";
@@ -20,7 +21,14 @@ const columns: ColumnDef<Plot>[] = [
 
 export default function PlotsPage() {
   const [selectedPlotId, setSelectedPlotId] = useState<string | undefined>();
-  const { data, isLoading } = useQuery({ queryKey: ["plots"], queryFn: () => mockApi.getPlots("org1") });
+  const { user } = useAuthStore();
+  const orgId = user?.organizationId || "";
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["plots", orgId],
+    queryFn: () => api.getPlots(orgId),
+    enabled: !!orgId,
+  });
 
   const plots = data?.data ?? [];
 
