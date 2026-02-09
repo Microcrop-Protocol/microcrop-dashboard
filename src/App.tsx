@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { getSubdomainContext } from "@/lib/subdomain";
 
 // Auth pages
 const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
@@ -73,6 +74,7 @@ const queryClient = new QueryClient({
 
 function RootRedirect() {
   const { isAuthenticated, user, isLoading } = useAuthStore();
+  const context = getSubdomainContext();
 
   if (isLoading) {
     return (
@@ -86,6 +88,17 @@ function RootRedirect() {
     return <Navigate to="/login" replace />;
   }
 
+  // On portal subdomain, always go to platform dashboard
+  if (context === 'portal') {
+    return <Navigate to="/platform/dashboard" replace />;
+  }
+
+  // On network subdomain, always go to org dashboard
+  if (context === 'network') {
+    return <Navigate to="/org/dashboard" replace />;
+  }
+
+  // Unrestricted — route by role
   if (user?.role === 'PLATFORM_ADMIN') {
     return <Navigate to="/platform/dashboard" replace />;
   }
