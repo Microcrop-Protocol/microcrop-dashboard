@@ -90,6 +90,22 @@ export const api = {
     return apiClient.refreshToken(refreshToken);
   },
 
+  forgotPassword: async (email: string) => {
+    logApiCall('forgotPassword');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.forgotPassword(email);
+    }
+    return apiClient.forgotPassword(email);
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    logApiCall('resetPassword');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.resetPassword(token, password);
+    }
+    return apiClient.resetPassword(token, password);
+  },
+
   // ============================================
   // PLATFORM STATS
   // ============================================
