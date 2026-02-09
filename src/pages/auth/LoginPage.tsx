@@ -18,7 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { isRoleAllowedOnSubdomain, getCorrectSubdomain } from "@/lib/subdomain";
+import { isRoleAllowedOnSubdomain, getCorrectSubdomain, getSubdomainContext } from "@/lib/subdomain";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -33,6 +33,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuthStore();
   const { toast } = useToast();
+  const context = getSubdomainContext();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -93,9 +94,15 @@ export default function LoginPage() {
             className="mx-auto h-16 w-16 object-contain"
           />
           <div>
-            <CardTitle className="text-2xl font-bold">MicroCrop</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              {context === 'portal' ? 'MicroCrop Admin' : context === 'network' ? 'MicroCrop Network' : 'MicroCrop'}
+            </CardTitle>
             <CardDescription className="mt-1">
-              Sign in to your account to continue
+              {context === 'portal'
+                ? 'Sign in to the platform administration portal'
+                : context === 'network'
+                  ? 'Sign in to your organization dashboard'
+                  : 'Sign in to your account to continue'}
             </CardDescription>
           </div>
         </CardHeader>
@@ -160,12 +167,14 @@ export default function LoginPage() {
             </form>
           </Form>
           
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            Want to register your organization?{" "}
-            <Link to="/register-organization" className="font-medium text-primary hover:underline">
-              Register here
-            </Link>
-          </div>
+          {context !== 'portal' && (
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              Want to register your organization?{" "}
+              <Link to="/register-organization" className="font-medium text-primary hover:underline">
+                Register here
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
