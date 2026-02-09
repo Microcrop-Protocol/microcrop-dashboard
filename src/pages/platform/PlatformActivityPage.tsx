@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi, mockActivities } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function PlatformActivityPage() {
   const { data } = useQuery({
     queryKey: ["platformActivities"],
-    queryFn: () => mockApi.getActivities(),
+    queryFn: () => api.getActivities(),
   });
 
   return (
@@ -21,7 +21,7 @@ export default function PlatformActivityPage() {
           <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActivityFeed activities={data?.data ?? mockActivities} />
+          <ActivityFeed activities={data?.data ?? []} />
         </CardContent>
       </Card>
     </div>
