@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -19,7 +19,7 @@ export default function RevenueAnalyticsPage() {
 
   const { data } = useQuery({
     queryKey: ["revenueAnalytics", dateRange, granularity],
-    queryFn: () => mockApi.getRevenueAnalytics(),
+    queryFn: () => api.getRevenueAnalytics(),
   });
 
   const formatCurrency = (value: number) => {
