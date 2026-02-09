@@ -12,6 +12,8 @@ import { getSubdomainContext } from "@/lib/subdomain";
 
 // Auth pages
 const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
+const ForgotPasswordPage = lazy(() => import("@/pages/auth/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));
 const RegisterOrganizationPage = lazy(() => import("@/pages/auth/RegisterOrganizationPage"));
 const AcceptInvitationPage = lazy(() => import("@/pages/auth/AcceptInvitationPage"));
 
@@ -120,6 +122,8 @@ const App = () => (
 
               {/* Auth routes */}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Public registration routes — blocked on portal (admin-only) subdomain */}
               <Route
