@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LineChart } from "@/components/charts/LineChart";
 import { PieChart } from "@/components/charts/PieChart";
@@ -20,7 +20,7 @@ export default function PoliciesAnalyticsPage() {
 
   const { data } = useQuery({
     queryKey: ["policiesAnalytics", dateRange, granularity],
-    queryFn: () => mockApi.getPoliciesAnalytics(),
+    queryFn: () => api.getPoliciesAnalytics(),
   });
 
   return (
