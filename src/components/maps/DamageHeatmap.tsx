@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import type mapboxgl from 'mapbox-gl';
 import { DamageAssessment } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +40,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const mapboxRef = useRef<typeof mapboxgl | null>(null);
   const onSelectRef = useRef(onAssessmentSelect);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -68,26 +68,39 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
       return;
     }
 
-    mapboxgl.accessToken = token;
+    let cancelled = false;
 
-    try {
-      const instance = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: MAP_STYLES['satellite'],
-        center: [37.0, -1.0],
-        zoom: 6,
-      });
+    (async () => {
+      try {
+        const mb = await import('mapbox-gl');
+        await import('mapbox-gl/dist/mapbox-gl.css');
+        if (cancelled) return;
 
-      instance.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      instance.on('load', () => setMapReady(true));
+        const mapboxgl = mb.default;
+        mapboxRef.current = mapboxgl;
+        mapboxgl.accessToken = token;
 
-      map.current = instance;
-    } catch (error) {
-      setMapError('Failed to initialize map');
-      console.error('Map initialization error:', error);
-    }
+        const instance = new mapboxgl.Map({
+          container: mapContainer.current!,
+          style: MAP_STYLES['satellite'],
+          center: [37.0, -1.0],
+          zoom: 6,
+        });
+
+        instance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        instance.on('load', () => setMapReady(true));
+
+        map.current = instance;
+      } catch (error) {
+        if (!cancelled) {
+          setMapError('Failed to initialize map');
+          console.error('Map initialization error:', error);
+        }
+      }
+    })();
 
     return () => {
+      cancelled = true;
       map.current?.remove();
       map.current = null;
       setMapReady(false);
@@ -96,7 +109,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
 
   // Sync markers with data — only runs once map is loaded
   useEffect(() => {
-    if (!map.current || !mapReady) return;
+    if (!map.current || !mapReady || !mapboxRef.current) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
@@ -105,6 +118,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
     if (assessments.length === 0) return;
 
     const currentMap = map.current;
+    const mb = mapboxRef.current;
 
     assessments.forEach(assessment => {
       const isSelected = assessment.id === selectedAssessmentId;
@@ -124,7 +138,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
         transition: all 0.2s ease;
       `;
 
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+      const popup = new mb.Popup({ offset: 25 }).setHTML(`
         <div style="padding: 8px; min-width: 200px;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
             <div style="width: 12px; height: 12px; border-radius: 50%; background: ${color};"></div>
@@ -141,7 +155,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
         </div>
       `);
 
-      const marker = new mapboxgl.Marker(el)
+      const marker = new mb.Marker(el)
         .setLngLat([assessment.longitude, assessment.latitude])
         .setPopup(popup)
         .addTo(currentMap);
@@ -155,7 +169,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
 
     // Fit bounds to show all assessments
     if (assessments.length > 1) {
-      const bounds = new mapboxgl.LngLatBounds();
+      const bounds = new mb.LngLatBounds();
       assessments.forEach(a => bounds.extend([a.longitude, a.latitude]));
       currentMap.fitBounds(bounds, { padding: 50, maxZoom: 12 });
     } else if (assessments.length === 1) {
