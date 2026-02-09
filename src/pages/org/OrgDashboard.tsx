@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi, mockActivities, mockLiquidityPool } from "@/lib/mockData";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,14 +8,24 @@ import { Users, FileText, DollarSign, Wallet, TrendingUp, ExternalLink } from "l
 import { Button } from "@/components/ui/button";
 
 export default function OrgDashboard() {
+  const { user } = useAuthStore();
+  const orgId = user?.organizationId || "";
+
   const { data: stats } = useQuery({
-    queryKey: ["orgStats"],
-    queryFn: () => mockApi.getOrganizationStats("org1"),
+    queryKey: ["orgStats", orgId],
+    queryFn: () => api.getOrganizationStats(orgId),
+    enabled: !!orgId,
   });
 
   const { data: activities } = useQuery({
-    queryKey: ["orgActivities"],
-    queryFn: () => mockApi.getActivities("org1"),
+    queryKey: ["orgActivities", orgId],
+    queryFn: () => api.getActivities(orgId),
+    enabled: !!orgId,
+  });
+
+  const { data: pool } = useQuery({
+    queryKey: ["liquidityPool"],
+    queryFn: () => api.getLiquidityPool(),
   });
 
   const formatCurrency = (value: number) => {
@@ -37,12 +48,14 @@ export default function OrgDashboard() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Organization overview and key metrics</p>
         </div>
-        <Button variant="outline" asChild>
-          <a href={`https://basescan.org/address/${mockLiquidityPool.address}`} target="_blank" rel="noopener noreferrer">
-            Pool: {truncateAddress(mockLiquidityPool.address)}
-            <ExternalLink className="ml-2 h-4 w-4" />
-          </a>
-        </Button>
+        {pool?.address && (
+          <Button variant="outline" asChild>
+            <a href={`https://basescan.org/address/${pool.address}`} target="_blank" rel="noopener noreferrer">
+              Pool: {truncateAddress(pool.address)}
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </a>
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -59,7 +72,7 @@ export default function OrgDashboard() {
           <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActivityFeed activities={activities?.data ?? mockActivities.filter(a => a.organizationId === 'org1')} maxItems={5} />
+          <ActivityFeed activities={activities?.data ?? []} maxItems={5} />
         </CardContent>
       </Card>
     </div>
