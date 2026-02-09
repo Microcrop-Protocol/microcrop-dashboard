@@ -1,11 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { Wallet, DollarSign, TrendingDown, Percent } from "lucide-react";
 
 export default function FinancialsPage() {
-  const { data } = useQuery({ queryKey: ["financials"], queryFn: () => mockApi.getFinancialSummary() });
+  const { data } = useQuery({
+    queryKey: ["financials"],
+    queryFn: () => api.getFinancialSummary(),
+  });
   const formatCurrency = (v: number) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(v);
 
   const chartData = [
