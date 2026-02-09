@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import type mapboxgl from 'mapbox-gl';
 import { Plot } from '@/types';
 import { Card } from '@/components/ui/card';
 
@@ -20,6 +19,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const mapboxRef = useRef<typeof mapboxgl | null>(null);
   const onSelectRef = useRef(onPlotSelect);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -38,26 +38,39 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
       return;
     }
 
-    mapboxgl.accessToken = token;
+    let cancelled = false;
 
-    try {
-      const instance = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [37.0, -1.0],
-        zoom: 6,
-      });
+    (async () => {
+      try {
+        const mb = await import('mapbox-gl');
+        await import('mapbox-gl/dist/mapbox-gl.css');
+        if (cancelled) return;
 
-      instance.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      instance.on('load', () => setMapReady(true));
+        const mapboxgl = mb.default;
+        mapboxRef.current = mapboxgl;
+        mapboxgl.accessToken = token;
 
-      map.current = instance;
-    } catch (error) {
-      setMapError('Failed to initialize map');
-      console.error('Map initialization error:', error);
-    }
+        const instance = new mapboxgl.Map({
+          container: mapContainer.current!,
+          style: 'mapbox://styles/mapbox/satellite-streets-v12',
+          center: [37.0, -1.0],
+          zoom: 6,
+        });
+
+        instance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        instance.on('load', () => setMapReady(true));
+
+        map.current = instance;
+      } catch (error) {
+        if (!cancelled) {
+          setMapError('Failed to initialize map');
+          console.error('Map initialization error:', error);
+        }
+      }
+    })();
 
     return () => {
+      cancelled = true;
       map.current?.remove();
       map.current = null;
       setMapReady(false);
@@ -66,7 +79,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
 
   // Sync markers with data — only runs once map is loaded
   useEffect(() => {
-    if (!map.current || !mapReady) return;
+    if (!map.current || !mapReady || !mapboxRef.current) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
@@ -75,6 +88,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
     if (plots.length === 0) return;
 
     const currentMap = map.current;
+    const mb = mapboxRef.current;
 
     plots.forEach(plot => {
       const isSelected = plot.id === selectedPlotId;
@@ -92,7 +106,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
         transition: all 0.2s ease;
       `;
 
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+      const popup = new mb.Popup({ offset: 25 }).setHTML(`
         <div style="padding: 8px; min-width: 180px;">
           <h4 style="font-weight: 600; margin-bottom: 8px; color: #16a34a;">${escapeHtml(plot.name)}</h4>
           <div style="font-size: 13px; color: #666; line-height: 1.6;">
@@ -106,7 +120,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
         </div>
       `);
 
-      const marker = new mapboxgl.Marker(el)
+      const marker = new mb.Marker(el)
         .setLngLat([plot.longitude, plot.latitude])
         .setPopup(popup)
         .addTo(currentMap);
@@ -120,7 +134,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
 
     // Fit bounds to show all plots
     if (plots.length > 1) {
-      const bounds = new mapboxgl.LngLatBounds();
+      const bounds = new mb.LngLatBounds();
       plots.forEach(plot => bounds.extend([plot.longitude, plot.latitude]));
       currentMap.fitBounds(bounds, { padding: 50, maxZoom: 12 });
     } else if (plots.length === 1) {
