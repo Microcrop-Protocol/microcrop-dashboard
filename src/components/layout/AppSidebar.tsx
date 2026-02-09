@@ -20,6 +20,10 @@ import {
   Menu,
   X,
   ChevronDown,
+  ClipboardCheck,
+  Mail,
+  Landmark,
+  PiggyBank,
 } from "lucide-react";
 import {
   Collapsible,
@@ -37,6 +41,10 @@ interface NavItem {
 const platformNavItems: NavItem[] = [
   { title: "Dashboard", href: "/platform/dashboard", icon: LayoutDashboard },
   { title: "Organizations", href: "/platform/organizations", icon: Building2 },
+  { title: "Pools", href: "/platform/pools", icon: PiggyBank },
+  { title: "Treasury", href: "/platform/treasury", icon: Landmark },
+  { title: "KYB Review", href: "/platform/kyb-review", icon: ClipboardCheck },
+  { title: "Invitations", href: "/platform/invitations", icon: Mail },
   {
     title: "Analytics",
     href: "/platform/analytics",
