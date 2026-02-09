@@ -121,8 +121,15 @@ const App = () => (
               {/* Auth routes */}
               <Route path="/login" element={<LoginPage />} />
 
-              {/* Public registration routes */}
-              <Route path="/register-organization" element={<RegisterOrganizationPage />} />
+              {/* Public registration routes — blocked on portal (admin-only) subdomain */}
+              <Route
+                path="/register-organization"
+                element={
+                  getSubdomainContext() === 'portal'
+                    ? <Navigate to="/login" replace />
+                    : <RegisterOrganizationPage />
+                }
+              />
               <Route path="/accept-invitation/:token" element={<AcceptInvitationPage />} />
 
               {/* Platform Admin routes */}
