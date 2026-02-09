@@ -21,7 +21,7 @@ export interface AuthTokens {
 }
 
 // Organization Types
-export type OrganizationType = 'COOPERATIVE' | 'AGGREGATOR' | 'INSURER' | 'GOVERNMENT';
+export type OrganizationType = 'COOPERATIVE' | 'NGO' | 'MFI' | 'INSURANCE_COMPANY' | 'GOVERNMENT' | 'OTHER';
 export type OnboardingStep = 'REGISTERED' | 'CONFIGURED' | 'POOL_DEPLOYED' | 'FUNDED' | 'STAFF_INVITED' | 'ACTIVATED';
 
 export interface Organization {
@@ -35,6 +35,85 @@ export interface Organization {
   policiesCount: number;
   payoutsCount: number;
   usersCount: number;
+  createdAt: string;
+  // KYB fields
+  kybStatus?: KYBStatus;
+  kybVerificationId?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactPersonName?: string;
+}
+
+// KYB (Know Your Business) Types
+export type KYBStatus = 'PENDING_REVIEW' | 'VERIFIED' | 'REJECTED';
+export type KYBDocumentType = 'BUSINESS_REGISTRATION_CERT' | 'TAX_PIN_CERT';
+export type InvitationStatus = 'PENDING' | 'SENT' | 'ACCEPTED' | 'EXPIRED';
+export type ApplicationStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+
+export interface KYBDocument {
+  id: string;
+  organizationId?: string;
+  applicationId?: string;
+  type: KYBDocumentType;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  uploadedAt: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+}
+
+export interface KYBVerification {
+  id: string;
+  organizationId?: string;
+  applicationId?: string;
+  status: KYBStatus;
+  documents: KYBDocument[];
+  reviewNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  submittedAt: string;
+}
+
+export interface OrganizationApplication {
+  id: string;
+  name: string;
+  registrationNumber: string;
+  type: OrganizationType;
+  contactFirstName: string;
+  contactLastName: string;
+  contactEmail: string;
+  contactPhone: string;
+  // Optional fields
+  county?: string;
+  estimatedFarmers?: number;
+  website?: string;
+  description?: string;
+  // Document URLs (returned by backend after upload)
+  businessRegistrationCertUrl?: string;
+  businessRegistrationCertName?: string;
+  taxPinCertUrl?: string;
+  taxPinCertName?: string;
+  // KYB verification (may be null if no documents uploaded)
+  kybVerification?: KYBVerification | null;
+  rejectionReason?: string;
+  status: ApplicationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrgAdminInvitation {
+  id: string;
+  organizationId: string;
+  organizationName?: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: InvitationStatus;
+  token: string;
+  tokenExpiresAt: string;
+  sentAt?: string;
+  acceptedAt?: string;
   createdAt: string;
 }
 
@@ -170,6 +249,100 @@ export interface LiquidityPool {
   payoutsSent: number;
   feesPaid: number;
   availableForWithdrawal: number;
+}
+
+// Enhanced Pool Status (from API)
+export type PoolType = 'PUBLIC' | 'PRIVATE' | 'MUTUAL';
+
+export interface PoolStatus {
+  poolAddress: string;
+  poolValue: number;
+  totalSupply: number;
+  tokenPrice: number;
+  totalPremiums: number;
+  totalPayouts: number;
+  activeExposure: number;
+  minDeposit: number;
+  maxDeposit: number;
+  targetCapital: number;
+  maxCapital: number;
+  depositsOpen: boolean;
+  withdrawalsOpen: boolean;
+  paused: boolean;
+  utilizationRate: number;
+}
+
+export interface PoolDepositResult {
+  txHash: string;
+  blockNumber: number;
+  tokensMinted: string;
+  tokenPrice: string;
+}
+
+export interface PoolWithdrawResult {
+  txHash: string;
+  blockNumber: number;
+  usdcReceived: string;
+}
+
+export interface PoolSettings {
+  depositsOpen: boolean;
+  withdrawalsOpen: boolean;
+}
+
+// Platform Pool (for admin overview)
+export interface PlatformPool {
+  address: string;
+  name: string;
+  symbol: string;
+  poolType: PoolType;
+  poolValue: number;
+  utilizationRate: number;
+  organizationId?: string;
+  organizationName?: string;
+}
+
+export interface PoolCounts {
+  total: number;
+  public: number;
+  private: number;
+  mutual: number;
+}
+
+// Pool Deployment Types
+export type PoolCoverageType = 'DROUGHT' | 'FLOOD' | 'PEST' | 'DISEASE' | 'COMPREHENSIVE';
+
+export interface DeployPoolRequest {
+  name: string;
+  symbol: string;
+  poolType: PoolType;
+  coverageType: PoolCoverageType;
+  region: string;
+  minDeposit: number;
+  maxDeposit: number;
+  targetCapital: number;
+  maxCapital: number;
+  poolOwner?: string;
+}
+
+export interface DeployPoolResult {
+  poolAddress: string;
+  txHash: string;
+  blockNumber: number;
+}
+
+// Treasury Types
+export interface TreasuryStats {
+  balance: number;
+  totalPremiums: number;
+  totalPayouts: number;
+  accumulatedFees: number;
+  platformFeePercent: number;
+  reserveRatio: number;
+  requiredReserve: number;
+  availableForPayouts: number;
+  meetsReserve: boolean;
+  paused: boolean;
 }
 
 // Activity Types
