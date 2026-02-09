@@ -22,21 +22,16 @@ export function validateEnv() {
       `[MicroCrop] Missing required environment variables: ${missing.join(', ')}. ` +
       'Copy .env.example to .env and fill in the values.';
 
-    if (isProduction) {
-      throw new Error(message);
-    }
     console.error(message);
   }
 
-  if (isProduction && import.meta.env.VITE_USE_MOCK_API === 'true') {
-    throw new Error(
-      '[MicroCrop] VITE_USE_MOCK_API=true is not allowed in production builds.'
-    );
-  }
-
-  if (!isProduction && import.meta.env.VITE_USE_MOCK_API === 'true') {
+  if (import.meta.env.VITE_USE_MOCK_API === 'true') {
     console.warn(
-      '[MicroCrop] Running with mock API. Set VITE_USE_MOCK_API=false for production.'
+      '[MicroCrop] Running with mock API. Set VITE_API_URL to use a real backend.'
+    );
+  } else if (!import.meta.env.VITE_API_URL) {
+    console.warn(
+      '[MicroCrop] No VITE_API_URL configured. Falling back to mock API.'
     );
   }
 
