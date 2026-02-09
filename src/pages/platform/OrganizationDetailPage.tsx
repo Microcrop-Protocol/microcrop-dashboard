@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
@@ -7,8 +7,11 @@ import { PieChart } from "@/components/charts/PieChart";
 import { BarChart } from "@/components/charts/BarChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle } from "lucide-react";
+import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { DeployPoolDialog } from "@/components/pool/DeployPoolDialog";
+import type { DeployPoolFormData } from "@/lib/validations/pool";
 
 const onboardingSteps = [
   { key: 'REGISTERED', label: 'Registered' },
@@ -21,11 +24,45 @@ const onboardingSteps = [
 
 export default function OrganizationDetailPage() {
   const { orgId } = useParams();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: org, isLoading: orgLoading } = useQuery({
     queryKey: ["organization", orgId],
     queryFn: () => api.getOrganization(orgId!),
     enabled: !!orgId,
+  });
+
+  const deployPoolMutation = useMutation({
+    mutationFn: (data: DeployPoolFormData) =>
+      api.deployPoolForOrg(orgId!, {
+        name: data.name,
+        symbol: data.symbol,
+        poolType: data.poolType,
+        coverageType: data.coverageType,
+        region: data.region,
+        minDeposit: data.minDeposit,
+        maxDeposit: data.maxDeposit,
+        targetCapital: data.targetCapital,
+        maxCapital: data.maxCapital,
+        poolOwner: data.poolOwner,
+      }),
+    onSuccess: (result) => {
+      toast({
+        title: "Pool Deployed",
+        description: `Pool deployed at ${result.poolAddress.slice(0, 10)}...`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["platformPools"] });
+      queryClient.invalidateQueries({ queryKey: ["platformPoolCounts"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to deploy pool",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const { data: stats } = useQuery({
@@ -118,6 +155,28 @@ export default function OrganizationDetailPage() {
               Created {formatDate(org.createdAt, "MMMM d, yyyy")}
             </p>
           </div>
+        </div>
+        <div className="flex gap-2">
+          {!org.poolAddress ? (
+            <DeployPoolDialog
+              organization={org}
+              onSubmit={async (data) => {
+                await deployPoolMutation.mutateAsync(data);
+              }}
+              isLoading={deployPoolMutation.isPending}
+            />
+          ) : (
+            <Button variant="outline" asChild>
+              <a
+                href={`https://basescan.org/address/${org.poolAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Pool
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          )}
         </div>
       </div>
 
