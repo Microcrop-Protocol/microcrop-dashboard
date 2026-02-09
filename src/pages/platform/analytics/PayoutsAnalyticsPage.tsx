@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { PieChart } from "@/components/charts/PieChart";
@@ -19,7 +19,7 @@ export default function PayoutsAnalyticsPage() {
 
   const { data } = useQuery({
     queryKey: ["payoutsAnalytics", dateRange, granularity],
-    queryFn: () => mockApi.getPayoutsAnalytics(),
+    queryFn: () => api.getPayoutsAnalytics(),
   });
 
   const formatCurrency = (value: number) => {
