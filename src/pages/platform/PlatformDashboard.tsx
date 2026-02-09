@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { mockApi, mockActivities } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
@@ -25,12 +25,12 @@ export default function PlatformDashboard() {
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["platformStats", dateRange],
-    queryFn: () => mockApi.getPlatformStats(),
+    queryFn: () => api.getPlatformStats(),
   });
 
   const { data: activities } = useQuery({
     queryKey: ["platformActivities"],
-    queryFn: () => mockApi.getActivities(),
+    queryFn: () => api.getActivities(),
   });
 
   const formatCurrency = (value: number) => {
@@ -118,7 +118,7 @@ export default function PlatformDashboard() {
           <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActivityFeed activities={activities?.data ?? mockActivities} maxItems={5} />
+          <ActivityFeed activities={activities?.data ?? []} maxItems={5} />
         </CardContent>
       </Card>
     </div>
