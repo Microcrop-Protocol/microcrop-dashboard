@@ -27,7 +27,9 @@ import type {
   DeployPoolResult,
 } from '@/types';
 
-const USE_MOCK_API = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API === 'true';
+// Use mock API when explicitly enabled, or when no real API URL is configured
+const USE_MOCK_API =
+  import.meta.env.VITE_USE_MOCK_API === 'true' || !import.meta.env.VITE_API_URL;
 
 // Lazy-load mock data only in dev — excluded from production bundle
 const getMockApi = async () => {
