@@ -21,8 +21,9 @@ describe('validateEnv', () => {
     Object.assign(import.meta.env, originalEnv);
   });
 
-  it('does not throw in dev when required vars are missing', () => {
+  it('logs error when required vars are missing', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     expect(() => validateEnv()).not.toThrow();
     expect(consoleSpy).toHaveBeenCalledWith(
@@ -30,11 +31,13 @@ describe('validateEnv', () => {
     );
   });
 
-  it('throws in production when required vars are missing', () => {
+  it('does not throw in production when required vars are missing', () => {
     (import.meta.env as Record<string, unknown>).PROD = true;
     (import.meta.env as Record<string, unknown>).DEV = false;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    expect(() => validateEnv()).toThrow('Missing required environment variables');
+    expect(() => validateEnv()).not.toThrow();
   });
 
   it('does not throw when all required vars are present', () => {
@@ -44,16 +47,7 @@ describe('validateEnv', () => {
     expect(() => validateEnv()).not.toThrow();
   });
 
-  it('throws in production when VITE_USE_MOCK_API is true', () => {
-    (import.meta.env as Record<string, unknown>).PROD = true;
-    (import.meta.env as Record<string, unknown>).DEV = false;
-    (import.meta.env as Record<string, string>).VITE_API_URL = 'https://api.example.com';
-    (import.meta.env as Record<string, string>).VITE_USE_MOCK_API = 'true';
-
-    expect(() => validateEnv()).toThrow('VITE_USE_MOCK_API=true is not allowed in production');
-  });
-
-  it('warns in dev when VITE_USE_MOCK_API is true', () => {
+  it('warns when VITE_USE_MOCK_API is true', () => {
     (import.meta.env as Record<string, string>).VITE_API_URL = 'http://localhost:3000';
     (import.meta.env as Record<string, string>).VITE_USE_MOCK_API = 'true';
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -61,6 +55,16 @@ describe('validateEnv', () => {
     validateEnv();
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('Running with mock API')
+    );
+  });
+
+  it('warns when no API URL is configured', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    validateEnv();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Falling back to mock API')
     );
   });
 
