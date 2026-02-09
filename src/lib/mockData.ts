@@ -970,6 +970,16 @@ export const mockApi = {
     };
   },
 
+  forgotPassword: async (_email: string) => {
+    await delay(500);
+    return { message: 'If an account exists with that email, a reset link has been sent' };
+  },
+
+  resetPassword: async (_token: string, _password: string) => {
+    await delay(500);
+    return { message: 'Password reset successful' };
+  },
+
   // Platform Stats
   getPlatformStats: async () => {
     await delay(300);
