@@ -12,6 +12,12 @@ vi.mock('@/lib/api/client', () => ({
   },
 }));
 
+// Mock subdomain — default to unrestricted (localhost)
+vi.mock('@/lib/subdomain', () => ({
+  isRoleAllowedOnSubdomain: vi.fn(() => true),
+  getCorrectSubdomain: vi.fn(() => null),
+}));
+
 // Use vi.hoisted to ensure mock state is available when vi.mock factory runs
 const mockState = vi.hoisted(() => ({
   isLoading: false,
