@@ -140,7 +140,7 @@ export function OrganizationRegistrationForm({
       </div>
 
       <Form {...form}>
-        <form className="space-y-6">
+        <form className="space-y-6" onSubmit={(e) => e.preventDefault()}
           {/* Step 1: Organization Details */}
           {currentStep === 0 && (
             <Card>
