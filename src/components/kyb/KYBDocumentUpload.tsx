@@ -134,6 +134,7 @@ export function KYBDocumentUpload({
                     </div>
                     {!disabled && (
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         onClick={() => removeDocument(type)}
@@ -144,6 +145,7 @@ export function KYBDocumentUpload({
                   </div>
                 ) : (
                   <Button
+                    type="button"
                     variant="outline"
                     onClick={() => setActiveType(type)}
                     disabled={disabled}
@@ -172,6 +174,7 @@ export function KYBDocumentUpload({
                       : 'Drag & drop a file here, or click to select'}
                   </p>
                   <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     className="mt-2"
