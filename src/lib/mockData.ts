@@ -1115,6 +1115,7 @@ export const mockApi = {
   }) => {
     await delay(2000);
     const poolAddress = '0x' + Math.random().toString(16).substring(2, 42);
+    const walletAddress = '0xABC1234567890DEF1234567890ABCDEF12345678';
     const txHash = '0x' + Math.random().toString(16).substring(2, 66);
 
     // Update mock pool details
@@ -1122,13 +1123,54 @@ export const mockApi = {
     mockLiquidityPool.address = poolAddress;
 
     return {
-      organization: { ...mockOrganizations[0], poolAddress },
+      organization: {
+        ...mockOrganizations[0],
+        poolAddress,
+        walletAddress,
+        privyWalletId: 'wallet_' + Math.random().toString(36).substring(2, 15),
+      },
       pool: {
         poolAddress,
         poolId: String(mockPlatformPools.length + 1),
         txHash,
         blockNumber: 12345678 + Math.floor(Math.random() * 1000),
       },
+    };
+  },
+
+  // Organization Wallet
+  // Wallet only exists after pool deployment (created automatically)
+  getOrgWallet: async () => {
+    await delay(300);
+    // Check if pool has been deployed (wallet is created with pool)
+    const hasPool = !!mockLiquidityPool.address;
+    if (!hasPool) {
+      return {
+        walletAddress: null,
+        walletCreated: false,
+        message: 'Deploy a pool to create your organization wallet.',
+      };
+    }
+    return {
+      walletAddress: '0xABC1234567890DEF1234567890ABCDEF12345678',
+      walletCreated: true,
+      balances: {
+        usdc: '5000.00',
+        eth: '0.00',
+      },
+    };
+  },
+
+  fundWallet: async (_data: { phoneNumber: string; amountKES: number }) => {
+    await delay(800);
+    return {
+      transactionId: `tx_${Math.random().toString(36).substring(2, 15)}`,
+      reference: `ref_${Math.random().toString(36).substring(2, 15)}`,
+      orderId: `ord_${Math.random().toString(36).substring(2, 10)}`,
+      provider: 'pretium',
+      status: 'PENDING',
+      walletAddress: '0xABC1234567890DEF1234567890ABCDEF12345678',
+      instructions: 'Check your phone for M-Pesa prompt',
     };
   },
 
