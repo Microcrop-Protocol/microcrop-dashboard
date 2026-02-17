@@ -12,7 +12,8 @@ import { PoolDepositDialog } from "@/components/pool/PoolDepositDialog";
 import { PoolWithdrawDialog } from "@/components/pool/PoolWithdrawDialog";
 import { PoolSettingsCard } from "@/components/pool/PoolSettingsCard";
 import { DeployOrgPoolDialog } from "@/components/pool/DeployOrgPoolDialog";
-import type { PoolDepositFormData } from "@/lib/validations/pool";
+import { WalletCard } from "@/components/pool/WalletCard";
+import type { PoolDepositFormData, FundWalletFormData } from "@/lib/validations/pool";
 import type { PoolWithdrawFormData } from "@/lib/validations/pool";
 
 export default function PoolPage() {
@@ -33,6 +34,12 @@ export default function PoolPage() {
     retry: 1,
   });
 
+  const { data: wallet } = useQuery({
+    queryKey: ["orgWallet"],
+    queryFn: () => api.getOrgWallet(),
+    retry: 1,
+  });
+
   const hasError = poolError || detailsError;
 
   const depositMutation = useMutation({
@@ -44,6 +51,7 @@ export default function PoolPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
+      queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
     },
     onError: (error: Error) => {
       toast({
@@ -63,10 +71,36 @@ export default function PoolPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
+      queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
     },
     onError: (error: Error) => {
       toast({
         title: "Withdrawal Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const fundWalletMutation = useMutation({
+    mutationFn: (data: FundWalletFormData) => api.fundWallet({
+      phoneNumber: data.phoneNumber,
+      amountKES: data.amountKES,
+    }),
+    onSuccess: () => {
+      toast({
+        title: "M-Pesa Request Sent",
+        description: "Check your phone for the M-Pesa prompt. Balance will update shortly.",
+      });
+      // Poll wallet balance for updates
+      const interval = setInterval(() => {
+        queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
+      }, 5000);
+      setTimeout(() => clearInterval(interval), 120000);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Funding Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -93,6 +127,7 @@ export default function PoolPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
+      queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
     },
     onError: (error: Error) => {
       toast({
@@ -153,6 +188,15 @@ export default function PoolPage() {
     );
   }
 
+  // Wallet section — shown in all states
+  const walletSection = wallet && (
+    <WalletCard
+      wallet={wallet}
+      onFund={async (data) => fundWalletMutation.mutateAsync(data)}
+      isFunding={fundWalletMutation.isPending}
+    />
+  );
+
   // Check if pool data loaded but no pool deployed yet
   const hasNoPool = pool && !pool.address && !hasError;
 
@@ -165,6 +209,9 @@ export default function PoolPage() {
           <h1 className="text-2xl font-bold">Liquidity Pool</h1>
           <p className="text-muted-foreground">Deploy and manage your insurance pool</p>
         </div>
+
+        {/* Wallet — shows "no wallet" state until pool is deployed */}
+        {walletSection}
 
         {/* Deploy Pool Card */}
         <Card className="border-dashed border-2">
@@ -225,6 +272,9 @@ export default function PoolPage() {
           <h1 className="text-2xl font-bold">Liquidity Pool</h1>
           <p className="text-muted-foreground">Manage your insurance pool liquidity</p>
         </div>
+
+        {/* Wallet — always accessible */}
+        {walletSection}
 
         {/* Coming Soon Card */}
         <Card className="border-dashed">
@@ -390,6 +440,9 @@ export default function PoolPage() {
           description="Fees paid to platform"
         />
       </div>
+
+      {/* Wallet */}
+      {walletSection}
 
       {/* Token & Capital Details */}
       <div className="grid gap-4 lg:grid-cols-2">
