@@ -25,6 +25,8 @@ import type {
   TreasuryStats,
   DeployPoolRequest,
   DeployPoolResult,
+  OrgWallet,
+  WalletFundResult,
 } from '@/types';
 
 // Use mock API when explicitly enabled, or when no real API URL is configured
@@ -554,6 +556,26 @@ export const api = {
       ...data,
       coverageType: coverageTypeMap[data.coverageType] ?? 4,
     });
+  },
+
+  // ============================================
+  // ORGANIZATION WALLET
+  // ============================================
+
+  getOrgWallet: async (): Promise<OrgWallet> => {
+    logApiCall('getOrgWallet');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.getOrgWallet();
+    }
+    return apiClient.getOrgWallet();
+  },
+
+  fundWallet: async (data: { phoneNumber: string; amountKES: number }): Promise<WalletFundResult> => {
+    logApiCall('fundWallet');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.fundWallet(data);
+    }
+    return apiClient.fundWallet(data);
   },
 
   // ============================================
