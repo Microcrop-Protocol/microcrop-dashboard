@@ -595,6 +595,34 @@ class ApiClient {
   }
 
   // ============================================
+  // ORGANIZATION WALLET
+  // ============================================
+
+  async getOrgWallet() {
+    return this.request<{
+      walletAddress: string | null;
+      walletCreated: boolean;
+      balances?: { usdc: string; eth: string };
+      message?: string;
+    }>('/organizations/me/wallet');
+  }
+
+  async fundWallet(data: { phoneNumber: string; amountKES: number }) {
+    return this.request<{
+      transactionId: string;
+      reference: string;
+      orderId: string;
+      provider: string;
+      status: string;
+      walletAddress: string;
+      instructions: string;
+    }>('/organizations/me/wallet/fund', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ============================================
   // FARMERS
   // ============================================
 
