@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,47 +10,62 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { getSubdomainContext } from "@/lib/subdomain";
 
+// Retry dynamic imports once on failure (handles stale chunks after deploy)
+function lazyRetry(importFn: () => Promise<{ default: ComponentType }>) {
+  return lazy(() =>
+    importFn().catch(() => {
+      const hasReloaded = sessionStorage.getItem('chunk_reload');
+      if (!hasReloaded) {
+        sessionStorage.setItem('chunk_reload', '1');
+        window.location.reload();
+      }
+      sessionStorage.removeItem('chunk_reload');
+      return importFn();
+    })
+  );
+}
+
 // Auth pages
-const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
-const ForgotPasswordPage = lazy(() => import("@/pages/auth/ForgotPasswordPage"));
-const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));
-const RegisterOrganizationPage = lazy(() => import("@/pages/auth/RegisterOrganizationPage"));
-const AcceptInvitationPage = lazy(() => import("@/pages/auth/AcceptInvitationPage"));
+const LoginPage = lazyRetry(() => import("@/pages/auth/LoginPage"));
+const ForgotPasswordPage = lazyRetry(() => import("@/pages/auth/ForgotPasswordPage"));
+const ResetPasswordPage = lazyRetry(() => import("@/pages/auth/ResetPasswordPage"));
+const RegisterOrganizationPage = lazyRetry(() => import("@/pages/auth/RegisterOrganizationPage"));
+const AcceptInvitationPage = lazyRetry(() => import("@/pages/auth/AcceptInvitationPage"));
 
 // Platform pages
-const PlatformDashboard = lazy(() => import("@/pages/platform/PlatformDashboard"));
-const OrganizationsPage = lazy(() => import("@/pages/platform/OrganizationsPage"));
-const OrganizationDetailPage = lazy(() => import("@/pages/platform/OrganizationDetailPage"));
-const RevenueAnalyticsPage = lazy(() => import("@/pages/platform/analytics/RevenueAnalyticsPage"));
-const PoliciesAnalyticsPage = lazy(() => import("@/pages/platform/analytics/PoliciesAnalyticsPage"));
-const FarmersAnalyticsPage = lazy(() => import("@/pages/platform/analytics/FarmersAnalyticsPage"));
-const PayoutsAnalyticsPage = lazy(() => import("@/pages/platform/analytics/PayoutsAnalyticsPage"));
-const DamageAnalyticsPage = lazy(() => import("@/pages/platform/analytics/DamageAnalyticsPage"));
-const PlatformActivityPage = lazy(() => import("@/pages/platform/PlatformActivityPage"));
-const KYBReviewPage = lazy(() => import("@/pages/platform/KYBReviewPage"));
-const KYBApplicationDetailPage = lazy(() => import("@/pages/platform/KYBApplicationDetailPage"));
-const InvitationsPage = lazy(() => import("@/pages/platform/InvitationsPage"));
-const PoolsPage = lazy(() => import("@/pages/platform/PoolsPage"));
-const TreasuryPage = lazy(() => import("@/pages/platform/TreasuryPage"));
+const PlatformDashboard = lazyRetry(() => import("@/pages/platform/PlatformDashboard"));
+const OrganizationsPage = lazyRetry(() => import("@/pages/platform/OrganizationsPage"));
+const OrganizationDetailPage = lazyRetry(() => import("@/pages/platform/OrganizationDetailPage"));
+const RevenueAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/RevenueAnalyticsPage"));
+const PoliciesAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/PoliciesAnalyticsPage"));
+const FarmersAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/FarmersAnalyticsPage"));
+const PayoutsAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/PayoutsAnalyticsPage"));
+const DamageAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/DamageAnalyticsPage"));
+const PlatformActivityPage = lazyRetry(() => import("@/pages/platform/PlatformActivityPage"));
+const KYBReviewPage = lazyRetry(() => import("@/pages/platform/KYBReviewPage"));
+const KYBApplicationDetailPage = lazyRetry(() => import("@/pages/platform/KYBApplicationDetailPage"));
+const InvitationsPage = lazyRetry(() => import("@/pages/platform/InvitationsPage"));
+const PoolsPage = lazyRetry(() => import("@/pages/platform/PoolsPage"));
+const TreasuryPage = lazyRetry(() => import("@/pages/platform/TreasuryPage"));
 
 // Org pages
-const OrgDashboard = lazy(() => import("@/pages/org/OrgDashboard"));
-const FarmersPage = lazy(() => import("@/pages/org/FarmersPage"));
-const FarmerDetailPage = lazy(() => import("@/pages/org/FarmerDetailPage"));
-const FarmerImportPage = lazy(() => import("@/pages/org/FarmerImportPage"));
-const PoliciesPage = lazy(() => import("@/pages/org/PoliciesPage"));
-const PolicyDetailPage = lazy(() => import("@/pages/org/PolicyDetailPage"));
-const NewPolicyPage = lazy(() => import("@/pages/org/NewPolicyPage"));
-const PayoutsPage = lazy(() => import("@/pages/org/PayoutsPage"));
-const PlotsPage = lazy(() => import("@/pages/org/PlotsPage"));
-const DamagePage = lazy(() => import("@/pages/org/DamagePage"));
-const FinancialsPage = lazy(() => import("@/pages/org/FinancialsPage"));
-const PoolPage = lazy(() => import("@/pages/org/PoolPage"));
-const StaffPage = lazy(() => import("@/pages/org/StaffPage"));
-const ExportPage = lazy(() => import("@/pages/org/ExportPage"));
-const OrgActivityPage = lazy(() => import("@/pages/org/OrgActivityPage"));
+const OrgDashboard = lazyRetry(() => import("@/pages/org/OrgDashboard"));
+const FarmersPage = lazyRetry(() => import("@/pages/org/FarmersPage"));
+const FarmerDetailPage = lazyRetry(() => import("@/pages/org/FarmerDetailPage"));
+const FarmerImportPage = lazyRetry(() => import("@/pages/org/FarmerImportPage"));
+const PoliciesPage = lazyRetry(() => import("@/pages/org/PoliciesPage"));
+const PolicyDetailPage = lazyRetry(() => import("@/pages/org/PolicyDetailPage"));
+const NewPolicyPage = lazyRetry(() => import("@/pages/org/NewPolicyPage"));
+const PayoutsPage = lazyRetry(() => import("@/pages/org/PayoutsPage"));
+const PlotsPage = lazyRetry(() => import("@/pages/org/PlotsPage"));
+const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
+const FinancialsPage = lazyRetry(() => import("@/pages/org/FinancialsPage"));
+const PoolPage = lazyRetry(() => import("@/pages/org/PoolPage"));
+const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
+const ExportPage = lazyRetry(() => import("@/pages/org/ExportPage"));
+const OrgActivityPage = lazyRetry(() => import("@/pages/org/OrgActivityPage"));
 
-const NotFound = lazy(() => import("@/pages/NotFound"));
+const NotFound = lazyRetry(() => import("@/pages/NotFound"));
 
 function PageLoader() {
   return (
