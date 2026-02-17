@@ -575,7 +575,11 @@ export const api = {
     if (USE_MOCK_API) {
       return (await getMockApi()).mockApi.fundWallet(data);
     }
-    return apiClient.fundWallet(data);
+    // Convert local phone format (07...) to international (+254...)
+    const phoneNumber = data.phoneNumber.startsWith('0')
+      ? '+254' + data.phoneNumber.slice(1)
+      : data.phoneNumber;
+    return apiClient.fundWallet({ ...data, phoneNumber });
   },
 
   // ============================================
