@@ -30,6 +30,8 @@ export interface Organization {
   type: OrganizationType;
   isActive: boolean;
   poolAddress?: string;
+  walletAddress?: string;
+  privyWalletId?: string;
   onboardingStep: OnboardingStep;
   farmersCount: number;
   policiesCount: number;
@@ -288,6 +290,27 @@ export interface PoolWithdrawResult {
 export interface PoolSettings {
   depositsOpen: boolean;
   withdrawalsOpen: boolean;
+}
+
+// Organization Wallet
+export interface OrgWallet {
+  walletAddress: string | null;
+  walletCreated: boolean;
+  balances?: {
+    usdc: string;
+    eth: string;
+  };
+  message?: string;
+}
+
+export interface WalletFundResult {
+  transactionId: string;
+  reference: string;
+  orderId: string;
+  provider: string;
+  status: string;
+  walletAddress: string;
+  instructions: string;
 }
 
 // Platform Pool (for admin overview)
