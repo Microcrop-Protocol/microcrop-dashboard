@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronLeft, ChevronRight, Loader2, Building2, User, FileText, Check } from 'lucide-react';
@@ -105,6 +105,17 @@ export function OrganizationRegistrationForm({
 
   const values = form.watch();
 
+  // Warn before navigating away with unsaved changes
+  const isDirty = form.formState.isDirty || documents.length > 0;
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   return (
     <div className="space-y-8">
       {/* Progress Steps */}
@@ -158,7 +169,7 @@ export function OrganizationRegistrationForm({
                     <FormItem>
                       <FormLabel>Organization Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., Sunrise Farmers Cooperative" {...field} />
+                        <Input placeholder="e.g., Sunrise Farmers Cooperative\u2026" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -172,7 +183,7 @@ export function OrganizationRegistrationForm({
                     <FormItem>
                       <FormLabel>Business Registration Number</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., PVT-2024-12345" {...field} />
+                        <Input placeholder="e.g., PVT-2024-12345\u2026" {...field} />
                       </FormControl>
                       <FormDescription>
                         Your official business registration number
@@ -231,7 +242,7 @@ export function OrganizationRegistrationForm({
                       <FormItem>
                         <FormLabel>First Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="John" {...field} />
+                          <Input placeholder="John\u2026" autoComplete="given-name" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -245,7 +256,7 @@ export function OrganizationRegistrationForm({
                       <FormItem>
                         <FormLabel>Last Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="Doe" {...field} />
+                          <Input placeholder="Doe\u2026" autoComplete="family-name" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -262,7 +273,9 @@ export function OrganizationRegistrationForm({
                       <FormControl>
                         <Input
                           type="email"
-                          placeholder="john.doe@example.com"
+                          placeholder="john.doe@example.com\u2026"
+                          autoComplete="email"
+                          spellCheck={false}
                           {...field}
                         />
                       </FormControl>
@@ -281,7 +294,7 @@ export function OrganizationRegistrationForm({
                     <FormItem>
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
-                        <Input placeholder="+254712345678" {...field} />
+                        <Input type="tel" placeholder="+254712345678\u2026" autoComplete="tel" {...field} />
                       </FormControl>
                       <FormDescription>
                         Kenyan phone number format (+254... or 07...)
