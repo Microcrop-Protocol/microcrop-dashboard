@@ -91,6 +91,8 @@ export default function LoginPage() {
           <img
             src="/microcropsymb.png"
             alt="MicroCrop"
+            width={64}
+            height={64}
             className="mx-auto h-16 w-16 object-contain"
           />
           <div>
@@ -118,8 +120,9 @@ export default function LoginPage() {
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="you@example.com"
+                        placeholder="you@example.com\u2026"
                         autoComplete="email"
+                        spellCheck={false}
                         {...field}
                       />
                     </FormControl>
@@ -147,6 +150,7 @@ export default function LoginPage() {
                           size="icon"
                           className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                           onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
                         >
                           {showPassword ? (
                             <EyeOff className="h-4 w-4 text-muted-foreground" />
