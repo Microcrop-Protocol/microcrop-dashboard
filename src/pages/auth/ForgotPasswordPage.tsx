@@ -82,6 +82,8 @@ export default function ForgotPasswordPage() {
           <img
             src="/microcropsymb.png"
             alt="MicroCrop"
+            width={64}
+            height={64}
             className="mx-auto h-16 w-16 object-contain"
           />
           <div>
@@ -103,8 +105,9 @@ export default function ForgotPasswordPage() {
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="you@example.com"
+                        placeholder="you@example.com\u2026"
                         autoComplete="email"
+                        spellCheck={false}
                         {...field}
                       />
                     </FormControl>
