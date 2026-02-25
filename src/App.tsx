@@ -69,8 +69,9 @@ const NotFound = lazyRetry(() => import("@/pages/NotFound"));
 
 function PageLoader() {
   return (
-    <div className="flex min-h-[50vh] items-center justify-center">
+    <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-label="Loading page">
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <span className="sr-only">Loading\u2026</span>
     </div>
   );
 }
