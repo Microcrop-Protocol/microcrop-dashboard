@@ -36,13 +36,14 @@ export function AppHeader({ title, onMenuClick }: AppHeaderProps) {
 
       <div className="flex items-center gap-2">
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-error" />
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-error" aria-hidden="true" />
+          <span className="sr-only">You have new notifications</span>
         </Button>
 
         {/* Theme Toggle */}
-        <Button variant="ghost" size="icon" onClick={toggleTheme}>
+        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
           {theme === "dark" ? (
             <Sun className="h-5 w-5" />
           ) : (
