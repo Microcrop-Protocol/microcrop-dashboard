@@ -1,11 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" style="color-scheme: light dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' data: blob: https:; connect-src 'self' https://app.microcrop.app http://localhost:3000 https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com; worker-src 'self' blob:; font-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self';" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="theme-color" content="hsl(0, 0%, 98%)" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="hsl(142, 15%, 8%)" media="(prefers-color-scheme: dark)" />
+    <link rel="preconnect" href="https://api.mapbox.com" />
+    <link rel="preconnect" href="https://tiles.mapbox.com" />
     <title>MicroCrop</title>
     <meta name="description" content="MicroCrop - Crop Insurance Platform" />
     <meta name="author" content="MicroCrop" />
