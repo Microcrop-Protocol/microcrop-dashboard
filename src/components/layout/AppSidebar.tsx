@@ -105,6 +105,8 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
         <div
           className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
           onClick={onClose}
+          onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+          role="presentation"
         />
       )}
 
@@ -121,11 +123,13 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
             <img
               src="/microcropsymb.png"
               alt="MicroCrop"
+              width={32}
+              height={32}
               className="h-8 w-8 object-contain"
             />
             <span className="text-lg font-bold text-sidebar-foreground">MicroCrop</span>
           </Link>
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose} aria-label="Close sidebar">
             <X className="h-5 w-5" />
           </Button>
         </div>
@@ -234,7 +238,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
 
 export function SidebarTrigger({ onClick }: { onClick: () => void }) {
   return (
-    <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClick}>
+    <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClick} aria-label="Open sidebar">
       <Menu className="h-5 w-5" />
     </Button>
   );
