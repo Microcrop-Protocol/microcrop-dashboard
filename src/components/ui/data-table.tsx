@@ -121,6 +121,7 @@ export function DataTable<TData, TValue>({
                 table.getColumn(searchKey)?.setFilterValue(event.target.value)
               }
               className="pl-10"
+              aria-label={searchPlaceholder}
             />
           </div>
         </div>
@@ -150,8 +151,11 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={cn(onRowClick && "cursor-pointer")}
+                  className={cn(onRowClick && "cursor-pointer hover:bg-muted/50")}
                   onClick={() => onRowClick?.(row.original)}
+                  onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick(row.original); } } : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  role={onRowClick ? "link" : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -179,7 +183,7 @@ export function DataTable<TData, TValue>({
 
       {showPagination && data.length > pageSize && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground tabular-nums">
             Page {table.getState().pagination.pageIndex + 1} of{" "}
             {table.getPageCount()}
           </p>
