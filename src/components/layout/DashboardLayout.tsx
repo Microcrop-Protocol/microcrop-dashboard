@@ -18,7 +18,7 @@ export function DashboardLayout({ title }: DashboardLayoutProps) {
       <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col">
         <AppHeader title={title} onMenuClick={() => setSidebarOpen(true)} />
-        <main id="main-content" className="flex-1 overflow-auto p-4 md:p-6 scroll-mt-16">
+        <main id="main-content" className="flex-1 overflow-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-6 md:pb-[max(1.5rem,env(safe-area-inset-bottom))] scroll-mt-16">
           <Outlet />
         </main>
       </div>
