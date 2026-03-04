@@ -459,6 +459,51 @@ export interface DamageAnalytics {
   totalCount: number;
 }
 
+// Payment Types
+export type PaymentType = 'PREMIUM' | 'DEPOSIT' | 'WITHDRAWAL' | 'FEE';
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
+
+export interface Payment {
+  id: string;
+  policyId?: string;
+  farmerId?: string;
+  organizationId?: string;
+  amount: number;
+  type: PaymentType;
+  status: PaymentStatus;
+  mpesaRef?: string;
+  transactionHash?: string;
+  createdAt: string;
+}
+
+// Treasury Amount Types
+export interface TreasuryPremiumAmounts {
+  total: string;
+  byOrganization: { organizationId: string; organizationName: string; amount: string }[];
+}
+
+export interface TreasuryPayoutAmounts {
+  total: string;
+  byOrganization: { organizationId: string; organizationName: string; amount: string }[];
+}
+
+// Investor Info
+export interface InvestorInfo {
+  address: string;
+  tokenBalance: string;
+  shareOfPool: number;
+  totalDeposited: string;
+  totalWithdrawn: string;
+}
+
+// Policy Expire Check
+export interface PolicyExpireCheck {
+  policyId: string;
+  isExpired: boolean;
+  expiresAt: string;
+  daysRemaining: number;
+}
+
 // Platform Stats
 export interface PlatformStats {
   totalOrganizations: number;
