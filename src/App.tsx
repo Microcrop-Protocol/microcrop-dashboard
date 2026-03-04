@@ -151,6 +151,7 @@ const App = () => (
                 }
               />
               <Route path="/accept-invitation/:token" element={<AcceptInvitationPage />} />
+              <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
 
               {/* Platform Admin routes */}
               <Route
