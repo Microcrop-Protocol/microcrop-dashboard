@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -240,7 +240,7 @@ class ApiClient {
     return this.request<{
       accessToken: string;
       refreshToken: string;
-    }>('/auth/refresh', {
+    }>('/auth/refresh-token', {
       method: 'POST',
       body: JSON.stringify({ refreshToken }),
     });
@@ -426,6 +426,10 @@ class ApiClient {
     }>('/platform/pools/counts');
   }
 
+  async platformGetPoolById(poolId: string) {
+    return this.request<PoolStatus>(`/platform/pools/${poolId}`);
+  }
+
   async platformGetPoolByAddress(poolAddress: string) {
     return this.request<PoolStatus>(`/platform/pools/address/${poolAddress}`);
   }
@@ -491,6 +495,14 @@ class ApiClient {
 
   async platformGetTreasuryBalance() {
     return this.request<{ balance: string }>('/platform/treasury/balance');
+  }
+
+  async platformGetTreasuryPremiumAmounts() {
+    return this.request<TreasuryPremiumAmounts>('/platform/treasury/premium-amounts');
+  }
+
+  async platformGetTreasuryPayoutAmounts() {
+    return this.request<TreasuryPayoutAmounts>('/platform/treasury/payout-amounts');
   }
 
   // ============================================
@@ -565,6 +577,10 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(settings),
     });
+  }
+
+  async getInvestorInfo(poolAddress: string) {
+    return this.request<InvestorInfo>(`/organizations/me/pool/investor/${poolAddress}`);
   }
 
   async deployOrgPool(data: {
@@ -694,6 +710,40 @@ class ApiClient {
     });
   }
 
+  // ============================================
+  // PLOTS
+  // ============================================
+
+  async createPlot(farmerId: string, data: {
+    name: string;
+    latitude: number;
+    longitude: number;
+    acreage: number;
+    cropType: string;
+  }) {
+    return this.request<Plot>(`/farmers/${farmerId}/plots`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPlot(plotId: string) {
+    return this.request<Plot>(`/plots/${plotId}`);
+  }
+
+  async updatePlot(plotId: string, data: {
+    name?: string;
+    latitude?: number;
+    longitude?: number;
+    acreage?: number;
+    cropType?: string;
+  }) {
+    return this.request<Plot>(`/plots/${plotId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async bulkImportPlots(plots: Record<string, unknown>[]) {
     return this.request<{
       imported: number;
@@ -765,6 +815,10 @@ class ApiClient {
     });
   }
 
+  async checkPolicyExpiry(policyId: string) {
+    return this.request<PolicyExpireCheck>(`/policies/${policyId}/expire-check`);
+  }
+
   async cancelPolicy(policyId: string, reason: string) {
     return this.request<Policy>(`/policies/${policyId}/cancel`, {
       method: 'POST',
@@ -812,6 +866,33 @@ class ApiClient {
   async getPayoutReconciliation(params?: { startDate?: string; endDate?: string }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     return this.request<{ matched: number; unmatched: number; total: number }>(`/payouts/reconciliation${query ? `?${query}` : ''}`);
+  }
+
+  // ============================================
+  // PAYMENTS
+  // ============================================
+
+  async getPayments(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    type?: string;
+    farmerId?: string;
+  }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<Payment[]>(`/payments${query ? `?${query}` : ''}`);
+  }
+
+  async getPayment(paymentId: string) {
+    return this.request<Payment>(`/payments/${paymentId}`);
+  }
+
+  async getPaymentByRef(mpesaRef: string) {
+    return this.request<Payment>(`/payments/mpesa/${mpesaRef}`);
   }
 
   // ============================================
