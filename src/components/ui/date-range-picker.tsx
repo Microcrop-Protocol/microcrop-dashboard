@@ -4,6 +4,7 @@ import { CalendarIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -40,6 +41,7 @@ export function DateRangePicker({
   className,
   presets = true 
 }: DateRangePickerProps) {
+  const isMobile = useIsMobile();
   const [selectedPreset, setSelectedPreset] = React.useState<string>("30");
 
   const handlePresetChange = (days: string) => {
@@ -100,7 +102,7 @@ export function DateRangePicker({
             defaultMonth={value?.from}
             selected={value}
             onSelect={onChange}
-            numberOfMonths={2}
+            numberOfMonths={isMobile ? 1 : 2}
             className="pointer-events-auto"
           />
         </PopoverContent>
