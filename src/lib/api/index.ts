@@ -16,6 +16,7 @@ import type {
   ApplicationStatus,
   OrganizationApplication,
   OrgAdminInvitation,
+  OnboardingStep,
   PoolStatus,
   PoolDepositResult,
   PoolWithdrawResult,
@@ -23,10 +24,21 @@ import type {
   PlatformPool,
   PoolCounts,
   TreasuryStats,
+  TreasuryPremiumAmounts,
+  TreasuryPayoutAmounts,
   DeployPoolRequest,
   DeployPoolResult,
   OrgWallet,
   WalletFundResult,
+  Farmer,
+  Plot,
+  Policy,
+  PolicyQuote,
+  PolicyStatus,
+  Payout,
+  Payment,
+  InvestorInfo,
+  PolicyExpireCheck,
 } from '@/types';
 
 // Use mock API when explicitly enabled, or when no real API URL is configured
@@ -748,6 +760,489 @@ export const api = {
       throw new Error('Not implemented in mock');
     }
     return apiClient.inviteStaff(data);
+  },
+
+  updateStaffRole: async (userId: string, role: 'ORG_ADMIN' | 'ORG_STAFF') => {
+    logApiCall('updateStaffRole');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.updateStaffRole(userId, role);
+    }
+    return apiClient.updateStaffRole(userId, role);
+  },
+
+  deactivateStaff: async (userId: string) => {
+    logApiCall('deactivateStaff');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.deactivateStaff(userId);
+    }
+    return apiClient.deactivateStaff(userId);
+  },
+
+  reactivateStaff: async (userId: string) => {
+    logApiCall('reactivateStaff');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.reactivateStaff(userId);
+    }
+    return apiClient.reactivateStaff(userId);
+  },
+
+  // ============================================
+  // AUTH (additional)
+  // ============================================
+
+  register: async (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  }) => {
+    logApiCall('register');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.register(data);
+    }
+    return apiClient.register(data);
+  },
+
+  // ============================================
+  // PLATFORM ADMIN ACTIONS
+  // ============================================
+
+  configureOrganization: async (orgId: string, config: {
+    ussdShortCode?: string;
+    brandName?: string;
+    brandColor?: string;
+    logoUrl?: string;
+    webhookUrl?: string;
+  }) => {
+    logApiCall('configureOrganization');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformConfigureOrganization(orgId, config);
+  },
+
+  activateOrganization: async (orgId: string) => {
+    logApiCall('activateOrganization');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformActivateOrganization(orgId);
+  },
+
+  deactivateOrganization: async (orgId: string) => {
+    logApiCall('deactivateOrganization');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformDeactivateOrganization(orgId);
+  },
+
+  getOnboardingStatus: async (orgId: string): Promise<{ step: OnboardingStep; completedSteps: OnboardingStep[] }> => {
+    logApiCall('getOnboardingStatus');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformGetOnboardingStatus(orgId);
+  },
+
+  platformDeployPool: async (orgId: string, initialCapital: number) => {
+    logApiCall('platformDeployPool');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformDeployPool(orgId, initialCapital);
+  },
+
+  getPoolByAddress: async (poolAddress: string): Promise<PoolStatus> => {
+    logApiCall('getPoolByAddress');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformGetPoolByAddress(poolAddress);
+  },
+
+  getPoolById: async (poolId: string): Promise<PoolStatus> => {
+    logApiCall('getPoolById');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformGetPoolById(poolId);
+  },
+
+  // ============================================
+  // ORG SELF-SERVICE
+  // ============================================
+
+  getMyOrganization: async () => {
+    logApiCall('getMyOrganization');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.getMyOrganization();
+    }
+    return apiClient.getMyOrganization();
+  },
+
+  getMyOrgStats: async () => {
+    logApiCall('getMyOrgStats');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.getMyOrganizationStats();
+  },
+
+  updateOrgSettings: async (settings: {
+    brandColor?: string;
+    webhookUrl?: string;
+    contactPhone?: string;
+  }) => {
+    logApiCall('updateOrgSettings');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.updateOrgSettings(settings);
+    }
+    return apiClient.updateOrganizationSettings(settings);
+  },
+
+  // ============================================
+  // POOL MANAGEMENT (additional)
+  // ============================================
+
+  addPoolDepositor: async (depositorAddress: string) => {
+    logApiCall('addPoolDepositor');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.addPoolDepositor(depositorAddress);
+  },
+
+  removePoolDepositor: async (depositorAddress: string) => {
+    logApiCall('removePoolDepositor');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.removePoolDepositor(depositorAddress);
+  },
+
+  getInvestorInfo: async (poolAddress: string): Promise<InvestorInfo> => {
+    logApiCall('getInvestorInfo');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.getInvestorInfo(poolAddress);
+  },
+
+  // ============================================
+  // FARMER OPERATIONS
+  // ============================================
+
+  registerFarmer: async (data: {
+    phoneNumber: string;
+    nationalId: string;
+    firstName: string;
+    lastName: string;
+    county: string;
+    subCounty?: string;
+    ward?: string;
+    village?: string;
+  }): Promise<Farmer> => {
+    logApiCall('registerFarmer');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.registerFarmer(data);
+    }
+    return apiClient.registerFarmer(data);
+  },
+
+  updateFarmer: async (farmerId: string, data: {
+    phoneNumber?: string;
+    ward?: string;
+    village?: string;
+  }): Promise<Farmer> => {
+    logApiCall('updateFarmer');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.updateFarmer(farmerId, data);
+    }
+    return apiClient.updateFarmer(farmerId, data);
+  },
+
+  updateFarmerKyc: async (farmerId: string, data: {
+    status: 'APPROVED' | 'REJECTED';
+    reason?: string;
+  }): Promise<Farmer> => {
+    logApiCall('updateFarmerKyc');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.updateFarmerKyc(farmerId, data);
+    }
+    return apiClient.updateFarmerKyc(farmerId, data);
+  },
+
+  bulkImportFarmers: async (farmers: Record<string, unknown>[]) => {
+    logApiCall('bulkImportFarmers');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.bulkImportFarmers(farmers);
+  },
+
+  bulkImportPlots: async (plots: Record<string, unknown>[]) => {
+    logApiCall('bulkImportPlots');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.bulkImportPlots(plots);
+  },
+
+  // ============================================
+  // PLOTS (CRUD)
+  // ============================================
+
+  createPlot: async (farmerId: string, data: {
+    name: string;
+    latitude: number;
+    longitude: number;
+    acreage: number;
+    cropType: string;
+  }): Promise<Plot> => {
+    logApiCall('createPlot');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.createPlot(farmerId, data);
+    }
+    return apiClient.createPlot(farmerId, data);
+  },
+
+  getPlot: async (plotId: string): Promise<Plot> => {
+    logApiCall('getPlot');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.getPlot(plotId);
+    }
+    return apiClient.getPlot(plotId);
+  },
+
+  updatePlot: async (plotId: string, data: {
+    name?: string;
+    latitude?: number;
+    longitude?: number;
+    acreage?: number;
+    cropType?: string;
+  }): Promise<Plot> => {
+    logApiCall('updatePlot');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.updatePlot(plotId, data);
+    }
+    return apiClient.updatePlot(plotId, data);
+  },
+
+  // ============================================
+  // POLICY LIFECYCLE
+  // ============================================
+
+  getPolicyQuote: async (data: {
+    farmerId: string;
+    plotId: string;
+    sumInsured: number;
+    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH';
+    durationDays: number;
+  }): Promise<PolicyQuote> => {
+    logApiCall('getPolicyQuote');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.getPolicyQuote(data);
+    }
+    return apiClient.getPolicyQuote(data);
+  },
+
+  purchasePolicy: async (data: {
+    farmerId: string;
+    plotId: string;
+    sumInsured: number;
+    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH';
+    durationDays: number;
+  }): Promise<Policy> => {
+    logApiCall('purchasePolicy');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.purchasePolicy(data);
+    }
+    return apiClient.purchasePolicy(data);
+  },
+
+  getPolicyStatus: async (policyId: string): Promise<{ status: PolicyStatus }> => {
+    logApiCall('getPolicyStatus');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.getPolicyStatus(policyId);
+  },
+
+  activatePolicy: async (policyId: string): Promise<Policy> => {
+    logApiCall('activatePolicy');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.activatePolicy(policyId);
+    }
+    return apiClient.activatePolicy(policyId);
+  },
+
+  cancelPolicy: async (policyId: string, reason: string): Promise<Policy> => {
+    logApiCall('cancelPolicy');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.cancelPolicy(policyId, reason);
+    }
+    return apiClient.cancelPolicy(policyId, reason);
+  },
+
+  checkPolicyExpiry: async (policyId: string): Promise<PolicyExpireCheck> => {
+    logApiCall('checkPolicyExpiry');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.checkPolicyExpiry(policyId);
+  },
+
+  // ============================================
+  // PAYOUT OPERATIONS
+  // ============================================
+
+  getPayout: async (payoutId: string): Promise<Payout> => {
+    logApiCall('getPayout');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.getPayout(payoutId);
+    }
+    return apiClient.getPayout(payoutId);
+  },
+
+  retryPayout: async (payoutId: string): Promise<Payout> => {
+    logApiCall('retryPayout');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.retryPayout(payoutId);
+    }
+    return apiClient.retryPayout(payoutId);
+  },
+
+  batchRetryPayouts: async (payoutIds?: string[], retryAllFailed?: boolean) => {
+    logApiCall('batchRetryPayouts');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.batchRetryPayouts(payoutIds, retryAllFailed);
+  },
+
+  getPayoutReconciliation: async (params?: { startDate?: string; endDate?: string }) => {
+    logApiCall('getPayoutReconciliation');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.getPayoutReconciliation(params);
+  },
+
+  // ============================================
+  // PAYMENTS
+  // ============================================
+
+  getPayments: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    type?: string;
+    farmerId?: string;
+  }) => {
+    logApiCall('getPayments');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    const result = await apiClient.getPayments(params);
+    return { data: result.data, total: result.pagination?.total || result.data.length };
+  },
+
+  getPayment: async (paymentId: string): Promise<Payment> => {
+    logApiCall('getPayment');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.getPayment(paymentId);
+  },
+
+  getPaymentByRef: async (mpesaRef: string): Promise<Payment> => {
+    logApiCall('getPaymentByRef');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.getPaymentByRef(mpesaRef);
+  },
+
+  // ============================================
+  // TREASURY (additional)
+  // ============================================
+
+  getTreasuryBalance: async () => {
+    logApiCall('getTreasuryBalance');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformGetTreasuryBalance();
+  },
+
+  getTreasuryPremiumAmounts: async (): Promise<TreasuryPremiumAmounts> => {
+    logApiCall('getTreasuryPremiumAmounts');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformGetTreasuryPremiumAmounts();
+  },
+
+  getTreasuryPayoutAmounts: async (): Promise<TreasuryPayoutAmounts> => {
+    logApiCall('getTreasuryPayoutAmounts');
+    if (USE_MOCK_API) {
+      throw new Error('Not implemented in mock');
+    }
+    return apiClient.platformGetTreasuryPayoutAmounts();
+  },
+
+  // ============================================
+  // EXPORTS
+  // ============================================
+
+  exportFarmers: async (params?: { period?: string; startDate?: string; endDate?: string }): Promise<Blob> => {
+    logApiCall('exportFarmers');
+    if (USE_MOCK_API) {
+      return new Blob(['mock CSV data'], { type: 'text/csv' });
+    }
+    return apiClient.exportFarmers(params);
+  },
+
+  exportPolicies: async (params?: { period?: string; startDate?: string; endDate?: string }): Promise<Blob> => {
+    logApiCall('exportPolicies');
+    if (USE_MOCK_API) {
+      return new Blob(['mock CSV data'], { type: 'text/csv' });
+    }
+    return apiClient.exportPolicies(params);
+  },
+
+  exportPayouts: async (params?: { period?: string; startDate?: string; endDate?: string }): Promise<Blob> => {
+    logApiCall('exportPayouts');
+    if (USE_MOCK_API) {
+      return new Blob(['mock CSV data'], { type: 'text/csv' });
+    }
+    return apiClient.exportPayouts(params);
+  },
+
+  exportTransactions: async (params?: { period?: string; startDate?: string; endDate?: string }): Promise<Blob> => {
+    logApiCall('exportTransactions');
+    if (USE_MOCK_API) {
+      return new Blob(['mock CSV data'], { type: 'text/csv' });
+    }
+    return apiClient.exportTransactions(params);
+  },
+
+  exportPlatformOrganizations: async (params?: { period?: string }): Promise<Blob> => {
+    logApiCall('exportPlatformOrganizations');
+    if (USE_MOCK_API) {
+      return new Blob(['mock CSV data'], { type: 'text/csv' });
+    }
+    return apiClient.exportPlatformOrganizations(params);
+  },
+
+  exportPlatformRevenue: async (params?: { period?: string; startDate?: string; endDate?: string }): Promise<Blob> => {
+    logApiCall('exportPlatformRevenue');
+    if (USE_MOCK_API) {
+      return new Blob(['mock CSV data'], { type: 'text/csv' });
+    }
+    return apiClient.exportPlatformRevenue(params);
   },
 };
 
