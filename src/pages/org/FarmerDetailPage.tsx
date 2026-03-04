@@ -45,18 +45,20 @@ export default function FarmerDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/org/farmers"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{farmer.firstName} {farmer.lastName}</h1>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Phone className="h-4 w-4" />{farmer.phone}
-            <MapPin className="h-4 w-4 ml-2" />{farmer.county}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <Button variant="ghost" size="icon" asChild className="shrink-0">
+            <Link to="/org/farmers"><ArrowLeft className="h-4 w-4" /></Link>
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold truncate">{farmer.firstName} {farmer.lastName}</h1>
+            <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+              <span className="flex items-center gap-1"><Phone className="h-4 w-4" />{farmer.phone}</span>
+              <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{farmer.county}</span>
+            </div>
           </div>
         </div>
-        <StatusBadge variant={getStatusVariant(farmer.kycStatus)} className="ml-auto">{farmer.kycStatus}</StatusBadge>
+        <StatusBadge variant={getStatusVariant(farmer.kycStatus)} className="self-start sm:self-center">{farmer.kycStatus}</StatusBadge>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
