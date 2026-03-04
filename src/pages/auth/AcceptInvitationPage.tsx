@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
@@ -21,7 +21,9 @@ import { acceptInvitationSchema, type AcceptInvitationFormData } from '@/lib/val
 import type { OrgAdminInvitation } from '@/types';
 
 export default function AcceptInvitationPage() {
-  const { token } = useParams<{ token: string }>();
+  const { token: pathToken } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const token = pathToken || searchParams.get('token') || undefined;
   const navigate = useNavigate();
   const { toast } = useToast();
 
