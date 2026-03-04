@@ -3,11 +3,46 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
-    </div>
-  ),
+  ({ className, ...props }, ref) => {
+    const scrollRef = React.useRef<HTMLDivElement>(null);
+    const [canScrollRight, setCanScrollRight] = React.useState(false);
+
+    React.useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      const check = () => {
+        setCanScrollRight(el.scrollWidth - el.scrollLeft - el.clientWidth > 1);
+      };
+
+      check();
+      el.addEventListener("scroll", check, { passive: true });
+      const observer = new ResizeObserver(check);
+      observer.observe(el);
+
+      return () => {
+        el.removeEventListener("scroll", check);
+        observer.disconnect();
+      };
+    }, []);
+
+    return (
+      <div className="relative w-full">
+        <div
+          ref={scrollRef}
+          className="overflow-auto"
+        >
+          <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+        </div>
+        {canScrollRight && (
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent"
+            aria-hidden="true"
+          />
+        )}
+      </div>
+    );
+  },
 );
 Table.displayName = "Table";
 
