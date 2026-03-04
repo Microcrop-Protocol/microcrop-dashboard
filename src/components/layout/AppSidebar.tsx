@@ -215,7 +215,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
         </ScrollArea>
 
         {/* User Info */}
-        <div className="border-t p-4">
+        <div className="border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
               {user?.firstName?.[0]}
