@@ -151,9 +151,23 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-tap-highlight-color: hsl(142 76% 36% / 0.1);
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Prevent double-tap zoom delay on interactive elements */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  [role="button"] {
+    touch-action: manipulation;
   }
 }
 
