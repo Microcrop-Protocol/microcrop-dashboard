@@ -32,6 +32,7 @@ import type {
   TreasuryStats,
   DeployPoolRequest,
   DeployPoolResult,
+  PolicyQuote,
 } from '@/types';
 
 // Mock Users
@@ -1582,5 +1583,285 @@ export const mockApi = {
   getPendingKYBCount: async () => {
     await delay(100);
     return mockOrgApplications.filter(app => app.status === 'PENDING_REVIEW').length;
+  },
+
+  // ============================================
+  // FARMER OPERATIONS
+  // ============================================
+
+  registerFarmer: async (data: {
+    phoneNumber: string;
+    nationalId: string;
+    firstName: string;
+    lastName: string;
+    county: string;
+    subCounty?: string;
+    ward?: string;
+    village?: string;
+  }) => {
+    await delay(300);
+    const newFarmer: Farmer = {
+      id: `f${Date.now()}`,
+      organizationId: 'org1',
+      firstName: data.firstName,
+      lastName: data.lastName,
+      phone: data.phoneNumber,
+      nationalId: data.nationalId,
+      county: data.county,
+      kycStatus: 'PENDING',
+      plotsCount: 0,
+      policiesCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    mockFarmers.push(newFarmer);
+    return newFarmer;
+  },
+
+  updateFarmer: async (farmerId: string, data: {
+    phoneNumber?: string;
+    ward?: string;
+    village?: string;
+  }) => {
+    await delay(200);
+    const farmer = mockFarmers.find(f => f.id === farmerId);
+    if (!farmer) throw new Error('Farmer not found');
+    if (data.phoneNumber) farmer.phone = data.phoneNumber;
+    return farmer;
+  },
+
+  updateFarmerKyc: async (farmerId: string, data: {
+    status: 'APPROVED' | 'REJECTED';
+    reason?: string;
+  }) => {
+    await delay(200);
+    const farmer = mockFarmers.find(f => f.id === farmerId);
+    if (!farmer) throw new Error('Farmer not found');
+    farmer.kycStatus = data.status;
+    if (data.status === 'REJECTED') farmer.kycRejectionReason = data.reason;
+    return farmer;
+  },
+
+  // ============================================
+  // PLOTS CRUD
+  // ============================================
+
+  createPlot: async (farmerId: string, data: {
+    name: string;
+    latitude: number;
+    longitude: number;
+    acreage: number;
+    cropType: string;
+  }) => {
+    await delay(300);
+    const farmer = mockFarmers.find(f => f.id === farmerId);
+    const newPlot: Plot = {
+      id: `plot${Date.now()}`,
+      farmerId,
+      farmerName: farmer ? `${farmer.firstName} ${farmer.lastName}` : 'Unknown',
+      name: data.name,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      acreage: data.acreage,
+      cropType: data.cropType,
+      policiesCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    mockPlots.push(newPlot);
+    return newPlot;
+  },
+
+  getPlot: async (plotId: string) => {
+    await delay(200);
+    const plot = mockPlots.find(p => p.id === plotId);
+    if (!plot) throw new Error('Plot not found');
+    return plot;
+  },
+
+  updatePlot: async (plotId: string, data: {
+    name?: string;
+    latitude?: number;
+    longitude?: number;
+    acreage?: number;
+    cropType?: string;
+  }) => {
+    await delay(200);
+    const plot = mockPlots.find(p => p.id === plotId);
+    if (!plot) throw new Error('Plot not found');
+    if (data.name) plot.name = data.name;
+    if (data.latitude) plot.latitude = data.latitude;
+    if (data.longitude) plot.longitude = data.longitude;
+    if (data.acreage) plot.acreage = data.acreage;
+    if (data.cropType) plot.cropType = data.cropType;
+    return plot;
+  },
+
+  // ============================================
+  // POLICY LIFECYCLE
+  // ============================================
+
+  getPolicyQuote: async (data: {
+    farmerId: string;
+    plotId: string;
+    sumInsured: number;
+    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH';
+    durationDays: number;
+  }) => {
+    await delay(300);
+    const premium = data.sumInsured * 0.05;
+    const platformFee = premium * 0.1;
+    return {
+      sumInsured: data.sumInsured,
+      coverageType: data.coverageType,
+      durationDays: data.durationDays,
+      premium,
+      platformFee,
+      totalCost: premium + platformFee,
+      riskScore: 0.35,
+    };
+  },
+
+  purchasePolicy: async (data: {
+    farmerId: string;
+    plotId: string;
+    sumInsured: number;
+    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH';
+    durationDays: number;
+  }) => {
+    await delay(500);
+    const farmer = mockFarmers.find(f => f.id === data.farmerId);
+    const plot = mockPlots.find(p => p.id === data.plotId);
+    const premium = data.sumInsured * 0.05;
+    const newPolicy: Policy = {
+      id: `pol${Date.now()}`,
+      policyNumber: `POL-${Date.now()}`,
+      organizationId: 'org1',
+      farmerId: data.farmerId,
+      farmerName: farmer ? `${farmer.firstName} ${farmer.lastName}` : 'Unknown',
+      plotId: data.plotId,
+      plotName: plot?.name || 'Unknown',
+      status: 'ACTIVE',
+      coverageType: data.coverageType,
+      cropType: plot?.cropType || 'Unknown',
+      sumInsured: data.sumInsured,
+      premium,
+      platformFee: premium * 0.1,
+      startDate: new Date().toISOString(),
+      endDate: new Date(Date.now() + data.durationDays * 86400000).toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    mockPolicies.push(newPolicy);
+    return newPolicy;
+  },
+
+  activatePolicy: async (policyId: string) => {
+    await delay(200);
+    const policy = mockPolicies.find(p => p.id === policyId);
+    if (!policy) throw new Error('Policy not found');
+    policy.status = 'ACTIVE';
+    return policy;
+  },
+
+  cancelPolicy: async (policyId: string, _reason: string) => {
+    await delay(200);
+    const policy = mockPolicies.find(p => p.id === policyId);
+    if (!policy) throw new Error('Policy not found');
+    policy.status = 'CANCELLED';
+    return policy;
+  },
+
+  // ============================================
+  // PAYOUT OPERATIONS
+  // ============================================
+
+  getPayout: async (payoutId: string) => {
+    await delay(200);
+    const payout = mockPayouts.find(p => p.id === payoutId);
+    if (!payout) throw new Error('Payout not found');
+    return payout;
+  },
+
+  retryPayout: async (payoutId: string) => {
+    await delay(300);
+    const payout = mockPayouts.find(p => p.id === payoutId);
+    if (!payout) throw new Error('Payout not found');
+    payout.status = 'PROCESSING';
+    return payout;
+  },
+
+  // ============================================
+  // STAFF MANAGEMENT
+  // ============================================
+
+  updateStaffRole: async (userId: string, role: 'ORG_ADMIN' | 'ORG_STAFF') => {
+    await delay(200);
+    const user = mockUsers.find(u => u.id === userId);
+    if (!user) throw new Error('User not found');
+    user.role = role;
+    return user;
+  },
+
+  deactivateStaff: async (userId: string) => {
+    await delay(200);
+    const user = mockUsers.find(u => u.id === userId);
+    if (!user) throw new Error('User not found');
+    user.isActive = false;
+    return user;
+  },
+
+  reactivateStaff: async (userId: string) => {
+    await delay(200);
+    const user = mockUsers.find(u => u.id === userId);
+    if (!user) throw new Error('User not found');
+    user.isActive = true;
+    return user;
+  },
+
+  // ============================================
+  // ORG SELF-SERVICE
+  // ============================================
+
+  getMyOrganization: async () => {
+    await delay(200);
+    return mockOrganizations[0];
+  },
+
+  updateOrgSettings: async (settings: {
+    brandColor?: string;
+    webhookUrl?: string;
+    contactPhone?: string;
+  }) => {
+    await delay(200);
+    const org = mockOrganizations[0];
+    if (settings.contactPhone) org.contactPhone = settings.contactPhone;
+    return org;
+  },
+
+  // ============================================
+  // AUTH (additional)
+  // ============================================
+
+  register: async (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  }) => {
+    await delay(300);
+    const newUser: User = {
+      id: `u${Date.now()}`,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      phone: data.phone,
+      role: 'ORG_STAFF',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    return {
+      user: newUser,
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token',
+    };
   },
 };
