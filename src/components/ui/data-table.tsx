@@ -42,7 +42,7 @@ export function DataTable<TData, TValue>({
   data,
   isLoading = false,
   searchKey,
-  searchPlaceholder = "Search...",
+  searchPlaceholder = "Search\u2026",
   onRowClick,
   pageSize = 10,
   showPagination = true,
@@ -113,7 +113,7 @@ export function DataTable<TData, TValue>({
       {searchKey && (
         <div className="flex items-center gap-2">
           <div className="relative w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               placeholder={searchPlaceholder}
               value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
@@ -121,6 +121,8 @@ export function DataTable<TData, TValue>({
                 table.getColumn(searchKey)?.setFilterValue(event.target.value)
               }
               className="pl-10"
+              name="table-search"
+              autoComplete="off"
               aria-label={searchPlaceholder}
             />
           </div>
@@ -194,7 +196,7 @@ export function DataTable<TData, TValue>({
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               Previous
             </Button>
             <Button
@@ -204,7 +206,7 @@ export function DataTable<TData, TValue>({
               disabled={!table.getCanNextPage()}
             >
               Next
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         </div>

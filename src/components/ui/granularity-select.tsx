@@ -17,7 +17,7 @@ interface GranularitySelectProps {
 export function GranularitySelect({ value, onChange, className }: GranularitySelectProps) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={cn("w-[120px]", className)}>
+      <SelectTrigger className={cn("w-[120px]", className)} aria-label="Select granularity">
         <SelectValue placeholder="Granularity" />
       </SelectTrigger>
       <SelectContent>

@@ -57,7 +57,7 @@ export function DateRangePicker({
     <div className={cn("flex items-center gap-2", className)}>
       {presets && (
         <Select value={selectedPreset} onValueChange={handlePresetChange}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-[140px]" aria-label="Select date range preset">
             <SelectValue placeholder="Select range" />
           </SelectTrigger>
           <SelectContent>
@@ -80,7 +80,7 @@ export function DateRangePicker({
               !value && "text-muted-foreground"
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">
               {value?.from ? (
                 value.to ? (

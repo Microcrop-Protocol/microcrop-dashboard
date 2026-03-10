@@ -85,9 +85,9 @@ export function ActivityFeed({ activities, className, maxItems }: ActivityFeedPr
         return (
           <div key={activity.id} className="flex items-start gap-3">
             <div className={cn("rounded-full p-2", colorClass)}>
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden="true" />
             </div>
-            <div className="flex-1 space-y-1">
+            <div className="min-w-0 flex-1 space-y-1">
               <p className="text-sm leading-tight">{activity.message}</p>
               <p className="text-xs text-muted-foreground">
                 {formatActivityTime(activity.createdAt)}
