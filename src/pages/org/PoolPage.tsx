@@ -233,7 +233,7 @@ export default function PoolPage() {
         </Card>
 
         {/* Info Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           <Card>
             <CardContent className="pt-6">
               <h4 className="font-medium mb-2">Private Pool</h4>
@@ -341,7 +341,7 @@ export default function PoolPage() {
           <h1 className="text-2xl font-bold">Liquidity Pool</h1>
           <p className="text-muted-foreground">Manage your insurance pool liquidity</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <PoolDepositDialog
             pool={details}
             onSubmit={async (data) => {
