@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,9 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function NewPolicyPage() {
   const { user } = useAuthStore();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const orgId = user?.organizationId || "";
 
   const [step, setStep] = useState(1);
@@ -42,6 +47,24 @@ export default function NewPolicyPage() {
 
   const premium = formData.sumInsured * 0.05;
   const fee = premium * 0.05;
+
+  const purchaseMutation = useMutation({
+    mutationFn: () =>
+      api.purchasePolicy({
+        farmerId: formData.farmerId,
+        plotId: formData.plotId,
+        sumInsured: formData.sumInsured,
+        coverageType: formData.coverageType as "DROUGHT" | "FLOOD" | "BOTH",
+        durationDays: formData.duration,
+      }),
+    onSuccess: () => {
+      toast({ title: "Policy created", description: "The policy has been activated successfully." });
+      navigate("/org/policies");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create policy", description: error.message, variant: "destructive" });
+    },
+  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -160,8 +183,11 @@ export default function NewPolicyPage() {
               <p className="text-muted-foreground">Account: POLICY-NEW</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-              <Button className="flex-1">Confirm Payment</Button>
+              <Button variant="outline" onClick={() => setStep(1)} disabled={purchaseMutation.isPending}>Back</Button>
+              <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending}>
+                {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm Payment
+              </Button>
             </div>
           </CardContent>
         </Card>
