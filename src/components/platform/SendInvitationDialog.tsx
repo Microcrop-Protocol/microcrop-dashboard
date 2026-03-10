@@ -57,7 +57,7 @@ export function SendInvitationDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm">
-            <Send className="mr-2 h-4 w-4" />
+            <Send className="mr-2 h-4 w-4" aria-hidden="true" />
             Send Invitation
           </Button>
         )}
@@ -75,7 +75,7 @@ export function SendInvitationDialog({
           <CardContent className="p-4">
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Mail className="h-4 w-4" />
+                <Mail className="h-4 w-4" aria-hidden="true" />
                 <span>To: {email}</span>
               </div>
 
@@ -118,8 +118,8 @@ export function SendInvitationDialog({
             Cancel
           </Button>
           <Button onClick={handleSend} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <Send className="mr-2 h-4 w-4" />
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+            <Send className="mr-2 h-4 w-4" aria-hidden="true" />
             Send Invitation
           </Button>
         </DialogFooter>

@@ -74,7 +74,7 @@ export function CreateOrganizationDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Create Organization
           </Button>
         )}
@@ -188,7 +188,7 @@ export function CreateOrganizationDialog({
                   <FormItem>
                     <FormLabel>Email Address</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="john.doe@example.com" {...field} />
+                      <Input type="email" placeholder="john.doe@example.com" spellCheck={false} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -202,7 +202,7 @@ export function CreateOrganizationDialog({
                   <FormItem>
                     <FormLabel>Phone Number</FormLabel>
                     <FormControl>
-                      <Input placeholder="+254712345678" {...field} />
+                      <Input type="tel" placeholder="+254712345678" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -243,7 +243,7 @@ export function CreateOrganizationDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 Create Organization
               </Button>
             </DialogFooter>
