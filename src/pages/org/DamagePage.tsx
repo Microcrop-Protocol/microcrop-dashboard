@@ -73,7 +73,7 @@ export default function DamagePage() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           title="Avg Weather Score" 
           value={`${(avgWeather * 100).toFixed(1)}%`}
@@ -120,7 +120,7 @@ export default function DamagePage() {
             <CardTitle className="text-base">Damage Heatmap</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="h-[500px] p-4 pt-0">
+            <div className="h-[300px] p-4 pt-0 sm:h-[400px] md:h-[500px]">
               <DamageHeatmap 
                 assessments={assessments}
                 selectedAssessmentId={selectedAssessmentId}
