@@ -84,7 +84,7 @@ export function DeployPoolDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] w-full overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {organization ? `Deploy Pool for ${organization.name}` : 'Create Public Pool'}
