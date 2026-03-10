@@ -183,7 +183,7 @@ export default function PoolPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
       </div>
     );
   }
@@ -217,7 +217,7 @@ export default function PoolPage() {
         <Card className="border-dashed border-2">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="rounded-full bg-primary/10 p-4 mb-4">
-              <Wallet className="h-12 w-12 text-primary" />
+              <Wallet className="h-12 w-12 text-primary" aria-hidden="true" />
             </div>
             <h3 className="text-xl font-semibold mb-2">No Pool Deployed</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
@@ -279,13 +279,13 @@ export default function PoolPage() {
         {/* Coming Soon Card */}
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Construction className="h-12 w-12 text-muted-foreground mb-4" />
+            <Construction className="h-12 w-12 text-muted-foreground mb-4" aria-hidden="true" />
             <h3 className="text-lg font-semibold mb-2">Pool Management Coming Soon</h3>
             <p className="text-muted-foreground text-center max-w-md mb-4">
               The pool API is not yet available. This feature will allow you to deposit, withdraw, and manage your liquidity pool.
             </p>
             <div className="flex gap-2 text-sm text-muted-foreground">
-              <AlertCircle className="h-4 w-4" />
+              <AlertCircle className="h-4 w-4" aria-hidden="true" />
               <span>API endpoint not available</span>
             </div>
           </CardContent>
@@ -361,7 +361,7 @@ export default function PoolPage() {
             <Button variant="outline" asChild>
               <a href={`https://basescan.org/address/${p.address}`} target="_blank" rel="noopener noreferrer">
                 {`${p.address.slice(0,6)}...${p.address.slice(-4)}`}
-                <ExternalLink className="ml-2 h-4 w-4" />
+                <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
               </a>
             </Button>
           )}
@@ -372,7 +372,7 @@ export default function PoolPage() {
       <div className="flex flex-wrap gap-2">
         {details.paused && (
           <Badge variant="destructive" className="gap-1">
-            <AlertCircle className="h-3 w-3" />
+            <AlertCircle className="h-3 w-3" aria-hidden="true" />
             Pool Paused
           </Badge>
         )}
@@ -391,19 +391,19 @@ export default function PoolPage() {
           <CardDescription>Total value locked in the pool</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-4xl font-bold text-primary">{formatCurrency(details.poolValue)}</p>
+          <p className="text-4xl font-bold text-primary tabular-nums">{formatCurrency(details.poolValue)}</p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-muted-foreground">Utilization Rate</span>
-                <span className="font-medium">{(details.utilizationRate ?? 0).toFixed(1)}%</span>
+                <span className="font-medium tabular-nums">{(details.utilizationRate ?? 0).toFixed(1)}%</span>
               </div>
               <Progress value={details.utilizationRate ?? 0} className="h-2" />
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-muted-foreground">Capital Progress</span>
-                <span className="font-medium">
+                <span className="font-medium tabular-nums">
                   {details.targetCapital ? (((details.poolValue ?? 0) / details.targetCapital) * 100).toFixed(1) : 0}%
                 </span>
               </div>
@@ -449,26 +449,26 @@ export default function PoolPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+              <TrendingUp className="h-5 w-5" aria-hidden="true" />
               LP Token Details
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Token Price</span>
-              <span className="font-medium">{formatCurrency(details.tokenPrice)}</span>
+              <span className="font-medium tabular-nums">{formatCurrency(details.tokenPrice)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total Supply</span>
-              <span className="font-medium">{formatNumber(details.totalSupply)} tokens</span>
+              <span className="font-medium tabular-nums">{formatNumber(details.totalSupply)} tokens</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Active Exposure</span>
-              <span className="font-medium">{formatCurrency(details.activeExposure)}</span>
+              <span className="font-medium tabular-nums">{formatCurrency(details.activeExposure)}</span>
             </div>
             <div className="flex justify-between pt-2 border-t">
               <span className="text-muted-foreground">Available for Withdrawal</span>
-              <span className="font-bold text-primary">{formatCurrency(p.availableForWithdrawal)}</span>
+              <span className="font-bold text-primary tabular-nums">{formatCurrency(p.availableForWithdrawal)}</span>
             </div>
           </CardContent>
         </Card>
@@ -476,26 +476,26 @@ export default function PoolPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
+              <Target className="h-5 w-5" aria-hidden="true" />
               Capital Limits
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Minimum Deposit</span>
-              <span className="font-medium">{formatCurrency(details.minDeposit)}</span>
+              <span className="font-medium tabular-nums">{formatCurrency(details.minDeposit)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Maximum Deposit</span>
-              <span className="font-medium">{formatCurrency(details.maxDeposit)}</span>
+              <span className="font-medium tabular-nums">{formatCurrency(details.maxDeposit)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Target Capital</span>
-              <span className="font-medium">{formatCurrency(details.targetCapital)}</span>
+              <span className="font-medium tabular-nums">{formatCurrency(details.targetCapital)}</span>
             </div>
             <div className="flex justify-between pt-2 border-t">
               <span className="text-muted-foreground">Maximum Capital</span>
-              <span className="font-bold">{formatCurrency(details.maxCapital)}</span>
+              <span className="font-bold tabular-nums">{formatCurrency(details.maxCapital)}</span>
             </div>
           </CardContent>
         </Card>
