@@ -40,7 +40,7 @@ function DocumentCard({ document }: { document: KYBDocument }) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="rounded-lg bg-muted p-2">
-              <FileText className="h-5 w-5 text-muted-foreground" />
+              <FileText className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             </div>
             <div>
               <h4 className="font-medium">{documentTypeLabels[document.type]}</h4>
@@ -59,13 +59,13 @@ function DocumentCard({ document }: { document: KYBDocument }) {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
               <a href={resolveFileUrl(document.fileUrl)} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="mr-1 h-3 w-3" />
+                <ExternalLink className="mr-1 h-3 w-3" aria-hidden="true" />
                 View
               </a>
             </Button>
             <Button variant="outline" size="sm" asChild>
               <a href={resolveFileUrl(document.fileUrl)} download={document.fileName}>
-                <Download className="mr-1 h-3 w-3" />
+                <Download className="mr-1 h-3 w-3" aria-hidden="true" />
                 Download
               </a>
             </Button>
@@ -150,7 +150,7 @@ export function KYBVerificationPanel({
                     form.setValue('status', 'APPROVED');
                   }}
                 >
-                  <CheckCircle className="mr-2 h-4 w-4" />
+                  <CheckCircle className="mr-2 h-4 w-4" aria-hidden="true" />
                   Approve
                 </Button>
                 <Button
@@ -161,7 +161,7 @@ export function KYBVerificationPanel({
                     form.setValue('status', 'REJECTED');
                   }}
                 >
-                  <XCircle className="mr-2 h-4 w-4" />
+                  <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
                   Reject
                 </Button>
               </div>
@@ -192,8 +192,8 @@ export function KYBVerificationPanel({
                           <Textarea
                             placeholder={
                               selectedAction === 'REJECTED'
-                                ? 'Please provide a reason for rejection...'
-                                : 'Add any notes about this verification...'
+                                ? 'Please provide a reason for rejection\u2026'
+                                : 'Add any notes about this verification\u2026'
                             }
                             rows={3}
                             {...field}
@@ -221,7 +221,7 @@ export function KYBVerificationPanel({
                       variant={selectedAction === 'APPROVED' ? 'default' : 'destructive'}
                       disabled={isLoading}
                     >
-                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                       Confirm {selectedAction === 'APPROVED' ? 'Approval' : 'Rejection'}
                     </Button>
                   </div>

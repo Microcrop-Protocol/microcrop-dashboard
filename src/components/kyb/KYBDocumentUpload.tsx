@@ -125,21 +125,22 @@ export function KYBDocumentUpload({
                 {doc ? (
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                       <span className="text-sm">{doc.file.name}</span>
                       <span className="text-xs text-muted-foreground">
                         ({formatFileSize(doc.file.size)})
                       </span>
-                      <Check className="h-4 w-4 text-success" />
+                      <Check className="h-4 w-4 text-success" aria-hidden="true" />
                     </div>
                     {!disabled && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
+                        aria-label="Remove document"
                         onClick={() => removeDocument(type)}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     )}
                   </div>
@@ -150,7 +151,7 @@ export function KYBDocumentUpload({
                     onClick={() => setActiveType(type)}
                     disabled={disabled}
                   >
-                    <Upload className="mr-2 h-4 w-4" />
+                    <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
                     Upload
                   </Button>
                 )}
@@ -167,7 +168,7 @@ export function KYBDocumentUpload({
                   )}
                 >
                   <input {...getInputProps()} />
-                  <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                  <Upload className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
                   <p className="mt-2 text-sm text-muted-foreground">
                     {isDragActive
                       ? 'Drop the file here...'
@@ -194,7 +195,7 @@ export function KYBDocumentUpload({
 
       {error && (
         <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4" />
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />
           {error}
         </div>
       )}

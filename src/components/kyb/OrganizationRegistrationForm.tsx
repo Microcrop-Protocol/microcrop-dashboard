@@ -142,7 +142,7 @@ export function OrganizationRegistrationForm({
                   !isActive && !isCompleted && 'bg-muted text-muted-foreground'
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">{step.title}</span>
               </div>
             </div>
@@ -407,7 +407,7 @@ export function OrganizationRegistrationForm({
               onClick={handleBack}
               disabled={currentStep === 0 || isLoading}
             >
-              <ChevronLeft className="mr-2 h-4 w-4" />
+              <ChevronLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               Back
             </Button>
 
@@ -418,7 +418,7 @@ export function OrganizationRegistrationForm({
                 disabled={currentStep === 2 && documents.length < 2}
               >
                 Next
-                <ChevronRight className="ml-2 h-4 w-4" />
+                <ChevronRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Button>
             ) : (
               <Button
@@ -426,7 +426,7 @@ export function OrganizationRegistrationForm({
                 onClick={handleSubmit}
                 disabled={isLoading || documents.length < 2}
               >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 Submit Application
               </Button>
             )}
