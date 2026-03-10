@@ -77,7 +77,7 @@ export function DataTable<TData, TValue>({
       <div className="space-y-4">
         {searchKey && (
           <div className="flex items-center gap-2">
-            <Skeleton className="h-10 w-[300px]" />
+            <Skeleton className="h-10 w-full sm:w-[300px]" />
           </div>
         )}
         <div className="rounded-md border">
@@ -112,7 +112,7 @@ export function DataTable<TData, TValue>({
     <div className="space-y-4">
       {searchKey && (
         <div className="flex items-center gap-2">
-          <div className="relative w-full max-w-sm">
+          <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
@@ -182,12 +182,12 @@ export function DataTable<TData, TValue>({
       </div>
 
       {showPagination && data.length > pageSize && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground tabular-nums">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground tabular-nums text-center sm:text-left">
             Page {table.getState().pagination.pageIndex + 1} of{" "}
             {table.getPageCount()}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             <Button
               variant="outline"
               size="sm"
