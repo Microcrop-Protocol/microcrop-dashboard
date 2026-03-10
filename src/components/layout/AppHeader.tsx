@@ -38,9 +38,9 @@ export function AppHeader({ title, onMenuClick }: AppHeaderProps) {
         {/* Theme Toggle */}
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
           {theme === "dark" ? (
-            <Sun className="h-5 w-5" />
+            <Sun className="h-5 w-5" aria-hidden="true" />
           ) : (
-            <Moon className="h-5 w-5" />
+            <Moon className="h-5 w-5" aria-hidden="true" />
           )}
         </Button>
 
@@ -66,7 +66,7 @@ export function AppHeader({ title, onMenuClick }: AppHeaderProps) {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-error focus:text-error">
-              <LogOut className="mr-2 h-4 w-4" />
+              <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

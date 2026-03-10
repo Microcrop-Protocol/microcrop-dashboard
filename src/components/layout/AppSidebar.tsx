@@ -130,7 +130,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
             <span className="text-lg font-bold text-sidebar-foreground">MicroCrop</span>
           </Link>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose} aria-label="Close sidebar">
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </Button>
         </div>
 
@@ -159,7 +159,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                         )}
                       >
                         <span className="flex items-center gap-3">
-                          <Icon className="h-4 w-4" />
+                          <Icon className="h-4 w-4" aria-hidden="true" />
                           {item.title}
                         </span>
                         <ChevronDown
@@ -167,6 +167,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                             "h-4 w-4 transition-transform",
                             (isGroupOpen || item.children?.some((c) => isActive(c.href))) && "rotate-180"
                           )}
+                          aria-hidden="true"
                         />
                       </Button>
                     </CollapsibleTrigger>
@@ -205,7 +206,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                   )}
                 >
                   <Link to={item.href} onClick={onClose} className="flex items-center gap-3">
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4" aria-hidden="true" />
                     {item.title}
                   </Link>
                 </Button>
@@ -239,7 +240,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
 export function SidebarTrigger({ onClick }: { onClick: () => void }) {
   return (
     <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClick} aria-label="Open sidebar">
-      <Menu className="h-5 w-5" />
+      <Menu className="h-5 w-5" aria-hidden="true" />
     </Button>
   );
 }
