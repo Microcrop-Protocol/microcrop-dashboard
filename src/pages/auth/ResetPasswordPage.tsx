@@ -68,7 +68,7 @@ export default function ResetPasswordPage() {
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-              <XCircle className="h-8 w-8 text-destructive" />
+              <XCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
             </div>
             <CardTitle>Invalid Reset Link</CardTitle>
             <CardDescription>
@@ -95,7 +95,7 @@ export default function ResetPasswordPage() {
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle className="h-8 w-8 text-success" />
+              <CheckCircle className="h-8 w-8 text-success" aria-hidden="true" />
             </div>
             <CardTitle>Password Reset!</CardTitle>
             <CardDescription>
@@ -120,6 +120,8 @@ export default function ResetPasswordPage() {
           <img
             src="/microcropsymb.png"
             alt="MicroCrop"
+            width={120}
+            height={120}
             className="mx-auto h-16 w-16 object-contain"
           />
           <div>
@@ -152,11 +154,12 @@ export default function ResetPasswordPage() {
                           size="icon"
                           className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                           onClick={() => setShowPassword(!showPassword)}
+                          aria-label="Toggle password visibility"
                         >
                           {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           )}
                         </Button>
                       </div>
@@ -189,11 +192,12 @@ export default function ResetPasswordPage() {
                           size="icon"
                           className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          aria-label="Toggle password visibility"
                         >
                           {showConfirmPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           )}
                         </Button>
                       </div>
@@ -204,7 +208,7 @@ export default function ResetPasswordPage() {
               />
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 Reset Password
               </Button>
             </form>

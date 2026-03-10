@@ -97,8 +97,8 @@ export default function AcceptInvitationPage() {
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-background p-4">
         <Card className="w-full max-w-md text-center">
           <CardContent className="py-12">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">Validating invitation...</p>
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+            <p className="mt-4 text-muted-foreground">Validating invitation\u2026</p>
           </CardContent>
         </Card>
       </div>
@@ -112,7 +112,7 @@ export default function AcceptInvitationPage() {
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-              <XCircle className="h-8 w-8 text-destructive" />
+              <XCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
             </div>
             <CardTitle>Invalid Invitation</CardTitle>
             <CardDescription>{error}</CardDescription>
@@ -143,7 +143,7 @@ export default function AcceptInvitationPage() {
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle className="h-8 w-8 text-success" />
+              <CheckCircle className="h-8 w-8 text-success" aria-hidden="true" />
             </div>
             <CardTitle>Account Created!</CardTitle>
             <CardDescription>
@@ -231,11 +231,12 @@ export default function AcceptInvitationPage() {
                           size="icon"
                           className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                           onClick={() => setShowPassword(!showPassword)}
+                          aria-label="Toggle password visibility"
                         >
                           {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           )}
                         </Button>
                       </div>
@@ -268,11 +269,12 @@ export default function AcceptInvitationPage() {
                           size="icon"
                           className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          aria-label="Toggle password visibility"
                         >
                           {showConfirmPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           )}
                         </Button>
                       </div>
@@ -283,14 +285,14 @@ export default function AcceptInvitationPage() {
               />
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 Create Account
               </Button>
             </form>
           </Form>
 
           <div className="mt-6 flex items-start gap-2 rounded-lg bg-info/10 p-3 text-sm text-info">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <p>
               By creating an account, you agree to our Terms of Service and Privacy Policy.
             </p>

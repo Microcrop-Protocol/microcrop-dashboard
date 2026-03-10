@@ -58,7 +58,7 @@ export default function RegisterOrganizationPage() {
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle className="h-8 w-8 text-success" />
+              <CheckCircle className="h-8 w-8 text-success" aria-hidden="true" />
             </div>
             <CardTitle>Application Submitted!</CardTitle>
             <CardDescription>
@@ -91,7 +91,7 @@ export default function RegisterOrganizationPage() {
 
             <Button asChild className="w-full">
               <Link to="/login">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
                 Back to Login
               </Link>
             </Button>
