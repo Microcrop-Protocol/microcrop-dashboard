@@ -71,7 +71,7 @@ export function PoolDepositDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button disabled={!pool.depositsOpen || pool.paused}>
-            <ArrowDownToLine className="mr-2 h-4 w-4" />
+            <ArrowDownToLine className="mr-2 h-4 w-4" aria-hidden="true" />
             Deposit
           </Button>
         )}
@@ -111,15 +111,15 @@ export function PoolDepositDialog({
             <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Current Token Price</span>
-                <span className="font-medium">{formatCurrency(pool.tokenPrice)}</span>
+                <span className="font-medium tabular-nums">{formatCurrency(pool.tokenPrice)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Estimated LP Tokens</span>
-                <span className="font-medium">{estimatedTokens}</span>
+                <span className="font-medium tabular-nums">{estimatedTokens}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Pool Utilization</span>
-                <span className="font-medium">{pool.utilizationRate.toFixed(1)}%</span>
+                <span className="font-medium tabular-nums">{pool.utilizationRate.toFixed(1)}%</span>
               </div>
             </div>
 

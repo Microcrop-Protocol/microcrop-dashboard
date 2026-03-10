@@ -24,7 +24,7 @@ export function PoolSettingsCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
+          <Settings className="h-5 w-5" aria-hidden="true" />
           Pool Settings
         </CardTitle>
         <CardDescription>
@@ -43,7 +43,7 @@ export function PoolSettingsCard({
           </div>
           <div className="flex items-center gap-2">
             {isDepositsLoading && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
             )}
             <Switch
               id="deposits-toggle"
@@ -65,7 +65,7 @@ export function PoolSettingsCard({
           </div>
           <div className="flex items-center gap-2">
             {isWithdrawalsLoading && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
             )}
             <Switch
               id="withdrawals-toggle"
@@ -83,7 +83,7 @@ export function PoolSettingsCard({
         )}
 
         <Alert>
-          <Info className="h-4 w-4" />
+          <Info className="h-4 w-4" aria-hidden="true" />
           <AlertDescription>
             These settings control on-chain pool parameters. Changes require a blockchain transaction and may not be available on all networks.
           </AlertDescription>

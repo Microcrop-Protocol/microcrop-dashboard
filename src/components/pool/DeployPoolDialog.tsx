@@ -79,7 +79,7 @@ export function DeployPoolDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Deploy Pool
           </Button>
         )}

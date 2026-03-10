@@ -36,7 +36,7 @@ export function WalletCard({ wallet, onFund, isFunding }: WalletCardProps) {
       <Card className="border-dashed">
         <CardContent className="flex items-center gap-4 py-6">
           <div className="rounded-full bg-muted p-3">
-            <Wallet className="h-6 w-6 text-muted-foreground" />
+            <Wallet className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
           </div>
           <div>
             <p className="font-medium">No Wallet</p>
@@ -56,7 +56,7 @@ export function WalletCard({ wallet, onFund, isFunding }: WalletCardProps) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
+            <Wallet className="h-5 w-5" aria-hidden="true" />
             Organization Wallet
           </CardTitle>
           <CardDescription className="mt-1">
@@ -70,7 +70,7 @@ export function WalletCard({ wallet, onFund, isFunding }: WalletCardProps) {
           {/* USDC Balance */}
           <div className="rounded-lg border bg-muted/50 p-4">
             <p className="text-sm text-muted-foreground">USDC Balance</p>
-            <p className="mt-1 text-2xl font-bold text-primary">
+            <p className="mt-1 text-2xl font-bold text-primary tabular-nums">
               ${formatBalance(usdcBalance)}
             </p>
           </div>
@@ -80,18 +80,19 @@ export function WalletCard({ wallet, onFund, isFunding }: WalletCardProps) {
             <p className="text-sm text-muted-foreground">Wallet Address</p>
             <div className="mt-1 flex items-center gap-2">
               <span className="font-mono text-sm">
-                {wallet.walletAddress.slice(0, 6)}...{wallet.walletAddress.slice(-4)}
+                {wallet.walletAddress.slice(0, 6)}&hellip;{wallet.walletAddress.slice(-4)}
               </span>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6"
                 onClick={copyAddress}
+                aria-label="Copy address"
               >
                 {copied ? (
-                  <Check className="h-3 w-3 text-success" />
+                  <Check className="h-3 w-3 text-success" aria-hidden="true" />
                 ) : (
-                  <Copy className="h-3 w-3" />
+                  <Copy className="h-3 w-3" aria-hidden="true" />
                 )}
               </Button>
               <Button
@@ -99,13 +100,14 @@ export function WalletCard({ wallet, onFund, isFunding }: WalletCardProps) {
                 size="icon"
                 className="h-6 w-6"
                 asChild
+                aria-label="View on Basescan"
               >
                 <a
                   href={`https://basescan.org/address/${wallet.walletAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
                 </a>
               </Button>
             </div>

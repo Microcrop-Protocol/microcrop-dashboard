@@ -65,7 +65,7 @@ export function FundWalletDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button variant="outline">
-            <Smartphone className="mr-2 h-4 w-4" />
+            <Smartphone className="mr-2 h-4 w-4" aria-hidden="true" />
             Fund via M-Pesa
           </Button>
         )}
@@ -75,7 +75,7 @@ export function FundWalletDialog({
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-success" />
+                <CheckCircle className="h-5 w-5 text-success" aria-hidden="true" />
                 M-Pesa Request Sent
               </DialogTitle>
               <DialogDescription>
@@ -85,16 +85,16 @@ export function FundWalletDialog({
             <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Order ID</span>
-                <span className="font-mono text-xs">{result.orderId}</span>
+                <span className="font-mono text-xs tabular-nums">{result.orderId}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Status</span>
-                <span className="font-medium">{result.status}</span>
+                <span className="font-medium tabular-nums">{result.status}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Wallet</span>
                 <span className="font-mono text-xs">
-                  {result.walletAddress.slice(0, 6)}...{result.walletAddress.slice(-4)}
+                  {result.walletAddress.slice(0, 6)}&hellip;{result.walletAddress.slice(-4)}
                 </span>
               </div>
             </div>

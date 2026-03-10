@@ -128,7 +128,7 @@ export function DeployOrgPoolDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button size="lg">
-            <Rocket className="mr-2 h-5 w-5" />
+            <Rocket className="mr-2 h-5 w-5" aria-hidden="true" />
             Deploy Pool
           </Button>
         )}
@@ -386,7 +386,7 @@ export function DeployOrgPoolDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 Deploy Pool
               </Button>
             </DialogFooter>

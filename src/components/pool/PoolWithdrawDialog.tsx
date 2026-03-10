@@ -75,7 +75,7 @@ export function PoolWithdrawDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button variant="outline" disabled={!pool.withdrawalsOpen || pool.paused}>
-            <ArrowUpFromLine className="mr-2 h-4 w-4" />
+            <ArrowUpFromLine className="mr-2 h-4 w-4" aria-hidden="true" />
             Withdraw
           </Button>
         )}
@@ -115,15 +115,15 @@ export function PoolWithdrawDialog({
             <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Current Token Price</span>
-                <span className="font-medium">{formatCurrency(pool.tokenPrice)}</span>
+                <span className="font-medium tabular-nums">{formatCurrency(pool.tokenPrice)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Estimated USDC Received</span>
-                <span className="font-medium">{formatCurrency(parseFloat(estimatedUsdc))}</span>
+                <span className="font-medium tabular-nums">{formatCurrency(parseFloat(estimatedUsdc))}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Pool Utilization</span>
-                <span className="font-medium">{pool.utilizationRate.toFixed(1)}%</span>
+                <span className="font-medium tabular-nums">{pool.utilizationRate.toFixed(1)}%</span>
               </div>
             </div>
 
