@@ -368,7 +368,13 @@ export const api = {
     if (USE_MOCK_API) {
       return (await getMockApi()).mockApi.validateInvitationToken(token);
     }
-    return apiClient.validateInvitationToken(token);
+    const result = await apiClient.validateInvitationToken(token);
+    // Backend may return the invitation directly or wrapped in { valid, invitation }
+    // Normalize to the shape the frontend expects
+    if (result && !('valid' in result)) {
+      return { valid: true, invitation: result as unknown as OrgAdminInvitation };
+    }
+    return result;
   },
 
   acceptInvitation: async (token: string, password: string) => {
