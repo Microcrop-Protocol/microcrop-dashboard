@@ -135,7 +135,7 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
         border-radius: 50%;
         cursor: pointer;
         box-shadow: 0 0 ${isSelected ? '12px' : '8px'} ${color}80;
-        transition: all 0.2s ease;
+        transition: opacity 0.2s ease;
       `;
 
       const popup = new mb.Popup({ offset: 25 }).setHTML(`
@@ -213,12 +213,12 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
         >
           {mapStyle === 'satellite' ? (
             <>
-              <Map className="h-4 w-4 mr-2" />
+              <Map className="h-4 w-4 mr-2" aria-hidden="true" />
               Streets
             </>
           ) : (
             <>
-              <Satellite className="h-4 w-4 mr-2" />
+              <Satellite className="h-4 w-4 mr-2" aria-hidden="true" />
               Satellite
             </>
           )}

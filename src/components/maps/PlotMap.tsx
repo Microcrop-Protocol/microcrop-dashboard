@@ -103,7 +103,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
         border-radius: 50%;
         cursor: pointer;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        transition: all 0.2s ease;
+        transition: opacity 0.2s ease;
       `;
 
       const popup = new mb.Popup({ offset: 25 }).setHTML(`
