@@ -134,16 +134,16 @@ export default function OrganizationDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" asChild>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-4 min-w-0">
+          <Button variant="ghost" size="icon" asChild className="shrink-0">
             <Link to="/platform/organizations">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{org.name}</h1>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-2xl font-bold truncate">{org.name}</h1>
               <StatusBadge variant={getStatusVariant(org.type)}>
                 {org.type.charAt(0) + org.type.slice(1).toLowerCase()}
               </StatusBadge>
@@ -200,19 +200,19 @@ export default function OrganizationDetailPage() {
           <CardTitle className="text-base">Onboarding Progress</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between overflow-x-auto pb-2">
             {onboardingSteps.map((step, index) => (
-              <div key={step.key} className="flex flex-1 items-center">
+              <div key={step.key} className="flex min-w-0 flex-1 items-center">
                 <div className="flex flex-col items-center">
                   {index <= currentStepIndex ? (
-                    <CheckCircle2 className="h-6 w-6 text-success" />
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-success sm:h-6 sm:w-6" />
                   ) : (
-                    <Circle className="h-6 w-6 text-muted-foreground" />
+                    <Circle className="h-5 w-5 shrink-0 text-muted-foreground sm:h-6 sm:w-6" />
                   )}
-                  <span className="mt-2 text-xs text-muted-foreground">{step.label}</span>
+                  <span className="mt-1 max-w-[60px] truncate text-center text-[10px] text-muted-foreground sm:mt-2 sm:max-w-none sm:text-xs">{step.label}</span>
                 </div>
                 {index < onboardingSteps.length - 1 && (
-                  <div className={`mx-2 h-0.5 flex-1 ${index < currentStepIndex ? "bg-success" : "bg-muted"}`} />
+                  <div className={`mx-1 h-0.5 flex-1 sm:mx-2 ${index < currentStepIndex ? "bg-success" : "bg-muted"}`} />
                 )}
               </div>
             ))}
