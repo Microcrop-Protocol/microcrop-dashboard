@@ -16,7 +16,7 @@ import {
 import { KYBStatusBadge } from './KYBStatusBadge';
 import type { KYBVerification, KYBDocument } from '@/types';
 import { kybVerificationSchema, type KYBVerificationFormData, documentTypeLabels } from '@/lib/validations/kyb';
-import { formatDate } from '@/lib/utils';
+import { formatDate, resolveFileUrl } from '@/lib/utils';
 
 interface KYBVerificationPanelProps {
   verification: KYBVerification;
@@ -58,13 +58,13 @@ function DocumentCard({ document }: { document: KYBDocument }) {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
-              <a href={document.fileUrl} target="_blank" rel="noopener noreferrer">
+              <a href={resolveFileUrl(document.fileUrl)} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="mr-1 h-3 w-3" />
                 View
               </a>
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <a href={document.fileUrl} download={document.fileName}>
+              <a href={resolveFileUrl(document.fileUrl)} download={document.fileName}>
                 <Download className="mr-1 h-3 w-3" />
                 Download
               </a>
