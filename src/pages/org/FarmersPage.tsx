@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -8,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { Farmer } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { Plus, Upload, Download } from "lucide-react";
+import { Upload, Download, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 const columns: ColumnDef<Farmer>[] = [
   { accessorKey: "firstName", header: "First Name" },
@@ -38,13 +40,32 @@ const columns: ColumnDef<Farmer>[] = [
 export default function FarmersPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { toast } = useToast();
   const orgId = user?.organizationId || "";
+  const [exporting, setExporting] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["farmers", orgId],
     queryFn: () => api.getFarmers(orgId),
     enabled: !!orgId,
   });
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await api.exportFarmers();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `farmers-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({ title: "Export failed", description: error instanceof Error ? error.message : "Failed to export farmers", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -57,7 +78,10 @@ export default function FarmersPage() {
           <Button variant="outline" asChild>
             <Link to="/org/farmers/import"><Upload className="mr-2 h-4 w-4" />Import</Link>
           </Button>
-          <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+          <Button variant="outline" onClick={handleExport} disabled={exporting}>
+            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Export CSV
+          </Button>
         </div>
       </div>
       <DataTable columns={columns} data={data?.data ?? []} isLoading={isLoading} searchKey="firstName" searchPlaceholder="Search farmers..." onRowClick={(row) => navigate(`/org/farmers/${row.id}`)} />
