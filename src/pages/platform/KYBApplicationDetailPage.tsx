@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Building2, User, Mail, Phone, Send, FileWarning, CheckCircle, XCircle, Loader2, FileText, ExternalLink, Download } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, resolveFileUrl } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -194,7 +194,7 @@ export default function KYBApplicationDetailPage() {
                         </div>
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" asChild>
-                            <a href={application.businessRegistrationCertUrl} target="_blank" rel="noopener noreferrer">
+                            <a href={resolveFileUrl(application.businessRegistrationCertUrl!)} target="_blank" rel="noopener noreferrer">
                               <ExternalLink className="mr-1 h-3 w-3" />
                               View
                             </a>
@@ -217,7 +217,7 @@ export default function KYBApplicationDetailPage() {
                         </div>
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" asChild>
-                            <a href={application.taxPinCertUrl} target="_blank" rel="noopener noreferrer">
+                            <a href={resolveFileUrl(application.taxPinCertUrl!)} target="_blank" rel="noopener noreferrer">
                               <ExternalLink className="mr-1 h-3 w-3" />
                               View
                             </a>
