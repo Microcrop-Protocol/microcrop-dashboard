@@ -22,9 +22,9 @@ export default function ExportPage() {
         {exports.map(exp => (
           <Card key={exp.title}>
             <CardHeader><div className="flex items-center gap-3"><div className="rounded-lg bg-primary/10 p-2"><exp.icon className="h-5 w-5 text-primary" /></div><div><CardTitle className="text-base">{exp.title}</CardTitle><CardDescription>{exp.description}</CardDescription></div></div></CardHeader>
-            <CardContent className="flex items-center gap-4">
+            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               <DateRangePicker value={dateRange} onChange={setDateRange} presets={false} />
-              <Button><Download className="mr-2 h-4 w-4" />Download</Button>
+              <Button className="w-full sm:w-auto"><Download className="mr-2 h-4 w-4" />Download</Button>
             </CardContent>
           </Card>
         ))}
