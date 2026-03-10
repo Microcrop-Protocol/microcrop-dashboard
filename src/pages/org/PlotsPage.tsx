@@ -59,7 +59,7 @@ export default function PlotsPage() {
             <CardTitle className="text-base">Plot Locations</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="h-[500px] p-4 pt-0">
+            <div className="h-[300px] p-4 pt-0 sm:h-[400px] md:h-[500px]">
               <PlotMap 
                 plots={plots} 
                 selectedPlotId={selectedPlotId}
