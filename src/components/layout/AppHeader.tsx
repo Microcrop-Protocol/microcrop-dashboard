@@ -29,9 +29,9 @@ export function AppHeader({ title, onMenuClick }: AppHeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 min-w-0 flex-1">
         <SidebarTrigger onClick={onMenuClick} />
-        {title && <h1 className="text-lg font-semibold">{title}</h1>}
+        {title && <h1 className="truncate text-lg font-semibold">{title}</h1>}
       </div>
 
       <div className="flex items-center gap-2">
