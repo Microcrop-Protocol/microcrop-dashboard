@@ -114,7 +114,7 @@ export default function KYBApplicationDetailPage() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => navigate('/platform/kyb-review')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
           Back to KYB Review
         </Button>
         <Card>
@@ -134,7 +134,7 @@ export default function KYBApplicationDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => navigate('/platform/kyb-review')}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
             Back
           </Button>
           <div>
@@ -164,12 +164,12 @@ export default function KYBApplicationDetailPage() {
                 <CardTitle className="flex items-center gap-2">
                   {(application.businessRegistrationCertUrl || application.taxPinCertUrl) ? (
                     <>
-                      <FileText className="h-5 w-5" />
+                      <FileText className="h-5 w-5" aria-hidden="true" />
                       Submitted Documents
                     </>
                   ) : (
                     <>
-                      <FileWarning className="h-5 w-5 text-warning" />
+                      <FileWarning className="h-5 w-5 text-warning" aria-hidden="true" />
                       KYB Documents Required
                     </>
                   )}
@@ -183,7 +183,7 @@ export default function KYBApplicationDetailPage() {
                       <div className="flex items-center justify-between rounded-lg border p-3">
                         <div className="flex items-center gap-3">
                           <div className="rounded-lg bg-muted p-2">
-                            <FileText className="h-5 w-5 text-muted-foreground" />
+                            <FileText className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
                           </div>
                           <div>
                             <p className="font-medium">Business Registration Certificate</p>
@@ -195,7 +195,7 @@ export default function KYBApplicationDetailPage() {
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" asChild>
                             <a href={resolveFileUrl(application.businessRegistrationCertUrl!)} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="mr-1 h-3 w-3" />
+                              <ExternalLink className="mr-1 h-3 w-3" aria-hidden="true" />
                               View
                             </a>
                           </Button>
@@ -206,7 +206,7 @@ export default function KYBApplicationDetailPage() {
                       <div className="flex items-center justify-between rounded-lg border p-3">
                         <div className="flex items-center gap-3">
                           <div className="rounded-lg bg-muted p-2">
-                            <FileText className="h-5 w-5 text-muted-foreground" />
+                            <FileText className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
                           </div>
                           <div>
                             <p className="font-medium">Tax PIN Certificate</p>
@@ -218,7 +218,7 @@ export default function KYBApplicationDetailPage() {
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" asChild>
                             <a href={resolveFileUrl(application.taxPinCertUrl!)} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="mr-1 h-3 w-3" />
+                              <ExternalLink className="mr-1 h-3 w-3" aria-hidden="true" />
                               View
                             </a>
                           </Button>
@@ -238,8 +238,8 @@ export default function KYBApplicationDetailPage() {
                             }}
                             disabled={verifyMutation.isPending}
                           >
-                            {verifyMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            <CheckCircle className="mr-2 h-4 w-4" />
+                            {verifyMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                            <CheckCircle className="mr-2 h-4 w-4" aria-hidden="true" />
                             Approve
                           </Button>
                           <Button
@@ -252,7 +252,7 @@ export default function KYBApplicationDetailPage() {
                             }}
                             disabled={verifyMutation.isPending}
                           >
-                            <XCircle className="mr-2 h-4 w-4" />
+                            <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
                             Reject
                           </Button>
                         </div>
@@ -283,8 +283,8 @@ export default function KYBApplicationDetailPage() {
                             }}
                             disabled={verifyMutation.isPending}
                           >
-                            {verifyMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            <XCircle className="mr-2 h-4 w-4" />
+                            {verifyMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                            <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
                             Reject Application
                           </Button>
                         </div>
@@ -346,7 +346,7 @@ export default function KYBApplicationDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
+                <Building2 className="h-5 w-5" aria-hidden="true" />
                 Organization
               </CardTitle>
             </CardHeader>
@@ -370,7 +370,7 @@ export default function KYBApplicationDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <User className="h-5 w-5" aria-hidden="true" />
                 Contact Person
               </CardTitle>
             </CardHeader>
@@ -384,14 +384,14 @@ export default function KYBApplicationDetailPage() {
               <div>
                 <label className="text-sm text-muted-foreground">Email</label>
                 <p className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   {application.contactEmail}
                 </p>
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Phone</label>
                 <p className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <Phone className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   {application.contactPhone}
                 </p>
               </div>
@@ -417,7 +417,7 @@ export default function KYBApplicationDetailPage() {
                   isLoading={invitationSending}
                   trigger={
                     <Button className="w-full">
-                      <Send className="mr-2 h-4 w-4" />
+                      <Send className="mr-2 h-4 w-4" aria-hidden="true" />
                       Send Invitation
                     </Button>
                   }

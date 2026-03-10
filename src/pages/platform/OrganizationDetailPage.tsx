@@ -124,7 +124,7 @@ export default function OrganizationDetailPage() {
   ];
 
   if (orgLoading) {
-    return <div className="flex items-center justify-center p-8">Loading...</div>;
+    return <div className="flex items-center justify-center p-8">Loading\u2026</div>;
   }
 
   if (!org) {
@@ -136,9 +136,9 @@ export default function OrganizationDetailPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4 min-w-0">
-          <Button variant="ghost" size="icon" asChild className="shrink-0">
+          <Button variant="ghost" size="icon" asChild className="shrink-0" aria-label="Back">
             <Link to="/platform/organizations">
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
           <div className="min-w-0">
@@ -173,7 +173,7 @@ export default function OrganizationDetailPage() {
                 rel="noopener noreferrer"
               >
                 View Pool
-                <ExternalLink className="ml-2 h-4 w-4" />
+                <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
               </a>
             </Button>
           )}
@@ -205,9 +205,9 @@ export default function OrganizationDetailPage() {
               <div key={step.key} className="flex min-w-0 flex-1 items-center">
                 <div className="flex flex-col items-center">
                   {index <= currentStepIndex ? (
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-success sm:h-6 sm:w-6" />
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-success sm:h-6 sm:w-6" aria-hidden="true" />
                   ) : (
-                    <Circle className="h-5 w-5 shrink-0 text-muted-foreground sm:h-6 sm:w-6" />
+                    <Circle className="h-5 w-5 shrink-0 text-muted-foreground sm:h-6 sm:w-6" aria-hidden="true" />
                   )}
                   <span className="mt-1 max-w-[60px] truncate text-center text-[10px] text-muted-foreground sm:mt-2 sm:max-w-none sm:text-xs">{step.label}</span>
                 </div>
@@ -236,17 +236,21 @@ export default function OrganizationDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {recentPolicies.map((policy) => (
-                <div key={policy.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="font-medium">{policy.policyNumber}</p>
-                    <p className="text-sm text-muted-foreground">{policy.farmerName}</p>
+              {recentPolicies.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No recent policies</p>
+              ) : (
+                recentPolicies.map((policy) => (
+                  <div key={policy.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="font-medium">{policy.policyNumber}</p>
+                      <p className="text-sm text-muted-foreground">{policy.farmerName}</p>
+                    </div>
+                    <StatusBadge variant={getStatusVariant(policy.status)}>
+                      {policy.status}
+                    </StatusBadge>
                   </div>
-                  <StatusBadge variant={getStatusVariant(policy.status)}>
-                    {policy.status}
-                  </StatusBadge>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -257,20 +261,24 @@ export default function OrganizationDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {recentPayouts.map((payout) => (
-                <div key={payout.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="font-medium">{payout.policyNumber}</p>
-                    <p className="text-sm text-muted-foreground">{payout.farmerName}</p>
+              {recentPayouts.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No recent payouts</p>
+              ) : (
+                recentPayouts.map((payout) => (
+                  <div key={payout.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="font-medium">{payout.policyNumber}</p>
+                      <p className="text-sm text-muted-foreground">{payout.farmerName}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">KES {payout.amount.toLocaleString()}</p>
+                      <StatusBadge variant={getStatusVariant(payout.status)}>
+                        {payout.status}
+                      </StatusBadge>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">KES {payout.amount.toLocaleString()}</p>
-                    <StatusBadge variant={getStatusVariant(payout.status)}>
-                      {payout.status}
-                    </StatusBadge>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
