@@ -97,31 +97,34 @@ export default function OrganizationDetailPage() {
 
   const currentStepIndex = onboardingSteps.findIndex(s => s.key === org?.onboardingStep);
 
-  // Mock data for charts
-  const kycStatusData = [
-    { name: 'Approved', value: 1850 },
-    { name: 'Pending', value: 120 },
-    { name: 'Rejected', value: 30 },
-  ];
+  // Derive chart data from API responses
+  const policyStatusData = (() => {
+    const policies = policiesData?.data ?? [];
+    const counts: Record<string, number> = {};
+    for (const p of policies) {
+      counts[p.status] = (counts[p.status] || 0) + 1;
+    }
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  })();
 
-  const policyStatusData = [
-    { name: 'Active', value: 750 },
-    { name: 'Expired', value: 98 },
-    { name: 'Claimed', value: 32 },
-    { name: 'Cancelled', value: 10 },
-  ];
+  const coverageTypeData = (() => {
+    const policies = policiesData?.data ?? [];
+    const counts: Record<string, number> = {};
+    for (const p of policies) {
+      const type = (p as any).coverageType || 'Unknown';
+      counts[type] = (counts[type] || 0) + 1;
+    }
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  })();
 
-  const coverageTypeData = [
-    { name: 'Drought', value: 420 },
-    { name: 'Flood', value: 180 },
-    { name: 'Both', value: 290 },
-  ];
-
-  const payoutStatusData = [
-    { name: 'Completed', value: 145 },
-    { name: 'Pending', value: 8 },
-    { name: 'Failed', value: 3 },
-  ];
+  const payoutStatusData = (() => {
+    const payouts = payoutsData?.data ?? [];
+    const counts: Record<string, number> = {};
+    for (const p of payouts) {
+      counts[p.status] = (counts[p.status] || 0) + 1;
+    }
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  })();
 
   if (orgLoading) {
     return <div className="flex items-center justify-center p-8">Loading\u2026</div>;
@@ -221,8 +224,7 @@ export default function OrganizationDetailPage() {
       </Card>
 
       {/* Charts Grid */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <PieChart data={kycStatusData} title="Farmers by KYC Status" height={250} />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <PieChart data={policyStatusData} title="Policies by Status" height={250} />
         <BarChart data={coverageTypeData} xKey="name" title="Policies by Coverage Type" height={250} />
         <BarChart data={payoutStatusData} xKey="name" title="Payouts by Status" height={250} />
