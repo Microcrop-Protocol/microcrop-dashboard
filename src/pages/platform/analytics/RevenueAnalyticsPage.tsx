@@ -50,25 +50,21 @@ export default function RevenueAnalyticsPage() {
           title="Total Fees"
           value={formatCurrency(data?.totalFees ?? 0)}
           icon={DollarSign}
-          trend={{ value: 15, isPositive: true }}
         />
         <StatCard
           title="Total Premiums"
           value={formatCurrency(data?.totalPremiums ?? 0)}
           icon={Wallet}
-          trend={{ value: 22, isPositive: true }}
         />
         <StatCard
           title="Total Payouts"
           value={formatCurrency(data?.totalPayouts ?? 0)}
           icon={ArrowDownUp}
-          trend={{ value: 8, isPositive: false }}
         />
         <StatCard
           title="Net Revenue"
           value={formatCurrency(data?.netRevenue ?? 0)}
           icon={TrendingUp}
-          trend={{ value: 18, isPositive: true }}
         />
       </div>
 

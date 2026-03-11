@@ -52,19 +52,16 @@ export default function FarmersAnalyticsPage() {
           title="Total Farmers"
           value={data?.totalFarmers?.toLocaleString() ?? 0}
           icon={Users}
-          trend={{ value: 15, isPositive: true }}
         />
         <StatCard
           title="New This Period"
           value={data?.newFarmers?.toLocaleString() ?? 0}
           icon={UserPlus}
-          trend={{ value: 22, isPositive: true }}
         />
         <StatCard
           title="KYC Approved"
           value={`${kycApprovalRate}%`}
           icon={FileCheck}
-          trend={{ value: 5, isPositive: true }}
         />
         <StatCard
           title="Counties Covered"

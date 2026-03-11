@@ -50,7 +50,6 @@ export default function PayoutsAnalyticsPage() {
           title="Total Amount"
           value={formatCurrency(data?.totalAmount ?? 0)}
           icon={DollarSign}
-          trend={{ value: 18, isPositive: true }}
         />
         <StatCard
           title="Average Payout"
@@ -61,13 +60,11 @@ export default function PayoutsAnalyticsPage() {
           title="Total Payouts"
           value={data?.count ?? 0}
           icon={Hash}
-          trend={{ value: 12, isPositive: true }}
         />
         <StatCard
           title="Success Rate"
           value={`${((data?.successRate ?? 0) * 100).toFixed(1)}%`}
           icon={CheckCircle}
-          trend={{ value: 2, isPositive: true }}
         />
       </div>
 

@@ -105,7 +105,6 @@ export default function DamageAnalyticsPage() {
           title="Trigger Rate"
           value={`${((data?.triggerRate ?? 0) * 100).toFixed(0)}%`}
           icon={AlertTriangle}
-          trend={{ value: 5, isPositive: false }}
         />
       </div>
 

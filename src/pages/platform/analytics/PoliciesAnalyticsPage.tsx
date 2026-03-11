@@ -42,25 +42,22 @@ export default function PoliciesAnalyticsPage() {
           title="Total Policies"
           value={data?.totalPolicies?.toLocaleString() ?? 0}
           icon={FileText}
-          trend={{ value: 12, isPositive: true }}
         />
         <StatCard
           title="Active Policies"
           value={data?.activePolicies?.toLocaleString() ?? 0}
           icon={CheckCircle}
-          trend={{ value: 8, isPositive: true }}
         />
         <StatCard
           title="Claims Ratio"
           value={`${((data?.claimsRatio ?? 0) * 100).toFixed(1)}%`}
           icon={AlertTriangle}
-          trend={{ value: 2, isPositive: false }}
         />
         <StatCard
           title="New This Period"
-          value="341"
+          value={data?.timeSeries?.reduce((sum, d) => sum + (d.value ?? 0), 0)?.toLocaleString() ?? 0}
+          subtitle="In selected period"
           icon={TrendingUp}
-          trend={{ value: 15, isPositive: true }}
         />
       </div>
 
