@@ -12,9 +12,8 @@ export default function OrgDashboard() {
   const orgId = user?.organizationId || "";
 
   const { data: stats } = useQuery({
-    queryKey: ["orgStats", orgId],
-    queryFn: () => api.getOrganizationStats(orgId),
-    enabled: !!orgId,
+    queryKey: ["orgStats"],
+    queryFn: () => api.getOrgDashboardStats(),
   });
 
   const { data: activities } = useQuery({
@@ -59,9 +58,9 @@ export default function OrgDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard title="Total Farmers" value={stats?.totalFarmers?.toLocaleString() ?? 0} icon={Users} trend={{ value: 12, isPositive: true }} />
-        <StatCard title="Active Policies" value={stats?.activePolicies?.toLocaleString() ?? 0} icon={FileText} trend={{ value: 8, isPositive: true }} />
-        <StatCard title="New Policies" value="45" subtitle="This month" icon={TrendingUp} />
+        <StatCard title="Total Farmers" value={stats?.totalFarmers?.toLocaleString() ?? 0} icon={Users} />
+        <StatCard title="Active Policies" value={stats?.activePolicies?.toLocaleString() ?? 0} icon={FileText} />
+        <StatCard title="New Policies" value={stats?.newPoliciesPeriod?.toLocaleString() ?? 0} subtitle="This month" icon={TrendingUp} />
         <StatCard title="Premiums" value={formatCurrency(stats?.totalPremiums ?? 0)} icon={Wallet} />
         <StatCard title="Payouts" value={formatCurrency(stats?.totalPayouts ?? 0)} icon={DollarSign} />
         <StatCard title="Fees" value={formatCurrency(stats?.totalFees ?? 0)} icon={TrendingUp} />

@@ -204,6 +204,14 @@ export const api = {
     };
   },
 
+  getOrgDashboardStats: async () => {
+    logApiCall('getOrgDashboardStats');
+    if (USE_MOCK_API) {
+      return (await getMockApi()).mockApi.getOrganizationStats('mock');
+    }
+    return apiClient.orgDashboardOverview();
+  },
+
   adminCreateOrganization: async (data: {
     name: string;
     registrationNumber: string;
