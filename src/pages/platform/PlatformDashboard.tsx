@@ -4,15 +4,13 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Building2, 
-  Users, 
-  FileText, 
-  DollarSign, 
-  Wallet, 
+import {
+  Building2,
+  Users,
+  FileText,
+  DollarSign,
+  Wallet,
   TrendingUp,
-  AlertCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
@@ -62,14 +60,6 @@ export default function PlatformDashboard() {
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
-      {/* Alerts */}
-      <Alert variant="destructive" className="border-error/50 bg-error/10">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          2 failed payouts require attention. 5 policies expiring in the next 7 days.
-        </AlertDescription>
-      </Alert>
-
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard
@@ -77,38 +67,32 @@ export default function PlatformDashboard() {
           value={stats?.totalOrganizations ?? 0}
           subtitle={`${stats?.activeOrganizations ?? 0} active`}
           icon={Building2}
-          trend={{ value: 8, isPositive: true }}
         />
         <StatCard
           title="Total Farmers"
           value={formatNumber(stats?.totalFarmers ?? 0)}
           icon={Users}
-          trend={{ value: 12, isPositive: true }}
         />
         <StatCard
           title="Active Policies"
           value={formatNumber(stats?.activePolicies ?? 0)}
           subtitle={`+${stats?.newPoliciesPeriod ?? 0} this period`}
           icon={FileText}
-          trend={{ value: 15, isPositive: true }}
         />
         <StatCard
           title="Total Revenue"
           value={formatCurrency(stats?.totalRevenue ?? 0)}
           icon={TrendingUp}
-          trend={{ value: 22, isPositive: true }}
         />
         <StatCard
           title="Premiums Collected"
           value={formatCurrency(stats?.premiumsCollected ?? 0)}
           icon={Wallet}
-          trend={{ value: 18, isPositive: true }}
         />
         <StatCard
           title="Payouts Sent"
           value={formatCurrency(stats?.payoutsSent ?? 0)}
           icon={DollarSign}
-          trend={{ value: 5, isPositive: false }}
         />
       </div>
 
