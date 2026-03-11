@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, DollarSign, ExternalLink, Loader2, TrendingUp, Target, AlertCircle, Construction } from "lucide-react";
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, DollarSign, ExternalLink, Loader2, TrendingUp, Target, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -12,8 +13,7 @@ import { PoolDepositDialog } from "@/components/pool/PoolDepositDialog";
 import { PoolWithdrawDialog } from "@/components/pool/PoolWithdrawDialog";
 import { PoolSettingsCard } from "@/components/pool/PoolSettingsCard";
 import { DeployOrgPoolDialog } from "@/components/pool/DeployOrgPoolDialog";
-import { WalletCard } from "@/components/pool/WalletCard";
-import type { PoolDepositFormData, FundWalletFormData } from "@/lib/validations/pool";
+import type { PoolDepositFormData } from "@/lib/validations/pool";
 import type { PoolWithdrawFormData } from "@/lib/validations/pool";
 
 export default function PoolPage() {
@@ -34,12 +34,6 @@ export default function PoolPage() {
     retry: 1,
   });
 
-  const { data: wallet } = useQuery({
-    queryKey: ["orgWallet"],
-    queryFn: () => api.getOrgWallet(),
-    retry: 1,
-  });
-
   const hasError = poolError || detailsError;
 
   const depositMutation = useMutation({
@@ -51,7 +45,6 @@ export default function PoolPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
-      queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
     },
     onError: (error: Error) => {
       toast({
@@ -71,36 +64,10 @@ export default function PoolPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
-      queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
     },
     onError: (error: Error) => {
       toast({
         title: "Withdrawal Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const fundWalletMutation = useMutation({
-    mutationFn: (data: FundWalletFormData) => api.fundWallet({
-      phoneNumber: data.phoneNumber,
-      amountKES: data.amountKES,
-    }),
-    onSuccess: () => {
-      toast({
-        title: "M-Pesa Request Sent",
-        description: "Check your phone for the M-Pesa prompt. Balance will update shortly.",
-      });
-      // Poll wallet balance for updates
-      const interval = setInterval(() => {
-        queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
-      }, 5000);
-      setTimeout(() => clearInterval(interval), 120000);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Funding Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -127,7 +94,6 @@ export default function PoolPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
-      queryClient.invalidateQueries({ queryKey: ["orgWallet"] });
     },
     onError: (error: Error) => {
       toast({
@@ -188,15 +154,6 @@ export default function PoolPage() {
     );
   }
 
-  // Wallet section — shown in all states
-  const walletSection = wallet && (
-    <WalletCard
-      wallet={wallet}
-      onFund={async (data) => fundWalletMutation.mutateAsync(data)}
-      isFunding={fundWalletMutation.isPending}
-    />
-  );
-
   // Check if pool data loaded but no pool deployed yet
   const hasNoPool = pool && !pool.address && !hasError;
 
@@ -209,9 +166,6 @@ export default function PoolPage() {
           <h1 className="text-2xl font-bold">Liquidity Pool</h1>
           <p className="text-muted-foreground">Deploy and manage your insurance pool</p>
         </div>
-
-        {/* Wallet — shows "no wallet" state until pool is deployed */}
-        {walletSection}
 
         {/* Deploy Pool Card */}
         <Card className="border-dashed border-2">
@@ -263,60 +217,58 @@ export default function PoolPage() {
     );
   }
 
-  // Show fallback UI when API is not available
+  // No pool data available — show deploy UI
   if (hasError || !pool || !poolDetails) {
     return (
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold">Liquidity Pool</h1>
-          <p className="text-muted-foreground">Manage your insurance pool liquidity</p>
+          <p className="text-muted-foreground">Deploy and manage your insurance pool</p>
         </div>
 
-        {/* Wallet — always accessible */}
-        {walletSection}
-
-        {/* Coming Soon Card */}
-        <Card className="border-dashed">
+        <Card className="border-dashed border-2">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Construction className="h-12 w-12 text-muted-foreground mb-4" aria-hidden="true" />
-            <h3 className="text-lg font-semibold mb-2">Pool Management Coming Soon</h3>
-            <p className="text-muted-foreground text-center max-w-md mb-4">
-              The pool API is not yet available. This feature will allow you to deposit, withdraw, and manage your liquidity pool.
-            </p>
-            <div className="flex gap-2 text-sm text-muted-foreground">
-              <AlertCircle className="h-4 w-4" aria-hidden="true" />
-              <span>API endpoint not available</span>
+            <div className="rounded-full bg-primary/10 p-4 mb-4">
+              <Wallet className="h-12 w-12 text-primary" aria-hidden="true" />
             </div>
+            <h3 className="text-xl font-semibold mb-2">No Pool Deployed</h3>
+            <p className="text-muted-foreground text-center max-w-md mb-6">
+              Your organization doesn't have a risk pool yet. Deploy one to start accepting premiums and managing insurance liquidity.
+            </p>
+            <DeployOrgPoolDialog
+              onSubmit={async (data) => {
+                await deployPoolMutation.mutateAsync(data);
+              }}
+              isLoading={deployPoolMutation.isPending}
+            />
           </CardContent>
         </Card>
 
-        {/* Placeholder Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Capital Deposited"
-            value="--"
-            icon={ArrowDownToLine}
-            description="Total capital invested"
-          />
-          <StatCard
-            title="Premiums Received"
-            value="--"
-            icon={Wallet}
-            description="From policy sales"
-          />
-          <StatCard
-            title="Payouts Sent"
-            value="--"
-            icon={ArrowUpFromLine}
-            description="Claims paid out"
-          />
-          <StatCard
-            title="Platform Fees"
-            value="--"
-            icon={DollarSign}
-            description="Fees paid to platform"
-          />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="font-medium mb-2">Private Pool</h4>
+              <p className="text-sm text-muted-foreground">
+                Best for insurance companies. Only whitelisted addresses can deposit liquidity.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="font-medium mb-2">Mutual Pool</h4>
+              <p className="text-sm text-muted-foreground">
+                Best for cooperatives. Members contribute a fixed amount to the shared pool.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="font-medium mb-2">Public Pool</h4>
+              <p className="text-sm text-muted-foreground">
+                Open to all investors. Anyone can deposit and earn returns from premiums.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -440,9 +392,6 @@ export default function PoolPage() {
           description="Fees paid to platform"
         />
       </div>
-
-      {/* Wallet */}
-      {walletSection}
 
       {/* Token & Capital Details */}
       <div className="grid gap-4 lg:grid-cols-2">
