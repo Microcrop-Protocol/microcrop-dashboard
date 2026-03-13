@@ -1,23 +1,155 @@
-import { useState } from "react";
+import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, X, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+function parseCsv(text: string): Record<string, string>[] {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
+  return lines.slice(1).filter((line) => line.trim()).map((line) => {
+    const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
+    const obj: Record<string, string> = {};
+    headers.forEach((header, i) => {
+      if (header) obj[header] = values[i] ?? '';
+    });
+    return obj;
+  });
+}
+
+const FARMER_CSV_TEMPLATE = 'firstName,lastName,phone,nationalId,county\nJohn,Doe,+254712345678,12345678,Nakuru';
+const PLOT_CSV_TEMPLATE = 'farmerPhone,name,latitude,longitude,acreage,cropType\n+254712345678,Plot A,-0.3031,36.08,2.5,Maize';
+
+function downloadTemplate(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+interface FileDropZoneProps {
+  file: File | null;
+  onFile: (file: File | null) => void;
+  accept: string;
+  label: string;
+}
+
+function FileDropZone({ file, onFile, accept, label }: FileDropZoneProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDrag = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragIn = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragOut = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped && (dropped.name.endsWith('.csv') || dropped.type === 'text/csv')) {
+      onFile(dropped);
+    }
+  };
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) onFile(selected);
+  };
+
+  if (file) {
+    return (
+      <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileSpreadsheet className="h-8 w-8 shrink-0 text-primary" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-medium truncate">{file.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {(file.size / 1024).toFixed(1)} KB
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            onFile(null);
+            if (inputRef.current) inputRef.current.value = '';
+          }}
+          aria-label="Remove file"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer ${
+        isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
+      }`}
+      onDragEnter={handleDragIn}
+      onDragLeave={handleDragOut}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}
+      onClick={() => inputRef.current?.click()}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}
+    >
+      <Upload className="h-8 w-8 text-muted-foreground mb-3" aria-hidden="true" />
+      <p className="font-medium">{label}</p>
+      <p className="text-sm text-muted-foreground mt-1">
+        Drag and drop or click to browse
+      </p>
+      <p className="text-xs text-muted-foreground mt-1">CSV files only</p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={handleChange}
+      />
+    </div>
+  );
+}
 
 export default function FarmerImportPage() {
   const { toast } = useToast();
+  const [farmersFile, setFarmersFile] = useState<File | null>(null);
+  const [plotsFile, setPlotsFile] = useState<File | null>(null);
   const [farmersJson, setFarmersJson] = useState("");
   const [plotsJson, setPlotsJson] = useState("");
+  const [importMode, setImportMode] = useState<'csv' | 'json'>('csv');
 
   const importFarmersMutation = useMutation({
     mutationFn: (farmers: Record<string, unknown>[]) => api.bulkImportFarmers(farmers),
     onSuccess: (result) => {
       toast({ title: "Farmers imported", description: `Successfully imported ${result?.imported ?? 0} farmers.` });
       setFarmersJson("");
+      setFarmersFile(null);
     },
     onError: (error: Error) => {
       toast({ title: "Import failed", description: error.message, variant: "destructive" });
@@ -29,13 +161,59 @@ export default function FarmerImportPage() {
     onSuccess: (result) => {
       toast({ title: "Plots imported", description: `Successfully imported ${result?.imported ?? 0} plots.` });
       setPlotsJson("");
+      setPlotsFile(null);
     },
     onError: (error: Error) => {
       toast({ title: "Import failed", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleImportFarmers = () => {
+  const handleCsvImportFarmers = async () => {
+    if (!farmersFile) return;
+    try {
+      const text = await farmersFile.text();
+      const parsed = parseCsv(text);
+      if (parsed.length === 0) {
+        toast({ title: "Empty file", description: "CSV file has no data rows.", variant: "destructive" });
+        return;
+      }
+      if (parsed.length > 500) {
+        toast({ title: "Too many rows", description: "Maximum 500 farmers per import.", variant: "destructive" });
+        return;
+      }
+      importFarmersMutation.mutate(parsed);
+    } catch {
+      toast({ title: "Parse error", description: "Failed to read CSV file.", variant: "destructive" });
+    }
+  };
+
+  const handleCsvImportPlots = async () => {
+    if (!plotsFile) return;
+    try {
+      const text = await plotsFile.text();
+      const parsed = parseCsv(text);
+      if (parsed.length === 0) {
+        toast({ title: "Empty file", description: "CSV file has no data rows.", variant: "destructive" });
+        return;
+      }
+      if (parsed.length > 500) {
+        toast({ title: "Too many rows", description: "Maximum 500 plots per import.", variant: "destructive" });
+        return;
+      }
+      // Convert numeric fields
+      const plots = parsed.map((p) => ({
+        ...p,
+        latitude: p.latitude ? parseFloat(p.latitude) : undefined,
+        longitude: p.longitude ? parseFloat(p.longitude) : undefined,
+        acreage: p.acreage ? parseFloat(p.acreage) : undefined,
+      }));
+      importPlotsMutation.mutate(plots);
+    } catch {
+      toast({ title: "Parse error", description: "Failed to read CSV file.", variant: "destructive" });
+    }
+  };
+
+  const handleJsonImportFarmers = () => {
     try {
       const parsed = JSON.parse(farmersJson);
       if (!Array.isArray(parsed)) {
@@ -48,7 +226,7 @@ export default function FarmerImportPage() {
     }
   };
 
-  const handleImportPlots = () => {
+  const handleJsonImportPlots = () => {
     try {
       const parsed = JSON.parse(plotsJson);
       if (!Array.isArray(parsed)) {
@@ -65,41 +243,187 @@ export default function FarmerImportPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Import Data</h1>
-        <p className="text-muted-foreground">Import farmers and plots via JSON or CSV</p>
+        <p className="text-muted-foreground">Import farmers and plots via CSV or JSON</p>
       </div>
+
       <Tabs defaultValue="farmers">
-        <TabsList><TabsTrigger value="farmers">Import Farmers</TabsTrigger><TabsTrigger value="plots">Import Plots</TabsTrigger></TabsList>
+        <TabsList>
+          <TabsTrigger value="farmers">Import Farmers</TabsTrigger>
+          <TabsTrigger value="plots">Import Plots</TabsTrigger>
+        </TabsList>
+
         <TabsContent value="farmers">
           <Card>
-            <CardHeader><CardTitle className="text-base">Import Farmers (Max 500)</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Import Farmers (Max 500)</CardTitle>
+                  <CardDescription>Upload a CSV file or paste JSON data</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={importMode === 'csv' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('csv')}
+                  >
+                    CSV File
+                  </Button>
+                  <Button
+                    variant={importMode === 'json' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('json')}
+                  >
+                    JSON
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea
-                placeholder='[{"firstName": "John", "lastName": "Doe", "phone": "+254712345678", "nationalId": "12345678", "county": "Nakuru"}]'
-                rows={10}
-                value={farmersJson}
-                onChange={(e) => setFarmersJson(e.target.value)}
-              />
-              <Button onClick={handleImportFarmers} disabled={!farmersJson.trim() || importFarmersMutation.isPending}>
-                {importFarmersMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                Import Farmers
-              </Button>
+              {importMode === 'csv' ? (
+                <>
+                  <FileDropZone
+                    file={farmersFile}
+                    onFile={setFarmersFile}
+                    accept=".csv,text/csv"
+                    label="Upload farmers CSV file"
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <Button
+                      onClick={handleCsvImportFarmers}
+                      disabled={!farmersFile || importFarmersMutation.isPending}
+                    >
+                      {importFarmersMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                      )}
+                      Import Farmers
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => downloadTemplate(FARMER_CSV_TEMPLATE, 'farmers-template.csv')}
+                    >
+                      <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Download Template
+                    </Button>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Required columns:</p>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      firstName, lastName, phone, nationalId, county
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Textarea
+                    placeholder='[{"firstName": "John", "lastName": "Doe", "phone": "+254712345678", "nationalId": "12345678", "county": "Nakuru"}]'
+                    rows={10}
+                    value={farmersJson}
+                    onChange={(e) => setFarmersJson(e.target.value)}
+                  />
+                  <Button
+                    onClick={handleJsonImportFarmers}
+                    disabled={!farmersJson.trim() || importFarmersMutation.isPending}
+                  >
+                    {importFarmersMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Import Farmers
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="plots">
           <Card>
-            <CardHeader><CardTitle className="text-base">Import Plots (Max 500)</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Import Plots (Max 500)</CardTitle>
+                  <CardDescription>Upload a CSV file or paste JSON data</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={importMode === 'csv' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('csv')}
+                  >
+                    CSV File
+                  </Button>
+                  <Button
+                    variant={importMode === 'json' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('json')}
+                  >
+                    JSON
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea
-                placeholder='[{"farmerPhone": "+254712345678", "name": "Plot A", "latitude": -0.3031, "longitude": 36.08, "acreage": 2.5, "cropType": "Maize"}]'
-                rows={10}
-                value={plotsJson}
-                onChange={(e) => setPlotsJson(e.target.value)}
-              />
-              <Button onClick={handleImportPlots} disabled={!plotsJson.trim() || importPlotsMutation.isPending}>
-                {importPlotsMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                Import Plots
-              </Button>
+              {importMode === 'csv' ? (
+                <>
+                  <FileDropZone
+                    file={plotsFile}
+                    onFile={setPlotsFile}
+                    accept=".csv,text/csv"
+                    label="Upload plots CSV file"
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <Button
+                      onClick={handleCsvImportPlots}
+                      disabled={!plotsFile || importPlotsMutation.isPending}
+                    >
+                      {importPlotsMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                      )}
+                      Import Plots
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => downloadTemplate(PLOT_CSV_TEMPLATE, 'plots-template.csv')}
+                    >
+                      <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Download Template
+                    </Button>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Required columns:</p>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      farmerPhone, name, latitude, longitude, acreage, cropType
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Textarea
+                    placeholder='[{"farmerPhone": "+254712345678", "name": "Plot A", "latitude": -0.3031, "longitude": 36.08, "acreage": 2.5, "cropType": "Maize"}]'
+                    rows={10}
+                    value={plotsJson}
+                    onChange={(e) => setPlotsJson(e.target.value)}
+                  />
+                  <Button
+                    onClick={handleJsonImportPlots}
+                    disabled={!plotsJson.trim() || importPlotsMutation.isPending}
+                  >
+                    {importPlotsMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Import Plots
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
