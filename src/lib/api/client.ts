@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -44,6 +44,7 @@ class ApiClient {
   private baseUrl: string;
   private accessToken: string | null = null;
   private onAuthError: (() => void) | null = null;
+  private onDeactivated: (() => void) | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -62,10 +63,25 @@ class ApiClient {
     this.onAuthError = callback;
   }
 
+  /** Register a callback for "Organization is deactivated" responses */
+  onOrgDeactivated(callback: () => void) {
+    this.onDeactivated = callback;
+  }
+
   private handleAuthError() {
     if (this.onAuthError) {
       this.onAuthError();
     }
+  }
+
+  private handleDeactivatedError() {
+    if (this.onDeactivated) {
+      this.onDeactivated();
+    }
+  }
+
+  private isDeactivatedError(status: number, message: string): boolean {
+    return status === 403 && message.toLowerCase().includes('deactivated');
   }
 
   private async request<T>(
@@ -101,6 +117,8 @@ class ApiClient {
 
       if (response.status === 401 && !endpoint.startsWith('/auth/')) {
         this.handleAuthError();
+      } else if (this.isDeactivatedError(response.status, message)) {
+        this.handleDeactivatedError();
       }
 
       throw new ApiError(message, response.status, error.error?.code);
@@ -142,6 +160,8 @@ class ApiClient {
 
       if (response.status === 401 && !endpoint.startsWith('/auth/')) {
         this.handleAuthError();
+      } else if (this.isDeactivatedError(response.status, message)) {
+        this.handleDeactivatedError();
       }
 
       throw new ApiError(message, response.status, error.error?.code);
@@ -186,6 +206,8 @@ class ApiClient {
 
       if (response.status === 401) {
         this.handleAuthError();
+      } else if (this.isDeactivatedError(response.status, message)) {
+        this.handleDeactivatedError();
       }
 
       throw new ApiError(message, response.status, error.error?.code);
@@ -1186,6 +1208,104 @@ class ApiClient {
    */
   async getPendingKybCount() {
     return this.request<{ count: number }>('/kyb/pending-count');
+  }
+
+  // ============================================
+  // SATELLITE MONITORING
+  // ============================================
+
+  async setPlotBoundary(plotId: string, boundary: GeoJsonPolygon) {
+    return this.request<{
+      plot: PlotBoundary;
+      overlaps: unknown | null;
+      overlapWarning: string | null;
+    }>(`/satellite/plots/${plotId}/boundary`, {
+      method: 'POST',
+      body: JSON.stringify({ boundary }),
+    });
+  }
+
+  async getPlotBoundary(plotId: string) {
+    return this.request<PlotBoundary>(`/satellite/plots/${plotId}/boundary`);
+  }
+
+  async getPlotNdvi(plotId: string, params?: { from?: string; to?: string; source?: string }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.request<NdviReading[]>(`/satellite/plots/${plotId}/ndvi${query ? `?${query}` : ''}`);
+  }
+
+  async getPlotHealth(plotId: string) {
+    return this.request<PlotHealth>(`/satellite/plots/${plotId}/health`);
+  }
+
+  async getPlotSatelliteHistory(plotId: string, params?: { page?: number; limit?: number }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<unknown[]>(`/satellite/plots/${plotId}/satellite${query ? `?${query}` : ''}`);
+  }
+
+  async fetchPlotNdvi(plotId: string) {
+    return this.request<{
+      plotId: string;
+      reading: NdviReading;
+    }>(`/satellite/plots/${plotId}/ndvi/fetch`, {
+      method: 'POST',
+    });
+  }
+
+  async getSatelliteMonitoring(params?: { page?: number; limit?: number }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<SatelliteMonitoringOverview>(`/satellite/monitoring${query ? `?${query}` : ''}`);
+  }
+
+  async getSatelliteAnomalies(params?: { page?: number; limit?: number }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<DamageAssessment[]>(`/satellite/monitoring/anomalies${query ? `?${query}` : ''}`);
+  }
+
+  async verifyDamageAssessment(assessmentId: string) {
+    return this.request<DamageVerification>(`/satellite/damage-assessments/${assessmentId}/verify`);
+  }
+
+  async getFraudFlags(params?: {
+    type?: string;
+    severity?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<FraudFlag[]>(`/satellite/fraud/flags${query ? `?${query}` : ''}`);
+  }
+
+  async resolveFraudFlag(flagId: string, data: { status: FraudFlagStatus; resolution: string }) {
+    return this.request<FraudFlag>(`/satellite/fraud/flags/${flagId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getFraudSummary() {
+    return this.request<FraudSummary>('/satellite/fraud/summary');
   }
 }
 

@@ -38,6 +38,13 @@ apiClient.onUnauthorized(() => {
   window.location.href = '/login';
 });
 
+// Wire up org deactivated handler — logout with reason so login page can show message
+apiClient.onOrgDeactivated(() => {
+  const { logout } = useAuthStore.getState();
+  logout();
+  window.location.href = '/login?reason=deactivated';
+});
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({

@@ -516,6 +516,103 @@ export interface PlatformStats {
   payoutsSent: number;
 }
 
+// Satellite Monitoring Types
+export type HealthStatus = 'EXCELLENT' | 'GOOD' | 'MODERATE' | 'POOR' | 'CRITICAL' | 'UNKNOWN';
+export type FraudFlagType = 'NDVI_MISMATCH' | 'BOUNDARY_OVERLAP' | 'SUSPICIOUS_TIMING' | 'HISTORICAL_ANOMALY';
+export type FraudSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type FraudFlagStatus = 'OPEN' | 'INVESTIGATING' | 'CONFIRMED_FRAUD' | 'CLEARED' | 'DISMISSED' | 'RESOLVED_FALSE_POSITIVE' | 'RESOLVED_CONFIRMED' | 'RESOLVED_INCONCLUSIVE';
+export type DamageVerdict = 'CONSISTENT' | 'SUSPICIOUS' | 'INCONSISTENT';
+
+export interface GeoJsonPolygon {
+  type: 'Polygon';
+  coordinates: number[][][];
+}
+
+export interface PlotBoundary {
+  plotId: string;
+  name: string;
+  boundary: GeoJsonPolygon;
+  centroidLat: number;
+  centroidLon: number;
+  areaHectares: number;
+}
+
+export interface NdviReading {
+  id: string;
+  plotId: string;
+  captureDate: string;
+  ndvi: number;
+  ndviMin: number;
+  ndviMax: number;
+  ndviStdDev: number;
+  cloudCover: number;
+  sampleCount: number;
+  source: string;
+}
+
+export interface PlotHealth {
+  plotId: string;
+  ndvi: number;
+  health: HealthStatus;
+  deviation: number;
+  isAnomaly: boolean;
+  captureDate: string;
+  source: string;
+  baseline: {
+    mean: number;
+    stdDev: number;
+    yearsIncluded: number;
+  };
+}
+
+export interface SatelliteMonitoringOverview {
+  totalPlots: number;
+  healthDistribution: Record<HealthStatus, number>;
+  averageNdvi: number;
+  recentAnomalies: number;
+}
+
+export interface DamageVerification {
+  assessment: {
+    id: string;
+    damagePercent: number;
+    source: string;
+  };
+  onChainClaim: {
+    damagePercent: number;
+    txHash: string;
+  };
+  satelliteEvidence: {
+    ndvi: number;
+    satelliteDamage: number;
+  };
+  historicalBaseline: {
+    mean: number;
+    stdDev: number;
+  };
+  verdict: DamageVerdict;
+}
+
+export interface FraudFlag {
+  id: string;
+  type: FraudFlagType;
+  severity: FraudSeverity;
+  status: FraudFlagStatus;
+  plotId?: string;
+  policyId?: string;
+  description?: string;
+  resolution?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FraudSummary {
+  total: number;
+  byType: Record<string, number>;
+  bySeverity: Record<string, number>;
+  byStatus: Record<string, number>;
+}
+
 // API Response Types
 export interface PaginatedResponse<T> {
   data: T[];

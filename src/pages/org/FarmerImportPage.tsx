@@ -22,7 +22,7 @@ function parseCsv(text: string): Record<string, string>[] {
   });
 }
 
-const FARMER_CSV_TEMPLATE = 'firstName,lastName,phone,nationalId,county\nJohn,Doe,+254712345678,12345678,Nakuru';
+const FARMER_CSV_TEMPLATE = 'firstName,lastName,phoneNumber,nationalId,county\nJohn,Doe,+254712345678,12345678,Nakuru';
 const PLOT_CSV_TEMPLATE = 'farmerPhone,name,latitude,longitude,acreage,cropType\n+254712345678,Plot A,-0.3031,36.08,2.5,Maize';
 
 function downloadTemplate(content: string, filename: string) {
@@ -181,7 +181,15 @@ export default function FarmerImportPage() {
         toast({ title: "Too many rows", description: "Maximum 500 farmers per import.", variant: "destructive" });
         return;
       }
-      importFarmersMutation.mutate(parsed);
+      // Remap 'phone' header to 'phoneNumber' if needed (backend expects phoneNumber)
+      const normalized = parsed.map((row) => {
+        if ('phone' in row && !('phoneNumber' in row)) {
+          const { phone, ...rest } = row;
+          return { ...rest, phoneNumber: phone };
+        }
+        return row;
+      });
+      importFarmersMutation.mutate(normalized);
     } catch {
       toast({ title: "Parse error", description: "Failed to read CSV file.", variant: "destructive" });
     }
@@ -311,14 +319,14 @@ export default function FarmerImportPage() {
                   <div className="rounded-lg bg-muted/50 p-3">
                     <p className="text-xs font-medium text-muted-foreground mb-1">Required columns:</p>
                     <p className="text-xs text-muted-foreground font-mono">
-                      firstName, lastName, phone, nationalId, county
+                      firstName, lastName, phoneNumber, nationalId, county
                     </p>
                   </div>
                 </>
               ) : (
                 <>
                   <Textarea
-                    placeholder='[{"firstName": "John", "lastName": "Doe", "phone": "+254712345678", "nationalId": "12345678", "county": "Nakuru"}]'
+                    placeholder='[{"firstName": "John", "lastName": "Doe", "phoneNumber": "+254712345678", "nationalId": "12345678", "county": "Nakuru"}]'
                     rows={10}
                     value={farmersJson}
                     onChange={(e) => setFarmersJson(e.target.value)}
