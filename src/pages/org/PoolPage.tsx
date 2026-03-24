@@ -115,8 +115,8 @@ export default function PoolPage() {
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
     } catch (error) {
       toast({
-        title: "Settings Not Available",
-        description: "Pool settings management is not yet available on this network.",
+        title: "Failed to update deposits",
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {
@@ -135,8 +135,8 @@ export default function PoolPage() {
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
     } catch (error) {
       toast({
-        title: "Settings Not Available",
-        description: "Pool settings management is not yet available on this network.",
+        title: "Failed to update withdrawals",
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {
