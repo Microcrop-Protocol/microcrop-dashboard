@@ -36,25 +36,6 @@ export const organizationRegistrationSchema = z.object({
 
 export type OrganizationRegistrationFormData = z.infer<typeof organizationRegistrationSchema>;
 
-// Document validation
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
-
-export const kybDocumentSchema = z.object({
-  file: z
-    .instanceof(File)
-    .refine((file) => file.size <= MAX_FILE_SIZE, 'File size must be less than 5MB')
-    .refine(
-      (file) => ACCEPTED_FILE_TYPES.includes(file.type),
-      'File must be PDF, JPEG, or PNG'
-    ),
-  type: z.enum(['BUSINESS_REGISTRATION_CERT', 'TAX_PIN_CERT'], {
-    required_error: 'Please select a document type',
-  }),
-});
-
-export type KYBDocumentFormData = z.infer<typeof kybDocumentSchema>;
-
 // KYB verification schema (for admin review)
 export const kybVerificationSchema = z.object({
   status: z.enum(['APPROVED', 'VERIFIED', 'REJECTED'], {

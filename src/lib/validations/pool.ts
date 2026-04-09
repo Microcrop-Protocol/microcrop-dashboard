@@ -25,24 +25,6 @@ export const poolWithdrawSchema = z.object({
 
 export type PoolWithdrawFormData = z.infer<typeof poolWithdrawSchema>;
 
-// Add depositor schema - Ethereum address validation
-export const addDepositorSchema = z.object({
-  depositorAddress: z
-    .string()
-    .min(1, 'Address is required')
-    .regex(ethereumAddressRegex, 'Please enter a valid Ethereum address'),
-});
-
-export type AddDepositorFormData = z.infer<typeof addDepositorSchema>;
-
-// Pool settings schema
-export const poolSettingsSchema = z.object({
-  depositsOpen: z.boolean(),
-  withdrawalsOpen: z.boolean(),
-});
-
-export type PoolSettingsFormData = z.infer<typeof poolSettingsSchema>;
-
 // Deploy pool schema
 export const deployPoolSchema = z.object({
   name: z
