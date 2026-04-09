@@ -47,27 +47,6 @@ describe('validateEnv', () => {
     expect(() => validateEnv()).not.toThrow();
   });
 
-  it('warns when VITE_USE_MOCK_API is true', () => {
-    (import.meta.env as Record<string, string>).VITE_API_URL = 'http://localhost:3000';
-    (import.meta.env as Record<string, string>).VITE_USE_MOCK_API = 'true';
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    validateEnv();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Running with mock API')
-    );
-  });
-
-  it('warns when no API URL is configured', () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    validateEnv();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Falling back to mock API')
-    );
-  });
-
   it('warns when VITE_MAPBOX_TOKEN is not set', () => {
     (import.meta.env as Record<string, string>).VITE_API_URL = 'http://localhost:3000';
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

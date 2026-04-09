@@ -4,7 +4,6 @@ const requiredVars = [
 
 const optionalVars = [
   'VITE_MAPBOX_TOKEN',
-  'VITE_USE_MOCK_API',
 ] as const;
 
 export function validateEnv() {
@@ -23,16 +22,6 @@ export function validateEnv() {
       'Copy .env.example to .env and fill in the values.';
 
     console.error(message);
-  }
-
-  if (import.meta.env.VITE_USE_MOCK_API === 'true') {
-    console.warn(
-      '[MicroCrop] Running with mock API. Set VITE_API_URL to use a real backend.'
-    );
-  } else if (!import.meta.env.VITE_API_URL) {
-    console.warn(
-      '[MicroCrop] No VITE_API_URL configured. Falling back to mock API.'
-    );
   }
 
   if (!import.meta.env.VITE_MAPBOX_TOKEN) {
