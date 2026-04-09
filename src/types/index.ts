@@ -165,7 +165,7 @@ export interface Plot {
 
 // Policy Types
 export type PolicyStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'CLAIMED';
-export type CoverageType = 'DROUGHT' | 'FLOOD' | 'BOTH';
+export type CoverageType = 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
 
 export interface Policy {
   id: string;
@@ -613,25 +613,49 @@ export interface FraudSummary {
   byStatus: Record<string, number>;
 }
 
-// API Response Types
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  hasMore: boolean;
+// Field Onboarding Types
+export interface GpsPoint {
+  lat: number;
+  lon: number;
+  accuracy: number;
+  timestamp: string;
 }
 
-export interface ApiError {
+export interface GpsTrackResponse {
+  plot: {
+    id: string;
+    boundary: GeoJsonPolygon;
+    centroidLat: number;
+    centroidLon: number;
+    areaHectares: number;
+  };
+  metadata: {
+    totalPointsReceived: number;
+    pointsFilteredOut: number;
+    finalVertices: number;
+    accuracyThreshold: number;
+    avgAccuracy: number;
+  };
+  overlaps: { plotId: string; plotName: string; overlapArea: number }[];
+  overlapWarning: string | null;
+}
+
+export interface KycFieldVerifyResponse {
+  id: string;
+  kycStatus: 'APPROVED';
+  kycApprovedBy: string;
+  kycApprovedAt: string;
+}
+
+export interface PaymentInitiateResponse {
+  reference: string;
+  status: string;
   message: string;
-  code: string;
-  details?: Record<string, unknown>;
 }
 
-// Filter Types
-export interface DateRange {
-  from: Date;
-  to: Date;
+export interface PaymentStatusResponse {
+  reference: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  policyId?: string;
+  message?: string;
 }
-
-export type Granularity = 'daily' | 'weekly' | 'monthly';
