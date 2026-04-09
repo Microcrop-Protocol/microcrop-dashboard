@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -109,7 +109,16 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    const data = await response.json();
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(
+        `Server returned invalid response (HTTP ${response.status})`,
+        response.status,
+        'INVALID_RESPONSE'
+      );
+    }
 
     if (!response.ok) {
       const error = data as ApiErrorResponse;
@@ -152,7 +161,16 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    const result = await response.json();
+    let result: any;
+    try {
+      result = await response.json();
+    } catch {
+      throw new ApiError(
+        `Server returned invalid response (HTTP ${response.status})`,
+        response.status,
+        'INVALID_RESPONSE'
+      );
+    }
 
     if (!response.ok) {
       const error = result as ApiErrorResponse;
@@ -198,7 +216,16 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    const data = await response.json();
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(
+        `Server returned invalid response (HTTP ${response.status})`,
+        response.status,
+        'INVALID_RESPONSE'
+      );
+    }
 
     if (!response.ok) {
       const error = data as ApiErrorResponse;
@@ -316,7 +343,7 @@ class ApiClient {
   }
 
   async platformGetOrganization(orgId: string) {
-    return this.request<Organization>(`/platform/organizations/${orgId}`);
+    return this.request<Organization>(`/platform/organizations/${encodeURIComponent(orgId)}`);
   }
 
   async platformConfigureOrganization(orgId: string, config: {
@@ -326,33 +353,33 @@ class ApiClient {
     logoUrl?: string;
     webhookUrl?: string;
   }) {
-    return this.request<Organization>(`/platform/organizations/${orgId}/configure`, {
+    return this.request<Organization>(`/platform/organizations/${encodeURIComponent(orgId)}/configure`, {
       method: 'PUT',
       body: JSON.stringify(config),
     });
   }
 
   async platformDeployPool(orgId: string, initialCapital: number) {
-    return this.request<Organization>(`/platform/organizations/${orgId}/deploy-pool`, {
+    return this.request<Organization>(`/platform/organizations/${encodeURIComponent(orgId)}/deploy-pool`, {
       method: 'POST',
       body: JSON.stringify({ initialCapital }),
     });
   }
 
   async platformActivateOrganization(orgId: string) {
-    return this.request<Organization>(`/platform/organizations/${orgId}/activate`, {
+    return this.request<Organization>(`/platform/organizations/${encodeURIComponent(orgId)}/activate`, {
       method: 'POST',
     });
   }
 
   async platformDeactivateOrganization(orgId: string) {
-    return this.request<Organization>(`/platform/organizations/${orgId}/deactivate`, {
+    return this.request<Organization>(`/platform/organizations/${encodeURIComponent(orgId)}/deactivate`, {
       method: 'POST',
     });
   }
 
   async platformGetOnboardingStatus(orgId: string) {
-    return this.request<{ step: OnboardingStep; completedSteps: OnboardingStep[] }>(`/platform/organizations/${orgId}/onboarding-status`);
+    return this.request<{ step: OnboardingStep; completedSteps: OnboardingStep[] }>(`/platform/organizations/${encodeURIComponent(orgId)}/onboarding-status`);
   }
 
   // ============================================
@@ -382,7 +409,7 @@ class ApiClient {
 
   async platformDashboardOrgMetrics(orgId: string, params?: { period?: string }) {
     const query = new URLSearchParams(params as Record<string, string>).toString();
-    return this.request<OrganizationStats>(`/dashboard/platform/organizations/${orgId}/metrics${query ? `?${query}` : ''}`);
+    return this.request<OrganizationStats>(`/dashboard/platform/organizations/${encodeURIComponent(orgId)}/metrics${query ? `?${query}` : ''}`);
   }
 
   async platformAnalyticsRevenue(params?: { period?: string; granularity?: string }) {
@@ -449,11 +476,11 @@ class ApiClient {
   }
 
   async platformGetPoolById(poolId: string) {
-    return this.request<PoolStatus>(`/platform/pools/${poolId}`);
+    return this.request<PoolStatus>(`/platform/pools/${encodeURIComponent(poolId)}`);
   }
 
   async platformGetPoolByAddress(poolAddress: string) {
-    return this.request<PoolStatus>(`/platform/pools/address/${poolAddress}`);
+    return this.request<PoolStatus>(`/platform/pools/address/${encodeURIComponent(poolAddress)}`);
   }
 
   async platformDeployPoolForOrg(orgId: string, data: {
@@ -472,7 +499,7 @@ class ApiClient {
       poolAddress: string;
       txHash: string;
       blockNumber: number;
-    }>(`/platform/organizations/${orgId}/deploy-pool`, {
+    }>(`/platform/organizations/${encodeURIComponent(orgId)}/deploy-pool`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -589,7 +616,7 @@ class ApiClient {
   }
 
   async removePoolDepositor(depositorAddress: string) {
-    return this.request<{ success: boolean }>(`/organizations/me/pool/depositors/${depositorAddress}`, {
+    return this.request<{ success: boolean }>(`/organizations/me/pool/depositors/${encodeURIComponent(depositorAddress)}`, {
       method: 'DELETE',
     });
   }
@@ -602,7 +629,7 @@ class ApiClient {
   }
 
   async getInvestorInfo(poolAddress: string) {
-    return this.request<InvestorInfo>(`/organizations/me/pool/investor/${poolAddress}`);
+    return this.request<InvestorInfo>(`/organizations/me/pool/investor/${encodeURIComponent(poolAddress)}`);
   }
 
   async deployOrgPool(data: {
@@ -696,7 +723,7 @@ class ApiClient {
   }
 
   async getFarmer(farmerId: string) {
-    return this.request<Farmer>(`/farmers/${farmerId}`);
+    return this.request<Farmer>(`/farmers/${encodeURIComponent(farmerId)}`);
   }
 
   async updateFarmer(farmerId: string, data: {
@@ -704,7 +731,7 @@ class ApiClient {
     ward?: string;
     village?: string;
   }) {
-    return this.request<Farmer>(`/farmers/${farmerId}`, {
+    return this.request<Farmer>(`/farmers/${encodeURIComponent(farmerId)}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -714,7 +741,7 @@ class ApiClient {
     status: 'APPROVED' | 'REJECTED';
     reason?: string;
   }) {
-    return this.request<Farmer>(`/farmers/${farmerId}/kyc`, {
+    return this.request<Farmer>(`/farmers/${encodeURIComponent(farmerId)}/kyc`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -742,15 +769,16 @@ class ApiClient {
     longitude: number;
     acreage: number;
     cropType: string;
+    plantingDate?: string;
   }) {
-    return this.request<Plot>(`/farmers/${farmerId}/plots`, {
+    return this.request<Plot>('/plots', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ farmerId, ...data }),
     });
   }
 
   async getPlot(plotId: string) {
-    return this.request<Plot>(`/plots/${plotId}`);
+    return this.request<Plot>(`/plots/${encodeURIComponent(plotId)}`);
   }
 
   async updatePlot(plotId: string, data: {
@@ -760,7 +788,7 @@ class ApiClient {
     acreage?: number;
     cropType?: string;
   }) {
-    return this.request<Plot>(`/plots/${plotId}`, {
+    return this.request<Plot>(`/plots/${encodeURIComponent(plotId)}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -784,27 +812,33 @@ class ApiClient {
 
   async getPolicyQuote(data: {
     farmerId: string;
-    plotId: string;
+    productType?: 'CROP' | 'LIVESTOCK';
+    plotId?: string;
+    herdId?: string;
     sumInsured: number;
-    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH';
+    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
     durationDays: number;
+    season?: 'LRLD' | 'SRSD';
   }) {
     return this.request<PolicyQuote>('/policies/quote', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ productType: 'CROP', ...data }),
     });
   }
 
   async purchasePolicy(data: {
     farmerId: string;
-    plotId: string;
+    productType?: 'CROP' | 'LIVESTOCK';
+    plotId?: string;
+    herdId?: string;
     sumInsured: number;
-    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH';
+    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
     durationDays: number;
+    season?: 'LRLD' | 'SRSD';
   }) {
     return this.request<Policy>('/policies/purchase', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ productType: 'CROP', ...data }),
     });
   }
 
@@ -824,25 +858,25 @@ class ApiClient {
   }
 
   async getPolicy(policyId: string) {
-    return this.request<Policy>(`/policies/${policyId}`);
+    return this.request<Policy>(`/policies/${encodeURIComponent(policyId)}`);
   }
 
   async getPolicyStatus(policyId: string) {
-    return this.request<{ status: PolicyStatus }>(`/policies/${policyId}/status`);
+    return this.request<{ status: PolicyStatus }>(`/policies/${encodeURIComponent(policyId)}/status`);
   }
 
   async activatePolicy(policyId: string) {
-    return this.request<Policy>(`/policies/${policyId}/activate`, {
+    return this.request<Policy>(`/policies/${encodeURIComponent(policyId)}/activate`, {
       method: 'PUT',
     });
   }
 
   async checkPolicyExpiry(policyId: string) {
-    return this.request<PolicyExpireCheck>(`/policies/${policyId}/expire-check`);
+    return this.request<PolicyExpireCheck>(`/policies/${encodeURIComponent(policyId)}/expire-check`);
   }
 
   async cancelPolicy(policyId: string, reason: string) {
-    return this.request<Policy>(`/policies/${policyId}/cancel`, {
+    return this.request<Policy>(`/policies/${encodeURIComponent(policyId)}/cancel`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
@@ -867,11 +901,11 @@ class ApiClient {
   }
 
   async getPayout(payoutId: string) {
-    return this.request<Payout>(`/payouts/${payoutId}`);
+    return this.request<Payout>(`/payouts/${encodeURIComponent(payoutId)}`);
   }
 
   async retryPayout(payoutId: string) {
-    return this.request<Payout>(`/payouts/${payoutId}/retry`, {
+    return this.request<Payout>(`/payouts/${encodeURIComponent(payoutId)}/retry`, {
       method: 'POST',
     });
   }
@@ -910,11 +944,11 @@ class ApiClient {
   }
 
   async getPayment(paymentId: string) {
-    return this.request<Payment>(`/payments/${paymentId}`);
+    return this.request<Payment>(`/payments/${encodeURIComponent(paymentId)}`);
   }
 
   async getPaymentByRef(mpesaRef: string) {
-    return this.request<Payment>(`/payments/mpesa/${mpesaRef}`);
+    return this.request<Payment>(`/payments/mpesa/${encodeURIComponent(mpesaRef)}`);
   }
 
   // ============================================
@@ -939,20 +973,20 @@ class ApiClient {
   }
 
   async updateStaffRole(userId: string, role: 'ORG_ADMIN' | 'ORG_STAFF') {
-    return this.request<User>(`/staff/${userId}/role`, {
+    return this.request<User>(`/staff/${encodeURIComponent(userId)}/role`, {
       method: 'PUT',
       body: JSON.stringify({ role }),
     });
   }
 
   async deactivateStaff(userId: string) {
-    return this.request<User>(`/staff/${userId}/deactivate`, {
+    return this.request<User>(`/staff/${encodeURIComponent(userId)}/deactivate`, {
       method: 'PUT',
     });
   }
 
   async reactivateStaff(userId: string) {
-    return this.request<User>(`/staff/${userId}/reactivate`, {
+    return this.request<User>(`/staff/${encodeURIComponent(userId)}/reactivate`, {
       method: 'PUT',
     });
   }
@@ -1120,7 +1154,7 @@ class ApiClient {
    * GET /api/applications/organization/:id
    */
   async getOrgApplication(applicationId: string) {
-    return this.request<OrganizationApplication>(`/applications/organization/${applicationId}`);
+    return this.request<OrganizationApplication>(`/applications/organization/${encodeURIComponent(applicationId)}`);
   }
 
   /**
@@ -1131,7 +1165,7 @@ class ApiClient {
     status: 'VERIFIED' | 'REJECTED';
     reviewNotes?: string;
   }) {
-    return this.request<OrganizationApplication>(`/applications/organization/${applicationId}/verify`, {
+    return this.request<OrganizationApplication>(`/applications/organization/${encodeURIComponent(applicationId)}/verify`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -1158,7 +1192,7 @@ class ApiClient {
    * POST /api/invitations/:id/send
    */
   async sendInvitation(invitationId: string) {
-    return this.request<OrgAdminInvitation>(`/invitations/${invitationId}/send`, {
+    return this.request<OrgAdminInvitation>(`/invitations/${encodeURIComponent(invitationId)}/send`, {
       method: 'POST',
     });
   }
@@ -1185,7 +1219,7 @@ class ApiClient {
       valid: boolean;
       invitation?: OrgAdminInvitation;
       error?: string;
-    }>(`/invitations/validate/${token}`);
+    }>(`/invitations/validate/${encodeURIComponent(token)}`);
   }
 
   /**
@@ -1219,14 +1253,14 @@ class ApiClient {
       plot: PlotBoundary;
       overlaps: unknown | null;
       overlapWarning: string | null;
-    }>(`/satellite/plots/${plotId}/boundary`, {
+    }>(`/satellite/plots/${encodeURIComponent(plotId)}/boundary`, {
       method: 'POST',
       body: JSON.stringify({ boundary }),
     });
   }
 
   async getPlotBoundary(plotId: string) {
-    return this.request<PlotBoundary>(`/satellite/plots/${plotId}/boundary`);
+    return this.request<PlotBoundary>(`/satellite/plots/${encodeURIComponent(plotId)}/boundary`);
   }
 
   async getPlotNdvi(plotId: string, params?: { from?: string; to?: string; source?: string }) {
@@ -1235,11 +1269,11 @@ class ApiClient {
         Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
       )
     ).toString();
-    return this.request<NdviReading[]>(`/satellite/plots/${plotId}/ndvi${query ? `?${query}` : ''}`);
+    return this.request<NdviReading[]>(`/satellite/plots/${encodeURIComponent(plotId)}/ndvi${query ? `?${query}` : ''}`);
   }
 
   async getPlotHealth(plotId: string) {
-    return this.request<PlotHealth>(`/satellite/plots/${plotId}/health`);
+    return this.request<PlotHealth>(`/satellite/plots/${encodeURIComponent(plotId)}/health`);
   }
 
   async getPlotSatelliteHistory(plotId: string, params?: { page?: number; limit?: number }) {
@@ -1248,14 +1282,14 @@ class ApiClient {
         Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
       )
     ).toString();
-    return this.requestWithPagination<unknown[]>(`/satellite/plots/${plotId}/satellite${query ? `?${query}` : ''}`);
+    return this.requestWithPagination<unknown[]>(`/satellite/plots/${encodeURIComponent(plotId)}/satellite${query ? `?${query}` : ''}`);
   }
 
   async fetchPlotNdvi(plotId: string) {
     return this.request<{
       plotId: string;
       reading: NdviReading;
-    }>(`/satellite/plots/${plotId}/ndvi/fetch`, {
+    }>(`/satellite/plots/${encodeURIComponent(plotId)}/ndvi/fetch`, {
       method: 'POST',
     });
   }
@@ -1279,7 +1313,7 @@ class ApiClient {
   }
 
   async verifyDamageAssessment(assessmentId: string) {
-    return this.request<DamageVerification>(`/satellite/damage-assessments/${assessmentId}/verify`);
+    return this.request<DamageVerification>(`/satellite/damage-assessments/${encodeURIComponent(assessmentId)}/verify`);
   }
 
   async getFraudFlags(params?: {
@@ -1298,7 +1332,7 @@ class ApiClient {
   }
 
   async resolveFraudFlag(flagId: string, data: { status: FraudFlagStatus; resolution: string }) {
-    return this.request<FraudFlag>(`/satellite/fraud/flags/${flagId}`, {
+    return this.request<FraudFlag>(`/satellite/fraud/flags/${encodeURIComponent(flagId)}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
@@ -1307,10 +1341,42 @@ class ApiClient {
   async getFraudSummary() {
     return this.request<FraudSummary>('/satellite/fraud/summary');
   }
+
+  // ============================================
+  // FIELD ONBOARDING
+  // ============================================
+
+  async fieldVerifyKyc(farmerId: string) {
+    return this.request<KycFieldVerifyResponse>(`/farmers/${encodeURIComponent(farmerId)}/kyc/field-verify`, {
+      method: 'PUT',
+    });
+  }
+
+  async submitGpsTrack(plotId: string, data: {
+    points: GpsPoint[];
+    accuracyThreshold?: number;
+  }) {
+    return this.request<GpsTrackResponse>(`/plots/${encodeURIComponent(plotId)}/boundary/gps-track`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPlotBoundaryReview(plotId: string) {
+    return this.request<PlotBoundary>(`/plots/${encodeURIComponent(plotId)}/boundary`);
+  }
+
+  async initiatePayment(data: { policyId: string; phoneNumber: string }) {
+    return this.request<PaymentInitiateResponse>('/payments/initiate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPaymentStatusByRef(reference: string) {
+    return this.request<PaymentStatusResponse>(`/payments/status/${encodeURIComponent(reference)}`);
+  }
 }
 
 // Create singleton instance
 export const apiClient = new ApiClient(API_BASE_URL);
-
-// Export for use in auth store
-export default apiClient;
