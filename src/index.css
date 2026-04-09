@@ -29,7 +29,7 @@
 
     /* Muted - Gray with green undertone */
     --muted: 142 10% 95%;
-    --muted-foreground: 142 10% 45%;
+    --muted-foreground: 142 10% 35%;
 
     /* Accent - Light green */
     --accent: 142 40% 92%;
@@ -99,7 +99,7 @@
 
     /* Muted */
     --muted: 142 15% 18%;
-    --muted-foreground: 142 10% 60%;
+    --muted-foreground: 142 10% 68%;
 
     /* Accent */
     --accent: 142 25% 20%;
