@@ -24,6 +24,7 @@ import {
   Mail,
   Landmark,
   PiggyBank,
+  ClipboardPlus,
 } from "lucide-react";
 import {
   Collapsible,
@@ -62,6 +63,7 @@ const platformNavItems: NavItem[] = [
 
 const orgNavItems: NavItem[] = [
   { title: "Dashboard", href: "/org/dashboard", icon: LayoutDashboard },
+  { title: "Field Onboarding", href: "/org/onboard", icon: ClipboardPlus },
   { title: "Farmers", href: "/org/farmers", icon: Users },
   { title: "Policies", href: "/org/policies", icon: FileText },
   { title: "Payouts", href: "/org/payouts", icon: DollarSign },
@@ -127,6 +129,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
               width={32}
               height={32}
               className="h-8 w-8 object-contain"
+              loading="lazy"
             />
             <span className="text-lg font-bold text-sidebar-foreground">MicroCrop</span>
           </Link>
