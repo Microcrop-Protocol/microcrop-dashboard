@@ -183,6 +183,7 @@ export default function AcceptInvitationPage() {
               src="/microcropsymb.png"
               alt="MicroCrop"
               className="h-10 w-10 object-contain"
+              loading="lazy"
             />
           </Link>
           <CardTitle>Welcome to MicroCrop</CardTitle>

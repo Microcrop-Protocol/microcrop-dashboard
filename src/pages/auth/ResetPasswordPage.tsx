@@ -123,6 +123,7 @@ export default function ResetPasswordPage() {
             width={120}
             height={120}
             className="mx-auto h-16 w-16 object-contain"
+            loading="lazy"
           />
           <div>
             <CardTitle className="text-2xl font-bold">Set new password</CardTitle>

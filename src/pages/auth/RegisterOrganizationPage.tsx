@@ -113,6 +113,7 @@ export default function RegisterOrganizationPage() {
               width={40}
               height={40}
               className="h-10 w-10 object-contain"
+              loading="lazy"
             />
             <span className="text-xl font-bold">MicroCrop</span>
           </Link>

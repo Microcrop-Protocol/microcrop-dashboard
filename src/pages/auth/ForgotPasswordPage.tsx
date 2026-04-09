@@ -85,6 +85,7 @@ export default function ForgotPasswordPage() {
             width={64}
             height={64}
             className="mx-auto h-16 w-16 object-contain"
+            loading="lazy"
           />
           <div>
             <CardTitle className="text-2xl font-bold">Forgot password?</CardTitle>
