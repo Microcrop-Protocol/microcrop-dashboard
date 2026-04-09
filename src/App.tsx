@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { getSubdomainContext } from "@/lib/subdomain";
 
 // Retry dynamic imports once on failure (handles stale chunks after deploy)
@@ -65,6 +66,7 @@ const WalletPage = lazyRetry(() => import("@/pages/org/WalletPage"));
 const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
 const ExportPage = lazyRetry(() => import("@/pages/org/ExportPage"));
 const OrgActivityPage = lazyRetry(() => import("@/pages/org/OrgActivityPage"));
+const FieldOnboardingPage = lazyRetry(() => import("@/pages/org/FieldOnboardingPage"));
 
 const NotFound = lazyRetry(() => import("@/pages/NotFound"));
 
@@ -127,6 +129,7 @@ function RootRedirect() {
 
 const App = () => (
   <ErrorBoundary>
+    <OfflineBanner />
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -204,6 +207,7 @@ const App = () => (
                 <Route path="staff" element={<StaffPage />} />
                 <Route path="export" element={<ExportPage />} />
                 <Route path="activity" element={<OrgActivityPage />} />
+                <Route path="onboard" element={<FieldOnboardingPage />} />
               </Route>
 
               {/* 404 */}
