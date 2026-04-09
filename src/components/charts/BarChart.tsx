@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ResponsiveContainer,
   BarChart as RechartsBarChart,
@@ -26,7 +27,7 @@ interface BarChartProps {
 
 const defaultColors = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
-export function BarChart({ data, xKey, yKeys, title, className, height = 300, horizontal = false, colors = defaultColors, formatYAxis }: BarChartProps) {
+export const BarChart = memo(function BarChart({ data, xKey, yKeys, title, className, height = 300, horizontal = false, colors = defaultColors, formatYAxis }: BarChartProps) {
   const simpleMode = !yKeys;
   // Ensure data is always an array
   const chartData = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
@@ -66,4 +67,4 @@ export function BarChart({ data, xKey, yKeys, title, className, height = 300, ho
       </CardContent>
     </Card>
   );
-}
+});

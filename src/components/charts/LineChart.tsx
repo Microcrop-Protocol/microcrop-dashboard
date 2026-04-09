@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ResponsiveContainer,
   LineChart as RechartsLineChart,
@@ -21,7 +22,7 @@ interface LineChartProps {
   formatYAxis?: (value: number) => string;
 }
 
-export function LineChart({ data, xKey, yKeys, title, className, height = 300, formatYAxis }: LineChartProps) {
+export const LineChart = memo(function LineChart({ data, xKey, yKeys, title, className, height = 300, formatYAxis }: LineChartProps) {
   // Ensure data is always an array
   const chartData = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
 
@@ -53,4 +54,4 @@ export function LineChart({ data, xKey, yKeys, title, className, height = 300, f
       </CardContent>
     </Card>
   );
-}
+});

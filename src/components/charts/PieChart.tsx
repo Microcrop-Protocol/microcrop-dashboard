@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -21,7 +22,7 @@ interface PieChartProps {
 
 const defaultColors = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
-export function PieChart({ data, title, className, height = 300, colors = defaultColors, innerRadius = 60, showLegend = true }: PieChartProps) {
+export const PieChart = memo(function PieChart({ data, title, className, height = 300, colors = defaultColors, innerRadius = 60, showLegend = true }: PieChartProps) {
   // Ensure data is always an array
   const chartData = Array.isArray(data) ? data : [];
 
@@ -52,4 +53,4 @@ export function PieChart({ data, title, className, height = 300, colors = defaul
       </CardContent>
     </Card>
   );
-}
+});

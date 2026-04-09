@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ResponsiveContainer,
   AreaChart as RechartsAreaChart,
@@ -26,7 +27,7 @@ interface AreaChartProps {
   formatYAxis?: (value: number) => string;
 }
 
-export function AreaChart({
+export const AreaChart = memo(function AreaChart({
   data,
   xKey,
   yKeys,
@@ -85,4 +86,4 @@ export function AreaChart({
       </CardContent>
     </Card>
   );
-}
+});
