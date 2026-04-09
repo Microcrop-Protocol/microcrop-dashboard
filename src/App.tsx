@@ -19,6 +19,8 @@ function lazyRetry(importFn: () => Promise<{ default: ComponentType }>) {
       if (!hasReloaded) {
         sessionStorage.setItem('chunk_reload', '1');
         window.location.reload();
+        // Return a pending promise so nothing renders while the page reloads
+        return new Promise<{ default: ComponentType }>(() => {});
       }
       sessionStorage.removeItem('chunk_reload');
       return importFn();
