@@ -302,7 +302,7 @@ class ApiClient {
   async forgotPassword(email: string) {
     return this.request<{ message: string }>('/auth/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, resetBaseUrl: window.location.origin }),
     });
   }
 
