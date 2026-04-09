@@ -18,6 +18,18 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'mapbox': ['mapbox-gl'],
+          'recharts': ['recharts'],
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'query': ['@tanstack/react-query', '@tanstack/react-table'],
+        },
+      },
+    },
+  },
   esbuild: {
     drop: mode === "production" ? ["console", "debugger"] : [],
   },
