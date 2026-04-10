@@ -11,11 +11,74 @@ import { useToast } from "@/hooks/use-toast";
 
 type CsvRow = Record<string, string>;
 
-function parseCsv(text: string): { rows: CsvRow[]; error?: string } {
+const normalizeKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const FARMER_HEADER_MAP: Record<string, string> = {
+  firstname: "firstName",
+  fname: "firstName",
+  givenname: "firstName",
+  lastname: "lastName",
+  lname: "lastName",
+  surname: "lastName",
+  familyname: "lastName",
+  phonenumber: "phoneNumber",
+  phone: "phoneNumber",
+  mobile: "phoneNumber",
+  mobilenumber: "phoneNumber",
+  msisdn: "phoneNumber",
+  contact: "phoneNumber",
+  contactnumber: "phoneNumber",
+  nationalid: "nationalId",
+  nid: "nationalId",
+  idnumber: "nationalId",
+  county: "county",
+  subcounty: "subCounty",
+  ward: "ward",
+  village: "village",
+};
+
+const PLOT_HEADER_MAP: Record<string, string> = {
+  farmerphone: "farmerPhone",
+  phone: "farmerPhone",
+  phonenumber: "farmerPhone",
+  mobile: "farmerPhone",
+  name: "name",
+  plotname: "name",
+  latitude: "latitude",
+  lat: "latitude",
+  longitude: "longitude",
+  lng: "longitude",
+  lon: "longitude",
+  long: "longitude",
+  acreage: "acreage",
+  area: "acreage",
+  size: "acreage",
+  hectares: "acreage",
+  acres: "acreage",
+  croptype: "cropType",
+  crop: "cropType",
+};
+
+const FARMER_REQUIRED = ["firstName", "lastName", "phoneNumber", "nationalId", "county"];
+const PLOT_REQUIRED = ["farmerPhone", "name", "latitude", "longitude", "acreage", "cropType"];
+
+function makeHeaderNormalizer(map: Record<string, string>) {
+  return (h: string): string => map[normalizeKey(h)] ?? h.trim();
+}
+
+const normalizeFarmerHeader = makeHeaderNormalizer(FARMER_HEADER_MAP);
+const normalizePlotHeader = makeHeaderNormalizer(PLOT_HEADER_MAP);
+
+interface ParseCsvOptions {
+  normalizeHeader?: (h: string) => string;
+  required?: string[];
+}
+
+function parseCsv(text: string, options?: ParseCsvOptions): { rows: CsvRow[]; error?: string } {
   const result = Papa.parse<CsvRow>(text, {
     header: true,
     skipEmptyLines: "greedy",
-    transformHeader: (h) => h.trim(),
+    transformHeader: (h) => options?.normalizeHeader?.(h) ?? h.trim(),
     transform: (v) => (typeof v === "string" ? v.trim() : v),
   });
 
@@ -23,6 +86,16 @@ function parseCsv(text: string): { rows: CsvRow[]; error?: string } {
   if (fatal) return { rows: [], error: fatal.message };
 
   const rows = result.data.filter((row) => Object.values(row).some((v) => v !== ""));
+  if (rows.length === 0) return { rows: [] };
+
+  if (options?.required) {
+    const headers = Object.keys(rows[0]);
+    const missing = options.required.filter((f) => !headers.includes(f));
+    if (missing.length > 0) {
+      return { rows: [], error: `Missing required column(s): ${missing.join(", ")}` };
+    }
+  }
+
   return { rows };
 }
 
@@ -176,9 +249,12 @@ export default function FarmerImportPage() {
     if (!farmersFile) return;
     try {
       const text = await farmersFile.text();
-      const { rows, error } = parseCsv(text);
+      const { rows, error } = parseCsv(text, {
+        normalizeHeader: normalizeFarmerHeader,
+        required: FARMER_REQUIRED,
+      });
       if (error) {
-        toast({ title: "Parse error", description: error, variant: "destructive" });
+        toast({ title: "Invalid CSV", description: error, variant: "destructive" });
         return;
       }
       if (rows.length === 0) {
@@ -189,15 +265,7 @@ export default function FarmerImportPage() {
         toast({ title: "Too many rows", description: "Maximum 500 farmers per import.", variant: "destructive" });
         return;
       }
-      // Remap 'phone' header to 'phoneNumber' if needed (backend expects phoneNumber)
-      const normalized = rows.map((row) => {
-        if ('phone' in row && !('phoneNumber' in row)) {
-          const { phone, ...rest } = row;
-          return { ...rest, phoneNumber: phone };
-        }
-        return row;
-      });
-      importFarmersMutation.mutate(normalized);
+      importFarmersMutation.mutate(rows);
     } catch {
       toast({ title: "Parse error", description: "Failed to read CSV file.", variant: "destructive" });
     }
@@ -207,9 +275,12 @@ export default function FarmerImportPage() {
     if (!plotsFile) return;
     try {
       const text = await plotsFile.text();
-      const { rows, error } = parseCsv(text);
+      const { rows, error } = parseCsv(text, {
+        normalizeHeader: normalizePlotHeader,
+        required: PLOT_REQUIRED,
+      });
       if (error) {
-        toast({ title: "Parse error", description: error, variant: "destructive" });
+        toast({ title: "Invalid CSV", description: error, variant: "destructive" });
         return;
       }
       if (rows.length === 0) {
