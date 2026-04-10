@@ -1,5 +1,6 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
+import Papa from "papaparse";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,18 +9,21 @@ import { Button } from "@/components/ui/button";
 import { Upload, Loader2, FileSpreadsheet, X, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-function parseCsv(text: string): Record<string, string>[] {
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-  return lines.slice(1).filter((line) => line.trim()).map((line) => {
-    const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
-    const obj: Record<string, string> = {};
-    headers.forEach((header, i) => {
-      if (header) obj[header] = values[i] ?? '';
-    });
-    return obj;
+type CsvRow = Record<string, string>;
+
+function parseCsv(text: string): { rows: CsvRow[]; error?: string } {
+  const result = Papa.parse<CsvRow>(text, {
+    header: true,
+    skipEmptyLines: "greedy",
+    transformHeader: (h) => h.trim(),
+    transform: (v) => (typeof v === "string" ? v.trim() : v),
   });
+
+  const fatal = result.errors.find((e) => e.type === "Delimiter" || e.code === "UndetectableDelimiter");
+  if (fatal) return { rows: [], error: fatal.message };
+
+  const rows = result.data.filter((row) => Object.values(row).some((v) => v !== ""));
+  return { rows };
 }
 
 const FARMER_CSV_TEMPLATE = 'firstName,lastName,phoneNumber,nationalId,county\nJohn,Doe,+254712345678,12345678,Nakuru';
@@ -172,17 +176,21 @@ export default function FarmerImportPage() {
     if (!farmersFile) return;
     try {
       const text = await farmersFile.text();
-      const parsed = parseCsv(text);
-      if (parsed.length === 0) {
+      const { rows, error } = parseCsv(text);
+      if (error) {
+        toast({ title: "Parse error", description: error, variant: "destructive" });
+        return;
+      }
+      if (rows.length === 0) {
         toast({ title: "Empty file", description: "CSV file has no data rows.", variant: "destructive" });
         return;
       }
-      if (parsed.length > 500) {
+      if (rows.length > 500) {
         toast({ title: "Too many rows", description: "Maximum 500 farmers per import.", variant: "destructive" });
         return;
       }
       // Remap 'phone' header to 'phoneNumber' if needed (backend expects phoneNumber)
-      const normalized = parsed.map((row) => {
+      const normalized = rows.map((row) => {
         if ('phone' in row && !('phoneNumber' in row)) {
           const { phone, ...rest } = row;
           return { ...rest, phoneNumber: phone };
@@ -199,17 +207,21 @@ export default function FarmerImportPage() {
     if (!plotsFile) return;
     try {
       const text = await plotsFile.text();
-      const parsed = parseCsv(text);
-      if (parsed.length === 0) {
+      const { rows, error } = parseCsv(text);
+      if (error) {
+        toast({ title: "Parse error", description: error, variant: "destructive" });
+        return;
+      }
+      if (rows.length === 0) {
         toast({ title: "Empty file", description: "CSV file has no data rows.", variant: "destructive" });
         return;
       }
-      if (parsed.length > 500) {
+      if (rows.length > 500) {
         toast({ title: "Too many rows", description: "Maximum 500 plots per import.", variant: "destructive" });
         return;
       }
       // Convert numeric fields
-      const plots = parsed.map((p) => ({
+      const plots = rows.map((p) => ({
         ...p,
         latitude: p.latitude ? parseFloat(p.latitude) : undefined,
         longitude: p.longitude ? parseFloat(p.longitude) : undefined,
