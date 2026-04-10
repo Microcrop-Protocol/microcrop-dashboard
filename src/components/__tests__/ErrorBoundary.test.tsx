@@ -77,29 +77,15 @@ describe('ErrorBoundary', () => {
     expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
   });
 
-  it('"Go to home" button sets window.location.href', () => {
-    // Mock window.location
-    const originalLocation = window.location;
-    const locationMock = { ...originalLocation, href: '' };
-    Object.defineProperty(window, 'location', {
-      writable: true,
-      value: locationMock,
-    });
-
+  it('"Go to home" link points at the root path', () => {
     render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
       </ErrorBoundary>
     );
 
-    fireEvent.click(screen.getByText('Go to home'));
-
-    expect(window.location.href).toBe('/');
-
-    // Restore original location
-    Object.defineProperty(window, 'location', {
-      writable: true,
-      value: originalLocation,
-    });
+    const link = screen.getByText('Go to home');
+    expect(link.tagName).toBe('A');
+    expect(link).toHaveAttribute('href', '/');
   });
 });

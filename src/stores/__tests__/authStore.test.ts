@@ -5,6 +5,7 @@ vi.mock('@/lib/api/client', () => ({
   apiClient: {
     setAccessToken: vi.fn(),
     onUnauthorized: vi.fn(),
+    onOrgDeactivated: vi.fn(),
     refreshToken: vi.fn(),
   },
 }));
