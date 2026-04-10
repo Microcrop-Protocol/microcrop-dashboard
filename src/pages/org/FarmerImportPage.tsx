@@ -1,6 +1,5 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
-import Papa from "papaparse";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,96 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Upload, Loader2, FileSpreadsheet, X, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-type CsvRow = Record<string, string>;
-
-const normalizeKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-const FARMER_HEADER_MAP: Record<string, string> = {
-  firstname: "firstName",
-  fname: "firstName",
-  givenname: "firstName",
-  lastname: "lastName",
-  lname: "lastName",
-  surname: "lastName",
-  familyname: "lastName",
-  phonenumber: "phoneNumber",
-  phone: "phoneNumber",
-  mobile: "phoneNumber",
-  mobilenumber: "phoneNumber",
-  msisdn: "phoneNumber",
-  contact: "phoneNumber",
-  contactnumber: "phoneNumber",
-  nationalid: "nationalId",
-  nid: "nationalId",
-  idnumber: "nationalId",
-  county: "county",
-  subcounty: "subCounty",
-  ward: "ward",
-  village: "village",
-};
-
-const PLOT_HEADER_MAP: Record<string, string> = {
-  farmerphone: "farmerPhone",
-  phone: "farmerPhone",
-  phonenumber: "farmerPhone",
-  mobile: "farmerPhone",
-  name: "name",
-  plotname: "name",
-  latitude: "latitude",
-  lat: "latitude",
-  longitude: "longitude",
-  lng: "longitude",
-  lon: "longitude",
-  long: "longitude",
-  acreage: "acreage",
-  area: "acreage",
-  size: "acreage",
-  hectares: "acreage",
-  acres: "acreage",
-  croptype: "cropType",
-  crop: "cropType",
-};
-
-const FARMER_REQUIRED = ["firstName", "lastName", "phoneNumber", "nationalId", "county"];
-const PLOT_REQUIRED = ["farmerPhone", "name", "latitude", "longitude", "acreage", "cropType"];
-
-function makeHeaderNormalizer(map: Record<string, string>) {
-  return (h: string): string => map[normalizeKey(h)] ?? h.trim();
-}
-
-const normalizeFarmerHeader = makeHeaderNormalizer(FARMER_HEADER_MAP);
-const normalizePlotHeader = makeHeaderNormalizer(PLOT_HEADER_MAP);
-
-interface ParseCsvOptions {
-  normalizeHeader?: (h: string) => string;
-  required?: string[];
-}
-
-function parseCsv(text: string, options?: ParseCsvOptions): { rows: CsvRow[]; error?: string } {
-  const result = Papa.parse<CsvRow>(text, {
-    header: true,
-    skipEmptyLines: "greedy",
-    transformHeader: (h) => options?.normalizeHeader?.(h) ?? h.trim(),
-    transform: (v) => (typeof v === "string" ? v.trim() : v),
-  });
-
-  const fatal = result.errors.find((e) => e.type === "Delimiter" || e.code === "UndetectableDelimiter");
-  if (fatal) return { rows: [], error: fatal.message };
-
-  const rows = result.data.filter((row) => Object.values(row).some((v) => v !== ""));
-  if (rows.length === 0) return { rows: [] };
-
-  if (options?.required) {
-    const headers = Object.keys(rows[0]);
-    const missing = options.required.filter((f) => !headers.includes(f));
-    if (missing.length > 0) {
-      return { rows: [], error: `Missing required column(s): ${missing.join(", ")}` };
-    }
-  }
-
-  return { rows };
-}
+import {
+  parseCsv,
+  normalizeFarmerHeader,
+  normalizePlotHeader,
+  FARMER_REQUIRED,
+  PLOT_REQUIRED,
+} from "./csvImport";
 
 const FARMER_CSV_TEMPLATE = 'firstName,lastName,phoneNumber,nationalId,county\nJohn,Doe,+254712345678,12345678,Nakuru';
 const PLOT_CSV_TEMPLATE = 'farmerPhone,name,latitude,longitude,acreage,cropType\n+254712345678,Plot A,-0.3031,36.08,2.5,Maize';
