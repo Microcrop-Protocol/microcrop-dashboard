@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Upload, Loader2, FileSpreadsheet, X, Download } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Upload, Loader2, FileSpreadsheet, X, Download, AlertCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   parseCsv,
@@ -14,6 +15,11 @@ import {
   FARMER_REQUIRED,
   PLOT_REQUIRED,
 } from "./csvImport";
+import {
+  buildErrorReport,
+  buildResultReport,
+  type ImportReport,
+} from "./importIssues";
 
 const FARMER_CSV_TEMPLATE = 'firstName,lastName,phoneNumber,nationalId,county\nJohn,Doe,+254712345678,12345678,Nakuru';
 const PLOT_CSV_TEMPLATE = 'farmerPhone,name,latitude,longitude,acreage,cropType\n+254712345678,Plot A,-0.3031,36.08,2.5,Maize';
@@ -129,6 +135,50 @@ function FileDropZone({ file, onFile, accept, label }: FileDropZoneProps) {
   );
 }
 
+interface ImportReportPanelProps {
+  report: ImportReport;
+  onDismiss: () => void;
+}
+
+function ImportReportPanel({ report, onDismiss }: ImportReportPanelProps) {
+  const Icon = report.tone === "error" ? AlertCircle : AlertTriangle;
+  const variant = report.tone === "error" ? "destructive" : "default";
+  const warningClasses =
+    report.tone === "warning"
+      ? "border-amber-500/50 text-amber-700 dark:text-amber-400 [&>svg]:text-amber-500"
+      : "";
+
+  return (
+    <Alert variant={variant} className={warningClasses}>
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <AlertTitle>{report.title}</AlertTitle>
+          <AlertDescription>
+            <p className="mb-2">{report.summary}</p>
+            {report.issues.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5 text-xs max-h-56 overflow-auto">
+                {report.issues.map((issue, i) => (
+                  <li key={i}>{issue}</li>
+                ))}
+              </ul>
+            )}
+          </AlertDescription>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="-mr-2 -mt-1 h-6 w-6 shrink-0"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
+    </Alert>
+  );
+}
+
 export default function FarmerImportPage() {
   const { toast } = useToast();
   const [farmersFile, setFarmersFile] = useState<File | null>(null);
@@ -136,78 +186,99 @@ export default function FarmerImportPage() {
   const [farmersJson, setFarmersJson] = useState("");
   const [plotsJson, setPlotsJson] = useState("");
   const [importMode, setImportMode] = useState<'csv' | 'json'>('csv');
+  const [farmersReport, setFarmersReport] = useState<ImportReport | null>(null);
+  const [plotsReport, setPlotsReport] = useState<ImportReport | null>(null);
 
   const importFarmersMutation = useMutation({
     mutationFn: (farmers: Record<string, unknown>[]) => api.bulkImportFarmers(farmers),
     onSuccess: (result) => {
-      toast({ title: "Farmers imported", description: `Successfully imported ${result?.imported ?? 0} farmers.` });
-      setFarmersJson("");
-      setFarmersFile(null);
+      const imported = result?.imported ?? 0;
+      const report = buildResultReport(result, "farmers");
+      setFarmersReport(report);
+      if (report?.tone === "error") {
+        toast({ title: report.title, description: report.summary, variant: "destructive" });
+      } else if (report) {
+        toast({ title: report.title, description: report.summary });
+      } else {
+        toast({ title: "Farmers imported", description: `Successfully imported ${imported} farmers.` });
+      }
+      if (imported > 0) {
+        setFarmersJson("");
+        setFarmersFile(null);
+      }
     },
     onError: (error: Error) => {
-      toast({ title: "Import failed", description: error.message, variant: "destructive" });
+      const report = buildErrorReport(error, "farmers");
+      setFarmersReport(report);
+      toast({ title: report.title, description: report.summary, variant: "destructive" });
     },
   });
 
   const importPlotsMutation = useMutation({
     mutationFn: (plots: Record<string, unknown>[]) => api.bulkImportPlots(plots),
     onSuccess: (result) => {
-      toast({ title: "Plots imported", description: `Successfully imported ${result?.imported ?? 0} plots.` });
-      setPlotsJson("");
-      setPlotsFile(null);
+      const imported = result?.imported ?? 0;
+      const report = buildResultReport(result, "plots");
+      setPlotsReport(report);
+      if (report?.tone === "error") {
+        toast({ title: report.title, description: report.summary, variant: "destructive" });
+      } else if (report) {
+        toast({ title: report.title, description: report.summary });
+      } else {
+        toast({ title: "Plots imported", description: `Successfully imported ${imported} plots.` });
+      }
+      if (imported > 0) {
+        setPlotsJson("");
+        setPlotsFile(null);
+      }
     },
     onError: (error: Error) => {
-      toast({ title: "Import failed", description: error.message, variant: "destructive" });
+      const report = buildErrorReport(error, "plots");
+      setPlotsReport(report);
+      toast({ title: report.title, description: report.summary, variant: "destructive" });
     },
   });
 
+  const showFarmersClientError = (title: string, message: string) => {
+    setFarmersReport({ tone: "error", title, summary: message, issues: [] });
+    toast({ title, description: message, variant: "destructive" });
+  };
+
+  const showPlotsClientError = (title: string, message: string) => {
+    setPlotsReport({ tone: "error", title, summary: message, issues: [] });
+    toast({ title, description: message, variant: "destructive" });
+  };
+
   const handleCsvImportFarmers = async () => {
     if (!farmersFile) return;
+    setFarmersReport(null);
     try {
       const text = await farmersFile.text();
       const { rows, error } = parseCsv(text, {
         normalizeHeader: normalizeFarmerHeader,
         required: FARMER_REQUIRED,
       });
-      if (error) {
-        toast({ title: "Invalid CSV", description: error, variant: "destructive" });
-        return;
-      }
-      if (rows.length === 0) {
-        toast({ title: "Empty file", description: "CSV file has no data rows.", variant: "destructive" });
-        return;
-      }
-      if (rows.length > 500) {
-        toast({ title: "Too many rows", description: "Maximum 500 farmers per import.", variant: "destructive" });
-        return;
-      }
+      if (error) return showFarmersClientError("Invalid CSV", error);
+      if (rows.length === 0) return showFarmersClientError("Empty file", "CSV file has no data rows.");
+      if (rows.length > 500) return showFarmersClientError("Too many rows", "Maximum 500 farmers per import.");
       importFarmersMutation.mutate(rows);
     } catch {
-      toast({ title: "Parse error", description: "Failed to read CSV file.", variant: "destructive" });
+      showFarmersClientError("Parse error", "Failed to read CSV file.");
     }
   };
 
   const handleCsvImportPlots = async () => {
     if (!plotsFile) return;
+    setPlotsReport(null);
     try {
       const text = await plotsFile.text();
       const { rows, error } = parseCsv(text, {
         normalizeHeader: normalizePlotHeader,
         required: PLOT_REQUIRED,
       });
-      if (error) {
-        toast({ title: "Invalid CSV", description: error, variant: "destructive" });
-        return;
-      }
-      if (rows.length === 0) {
-        toast({ title: "Empty file", description: "CSV file has no data rows.", variant: "destructive" });
-        return;
-      }
-      if (rows.length > 500) {
-        toast({ title: "Too many rows", description: "Maximum 500 plots per import.", variant: "destructive" });
-        return;
-      }
-      // Convert numeric fields
+      if (error) return showPlotsClientError("Invalid CSV", error);
+      if (rows.length === 0) return showPlotsClientError("Empty file", "CSV file has no data rows.");
+      if (rows.length > 500) return showPlotsClientError("Too many rows", "Maximum 500 plots per import.");
       const plots = rows.map((p) => ({
         ...p,
         latitude: p.latitude ? parseFloat(p.latitude) : undefined,
@@ -216,33 +287,33 @@ export default function FarmerImportPage() {
       }));
       importPlotsMutation.mutate(plots);
     } catch {
-      toast({ title: "Parse error", description: "Failed to read CSV file.", variant: "destructive" });
+      showPlotsClientError("Parse error", "Failed to read CSV file.");
     }
   };
 
   const handleJsonImportFarmers = () => {
+    setFarmersReport(null);
     try {
       const parsed = JSON.parse(farmersJson);
       if (!Array.isArray(parsed)) {
-        toast({ title: "Invalid format", description: "Input must be a JSON array.", variant: "destructive" });
-        return;
+        return showFarmersClientError("Invalid format", "Input must be a JSON array.");
       }
       importFarmersMutation.mutate(parsed);
     } catch {
-      toast({ title: "Invalid JSON", description: "Please enter valid JSON.", variant: "destructive" });
+      showFarmersClientError("Invalid JSON", "Please enter valid JSON.");
     }
   };
 
   const handleJsonImportPlots = () => {
+    setPlotsReport(null);
     try {
       const parsed = JSON.parse(plotsJson);
       if (!Array.isArray(parsed)) {
-        toast({ title: "Invalid format", description: "Input must be a JSON array.", variant: "destructive" });
-        return;
+        return showPlotsClientError("Invalid format", "Input must be a JSON array.");
       }
       importPlotsMutation.mutate(parsed);
     } catch {
-      toast({ title: "Invalid JSON", description: "Please enter valid JSON.", variant: "destructive" });
+      showPlotsClientError("Invalid JSON", "Please enter valid JSON.");
     }
   };
 
@@ -259,7 +330,10 @@ export default function FarmerImportPage() {
           <TabsTrigger value="plots">Import Plots</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="farmers">
+        <TabsContent value="farmers" className="space-y-4">
+          {farmersReport && (
+            <ImportReportPanel report={farmersReport} onDismiss={() => setFarmersReport(null)} />
+          )}
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -347,7 +421,10 @@ export default function FarmerImportPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="plots">
+        <TabsContent value="plots" className="space-y-4">
+          {plotsReport && (
+            <ImportReportPanel report={plotsReport} onDismiss={() => setPlotsReport(null)} />
+          )}
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -60,6 +60,63 @@ describe('ApiError', () => {
     expect(err.code).toBeUndefined();
     expect(err.status).toBe(500);
   });
+
+  it('carries structured validation details when provided', () => {
+    const err = new ApiError('Validation failed', 400, 'INVALID_INPUT', [
+      { field: 'farmers.0.county', message: '"farmers[0].county" is required' },
+    ]);
+    expect(err.details).toHaveLength(1);
+    expect(err.details?.[0].field).toBe('farmers.0.county');
+  });
+});
+
+describe('ApiError propagation from responses', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('propagates error.error.details from a 400 response onto ApiError.details', async () => {
+    globalThis.fetch = mockFetchResponse(
+      {
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'Validation failed',
+          details: [
+            { field: 'farmers.0.county', message: '"farmers[0].county" is required' },
+            { field: 'farmers.1.county', message: '"farmers[1].county" is required' },
+          ],
+        },
+      },
+      400,
+    );
+
+    try {
+      await apiClient.bulkImportFarmers([{}, {}]);
+      expect.fail('Expected ApiError to be thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ApiError);
+      const apiErr = err as ApiError;
+      expect(apiErr.status).toBe(400);
+      expect(apiErr.code).toBe('INVALID_INPUT');
+      expect(apiErr.details).toHaveLength(2);
+      expect(apiErr.details?.[0].field).toBe('farmers.0.county');
+      expect(apiErr.details?.[1].field).toBe('farmers.1.county');
+    }
+  });
+
+  it('leaves details undefined when the backend response has none', async () => {
+    globalThis.fetch = mockFetchResponse(errorEnvelope('NOT_FOUND', 'Not found'), 404);
+
+    try {
+      await apiClient.getMyOrganization();
+      expect.fail('Expected ApiError to be thrown');
+    } catch (err) {
+      expect((err as ApiError).details).toBeUndefined();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

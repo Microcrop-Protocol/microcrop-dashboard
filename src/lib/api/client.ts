@@ -21,11 +21,17 @@ interface ApiResponse<T> {
   };
 }
 
+export interface ApiErrorDetail {
+  field?: string;
+  message: string;
+}
+
 interface ApiErrorResponse {
   success: false;
   error: {
     code: string;
     message: string;
+    details?: ApiErrorDetail[];
   };
 }
 
@@ -33,7 +39,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public code?: string
+    public code?: string,
+    public details?: ApiErrorDetail[]
   ) {
     super(message);
     this.name = 'ApiError';
@@ -130,7 +137,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code);
+      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
     }
 
     return (data as ApiResponse<T>).data;
@@ -182,7 +189,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code);
+      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
     }
 
     return {
@@ -237,7 +244,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code);
+      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
     }
 
     return (data as ApiResponse<T>).data;
