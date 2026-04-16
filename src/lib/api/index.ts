@@ -86,17 +86,7 @@ export const api = {
   // ============================================
 
   getPlatformStats: async () => {
-    const overview = await apiClient.platformDashboardOverview();
-    return {
-      totalOrganizations: overview.organizations.total,
-      activeOrganizations: overview.organizations.active,
-      totalFarmers: overview.farmers.total,
-      activePolicies: overview.policies.active,
-      newPoliciesPeriod: overview.policies.periodNew,
-      totalRevenue: overview.financials.totalRevenue,
-      premiumsCollected: overview.financials.totalPremiums,
-      payoutsSent: overview.financials.totalPayouts,
-    };
+    return apiClient.platformDashboardOverview();
   },
 
   // ============================================
@@ -105,47 +95,15 @@ export const api = {
 
   getOrganizations: async () => {
     const result = await apiClient.platformDashboardOrganizations();
-    const data = result.data.map((org: any) => ({
-      id: org.id,
-      name: org.name,
-      type: org.type,
-      isActive: org.isActive,
-      poolAddress: org.poolAddress,
-      onboardingStep: org.onboardingStep || 'REGISTERED',
-      farmersCount: org._count?.farmers || 0,
-      policiesCount: org._count?.policies || 0,
-      payoutsCount: org._count?.payouts || 0,
-      usersCount: org._count?.users || 0,
-      createdAt: org.createdAt,
-      kybStatus: org.kybStatus,
-      contactEmail: org.contactEmail,
-      contactPhone: org.contactPhone,
-      contactPersonName: org.contactPerson,
-    }));
-    return { data, total: result.pagination?.total || data.length };
+    return { data: result.data, total: result.pagination?.total || result.data.length };
   },
 
   getOrganization: async (id: string) => {
-    const org = await apiClient.platformGetOrganization(id);
-    return {
-      ...org,
-      farmersCount: org._count?.farmers || 0,
-      policiesCount: org._count?.policies || 0,
-      payoutsCount: org._count?.payouts || 0,
-      usersCount: org._count?.users || 0,
-    };
+    return apiClient.platformGetOrganization(id);
   },
 
   getOrganizationStats: async (id: string) => {
-    const metrics = await apiClient.platformDashboardOrgMetrics(id);
-    return {
-      totalFarmers: metrics.farmers.total,
-      activePolicies: metrics.policies.byStatus?.ACTIVE || 0,
-      totalPremiums: metrics.policies.totalPremiums,
-      totalPayouts: metrics.payouts.totalAmount,
-      totalFees: metrics.fees.total,
-      lossRatio: metrics.lossRatio,
-    };
+    return apiClient.platformDashboardOrgMetrics(id);
   },
 
   getOrgDashboardStats: async () => {
@@ -231,7 +189,10 @@ export const api = {
   },
 
   verifyKYB: async (applicationId: string, verification: { status: 'APPROVED' | 'REJECTED'; reviewNotes?: string }) => {
-    return apiClient.verifyKybApplication(applicationId, verification);
+    return apiClient.verifyKybApplication(applicationId, {
+      status: verification.status === 'APPROVED' ? 'VERIFIED' : 'REJECTED',
+      reviewNotes: verification.reviewNotes,
+    });
   },
 
   getPendingKYBCount: async () => {
@@ -298,7 +259,7 @@ export const api = {
 
   getPlots: async (_orgId: string) => {
     const result = await apiClient.orgDashboardPlots();
-    return { data: result.data.data, total: result.pagination?.total || result.data.data.length };
+    return { data: result.data, total: result.pagination?.total || result.data.length };
   },
 
   // ============================================
@@ -329,7 +290,7 @@ export const api = {
 
   getDamageAssessments: async () => {
     const result = await apiClient.orgDashboardDamageAssessments();
-    return { data: result, total: result.length };
+    return { data: result.assessments, total: result.totalCount };
   },
 
   // ============================================
@@ -340,7 +301,7 @@ export const api = {
     const result = orgId
       ? await apiClient.orgDashboardActivity()
       : await apiClient.platformActivity();
-    return { data: result.activity, total: result.activity.length };
+    return { data: result, total: result.length };
   },
 
   // ============================================
@@ -348,33 +309,23 @@ export const api = {
   // ============================================
 
   getLiquidityPool: async () => {
-    const pool = await apiClient.getOrganizationPool();
-    return {
-      address: pool.poolAddress,
-      balance: pool.balance,
-      utilizationRate: pool.utilizationRate,
-      capitalDeposited: pool.totalCapitalDeposited,
-      premiumsReceived: pool.totalPremiumsReceived,
-      payoutsSent: pool.totalPayoutsSent,
-      feesPaid: pool.totalFeesPaid,
-      availableForWithdrawal: pool.balance - (pool.balance * pool.utilizationRate / 100),
-    };
+    return apiClient.getOrganizationPool();
   },
 
   getPoolDetails: async (): Promise<PoolStatus> => {
     const pool = await apiClient.getOrganizationPoolDetails();
     return {
       poolAddress: pool.poolAddress,
-      poolValue: parseFloat(pool.poolValue),
-      totalSupply: parseFloat(pool.totalSupply),
-      tokenPrice: parseFloat(pool.tokenPrice),
-      totalPremiums: parseFloat(pool.totalPremiums),
-      totalPayouts: parseFloat(pool.totalPayouts),
-      activeExposure: parseFloat(pool.activeExposure),
-      minDeposit: parseFloat(pool.minDeposit),
-      maxDeposit: parseFloat(pool.maxDeposit),
-      targetCapital: parseFloat(pool.targetCapital),
-      maxCapital: parseFloat(pool.maxCapital),
+      poolValue: pool.poolValue,
+      totalSupply: pool.totalSupply,
+      tokenPrice: pool.tokenPrice,
+      totalPremiums: pool.totalPremiums,
+      totalPayouts: pool.totalPayouts,
+      activeExposure: pool.activeExposure,
+      minDeposit: pool.minDeposit,
+      maxDeposit: pool.maxDeposit,
+      targetCapital: pool.targetCapital,
+      maxCapital: pool.maxCapital,
       depositsOpen: pool.depositsOpen,
       withdrawalsOpen: pool.withdrawalsOpen,
       paused: pool.paused,
@@ -516,15 +467,7 @@ export const api = {
   },
 
   getFinancialSummary: async () => {
-    const financials = await apiClient.orgDashboardFinancials();
-    return {
-      totalPremiums: financials.allTime.premiums,
-      totalPayouts: financials.allTime.payouts,
-      totalFees: financials.allTime.fees,
-      lossRatio: financials.period.lossRatio,
-      avgPremium: financials.period.avgPremium,
-      policyCount: financials.period.policyCount,
-    };
+    return apiClient.orgDashboardFinancials();
   },
 
   // ============================================
