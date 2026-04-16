@@ -188,7 +188,8 @@ export default function FarmerImportPage() {
   const [plotsFile, setPlotsFile] = useState<File | null>(null);
   const [farmersJson, setFarmersJson] = useState("");
   const [plotsJson, setPlotsJson] = useState("");
-  const [importMode, setImportMode] = useState<'csv' | 'json'>('csv');
+  const [farmersImportMode, setFarmersImportMode] = useState<'csv' | 'json'>('csv');
+  const [plotsImportMode, setPlotsImportMode] = useState<'csv' | 'json'>('csv');
   const [farmersReport, setFarmersReport] = useState<ImportReport | null>(null);
   const [plotsReport, setPlotsReport] = useState<ImportReport | null>(null);
 
@@ -348,16 +349,16 @@ export default function FarmerImportPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    variant={importMode === 'csv' ? 'default' : 'outline'}
+                    variant={farmersImportMode === 'csv' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setImportMode('csv')}
+                    onClick={() => setFarmersImportMode('csv')}
                   >
                     CSV File
                   </Button>
                   <Button
-                    variant={importMode === 'json' ? 'default' : 'outline'}
+                    variant={farmersImportMode === 'json' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setImportMode('json')}
+                    onClick={() => setFarmersImportMode('json')}
                   >
                     JSON
                   </Button>
@@ -365,7 +366,7 @@ export default function FarmerImportPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {importMode === 'csv' ? (
+              {farmersImportMode === 'csv' ? (
                 <>
                   <FileDropZone
                     file={farmersFile}
@@ -439,16 +440,16 @@ export default function FarmerImportPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    variant={importMode === 'csv' ? 'default' : 'outline'}
+                    variant={plotsImportMode === 'csv' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setImportMode('csv')}
+                    onClick={() => setPlotsImportMode('csv')}
                   >
                     CSV File
                   </Button>
                   <Button
-                    variant={importMode === 'json' ? 'default' : 'outline'}
+                    variant={plotsImportMode === 'json' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setImportMode('json')}
+                    onClick={() => setPlotsImportMode('json')}
                   >
                     JSON
                   </Button>
@@ -456,7 +457,7 @@ export default function FarmerImportPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {importMode === 'csv' ? (
+              {plotsImportMode === 'csv' ? (
                 <>
                   <FileDropZone
                     file={plotsFile}
