@@ -1,5 +1,6 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -181,6 +182,8 @@ function ImportReportPanel({ report, onDismiss }: ImportReportPanelProps) {
 
 export default function FarmerImportPage() {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [farmersFile, setFarmersFile] = useState<File | null>(null);
   const [plotsFile, setPlotsFile] = useState<File | null>(null);
   const [farmersJson, setFarmersJson] = useState("");
@@ -205,6 +208,8 @@ export default function FarmerImportPage() {
       if (imported > 0) {
         setFarmersJson("");
         setFarmersFile(null);
+        queryClient.invalidateQueries({ queryKey: ["farmers"] });
+        navigate("/org/farmers");
       }
     },
     onError: (error: Error) => {
