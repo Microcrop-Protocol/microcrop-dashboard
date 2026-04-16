@@ -659,7 +659,21 @@ export const api = {
     ward?: string;
     village?: string;
   }): Promise<Farmer> => {
-    return apiClient.registerFarmer(data);
+    const trimOrUndefined = (value?: string) => {
+      const trimmed = value?.trim();
+      return trimmed ? trimmed : undefined;
+    };
+
+    return apiClient.registerFarmer({
+      phoneNumber: data.phoneNumber.trim(),
+      nationalId: data.nationalId.trim(),
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      county: data.county.trim(),
+      subCounty: trimOrUndefined(data.subCounty),
+      ward: trimOrUndefined(data.ward),
+      village: trimOrUndefined(data.village),
+    });
   },
 
   updateFarmer: async (farmerId: string, data: {
