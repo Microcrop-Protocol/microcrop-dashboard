@@ -30,7 +30,17 @@ export default function PlotsPage() {
     enabled: !!orgId,
   });
 
-  const plots = data?.data ?? [];
+  const toArray = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      const nested = record.data ?? record.items ?? record.results ?? record.plots;
+      if (Array.isArray(nested)) return nested as T[];
+    }
+    return [];
+  };
+
+  const plots = toArray<Plot>(data?.data);
 
   // Calculate crop distribution
   const cropDistribution = plots.reduce((acc, plot) => {

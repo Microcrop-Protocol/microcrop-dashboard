@@ -44,6 +44,16 @@ import type {
   PlotBoundary,
 } from '@/types';
 
+const toArray = <T>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const nested = record.data ?? record.items ?? record.results ?? record.plots;
+    if (Array.isArray(nested)) return nested as T[];
+  }
+  return [];
+};
+
 export const api = {
   // ============================================
   // AUTH
@@ -259,7 +269,8 @@ export const api = {
 
   getPlots: async (_orgId: string) => {
     const result = await apiClient.orgDashboardPlots();
-    return { data: result.data, total: result.pagination?.total || result.data.length };
+    const plots = toArray<Plot>(result.data);
+    return { data: plots, total: result.pagination?.total || plots.length };
   },
 
   // ============================================
