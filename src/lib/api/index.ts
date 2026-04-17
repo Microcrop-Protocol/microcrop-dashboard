@@ -301,7 +301,13 @@ export const api = {
     const result = orgId
       ? await apiClient.orgDashboardActivity()
       : await apiClient.platformActivity();
-    return { data: result, total: result.length };
+
+    const data = Array.isArray(result)
+      ? result
+      : (result as { activity?: unknown }).activity;
+
+    const activities = Array.isArray(data) ? data : [];
+    return { data: activities, total: activities.length };
   },
 
   // ============================================
