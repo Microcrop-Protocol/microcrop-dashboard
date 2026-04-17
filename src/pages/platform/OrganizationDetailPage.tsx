@@ -53,7 +53,16 @@ export default function OrganizationDetailPage() {
         title: "Pool Deployed",
         description: `Pool deployed at ${result.poolAddress.slice(0, 10)}...`,
       });
+      queryClient.setQueryData(["organization", orgId], (previous: unknown) => {
+        if (!previous || typeof previous !== "object") return previous;
+        return {
+          ...(previous as Record<string, unknown>),
+          poolAddress: result.poolAddress,
+          onboardingStep: "POOL_DEPLOYED",
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
       queryClient.invalidateQueries({ queryKey: ["platformPools"] });
       queryClient.invalidateQueries({ queryKey: ["platformPoolCounts"] });
     },

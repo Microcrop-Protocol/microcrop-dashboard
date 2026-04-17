@@ -102,7 +102,44 @@ export default function PoolPage() {
         title: "Pool Deployed Successfully",
         description: `Your pool is live at ${shortValue(result.pool.poolAddress, 10)}`,
       });
+      queryClient.setQueryData(["pool"], (previous: unknown) => {
+        if (previous && typeof previous === "object") {
+          return {
+            ...(previous as Record<string, unknown>),
+            address: result.pool.poolAddress,
+          };
+        }
+        return {
+          address: result.pool.poolAddress,
+          balance: 0,
+          utilizationRate: 0,
+          capitalDeposited: 0,
+          premiumsReceived: 0,
+          payoutsSent: 0,
+          feesPaid: 0,
+          availableForWithdrawal: 0,
+        };
+      });
+      queryClient.setQueryData(["liquidityPool"], (previous: unknown) => {
+        if (previous && typeof previous === "object") {
+          return {
+            ...(previous as Record<string, unknown>),
+            address: result.pool.poolAddress,
+          };
+        }
+        return {
+          address: result.pool.poolAddress,
+          balance: 0,
+          utilizationRate: 0,
+          capitalDeposited: 0,
+          premiumsReceived: 0,
+          payoutsSent: 0,
+          feesPaid: 0,
+          availableForWithdrawal: 0,
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
+      queryClient.invalidateQueries({ queryKey: ["liquidityPool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
     },
     onError: (error: Error) => {

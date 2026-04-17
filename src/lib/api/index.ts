@@ -25,6 +25,7 @@ import type {
   TreasuryPayoutAmounts,
   DeployPoolRequest,
   DeployPoolResult,
+  LiquidityPool,
   OrgWallet,
   WalletFundResult,
   Farmer,
@@ -52,6 +53,15 @@ const toArray = <T>(value: unknown): T[] => {
     if (Array.isArray(nested)) return nested as T[];
   }
   return [];
+};
+
+const toNumber = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
 };
 
 export const api = {
@@ -325,8 +335,22 @@ export const api = {
   // POOL
   // ============================================
 
-  getLiquidityPool: async () => {
-    return apiClient.getOrganizationPool();
+  getLiquidityPool: async (): Promise<LiquidityPool> => {
+  const raw = (await apiClient.getOrganizationPool()) as unknown as Record<string, unknown>;
+    return {
+      address: typeof raw.address === 'string'
+        ? raw.address
+        : typeof raw.poolAddress === 'string'
+          ? raw.poolAddress
+          : '',
+      balance: toNumber(raw.balance),
+      utilizationRate: toNumber(raw.utilizationRate),
+      capitalDeposited: toNumber(raw.capitalDeposited),
+      premiumsReceived: toNumber(raw.premiumsReceived),
+      payoutsSent: toNumber(raw.payoutsSent),
+      feesPaid: toNumber(raw.feesPaid),
+      availableForWithdrawal: toNumber(raw.availableForWithdrawal),
+    };
   },
 
   getPoolDetails: async (): Promise<PoolStatus> => {
