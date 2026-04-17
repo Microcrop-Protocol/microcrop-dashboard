@@ -31,6 +31,15 @@ export default function InvitationsPage() {
     queryFn: () => api.getOrgInvitations(),
   });
 
+  const toArray = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === 'object') {
+      const maybeData = (value as { data?: unknown }).data;
+      if (Array.isArray(maybeData)) return maybeData as T[];
+    }
+    return [];
+  };
+
   const resendMutation = useMutation({
     mutationFn: (invitationId: string) => api.sendOrgAdminInvitation(invitationId),
     onSuccess: () => {
@@ -49,7 +58,7 @@ export default function InvitationsPage() {
     },
   });
 
-  const invitations = data?.data ?? [];
+  const invitations = toArray<OrgAdminInvitation>(data?.data);
 
   // Calculate stats
   const pendingCount = invitations.filter(i => i.status === 'PENDING').length;

@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { DeployPoolDialog } from "@/components/pool/DeployPoolDialog";
 import type { DeployPoolFormData } from "@/lib/validations/pool";
+import type { Policy, Payout } from "@/types";
 
 const onboardingSteps = [
   { key: 'REGISTERED', label: 'Registered' },
@@ -83,8 +84,20 @@ export default function OrganizationDetailPage() {
     enabled: !!orgId,
   });
 
-  const recentPolicies = policiesData?.data?.slice(0, 5) ?? [];
-  const recentPayouts = payoutsData?.data?.slice(0, 5) ?? [];
+  const toArray = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === 'object') {
+      const maybeData = (value as { data?: unknown }).data;
+      if (Array.isArray(maybeData)) return maybeData as T[];
+    }
+    return [];
+  };
+
+  const policies = toArray<Policy>(policiesData?.data);
+  const payouts = toArray<Payout>(payoutsData?.data);
+
+  const recentPolicies = policies.slice(0, 5);
+  const recentPayouts = payouts.slice(0, 5);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -99,7 +112,6 @@ export default function OrganizationDetailPage() {
 
   // Derive chart data from API responses
   const policyStatusData = (() => {
-    const policies = policiesData?.data ?? [];
     const counts: Record<string, number> = {};
     for (const p of policies) {
       counts[p.status] = (counts[p.status] || 0) + 1;
@@ -108,7 +120,6 @@ export default function OrganizationDetailPage() {
   })();
 
   const coverageTypeData = (() => {
-    const policies = policiesData?.data ?? [];
     const counts: Record<string, number> = {};
     for (const p of policies) {
       const type = (p as any).coverageType || 'Unknown';
@@ -118,7 +129,6 @@ export default function OrganizationDetailPage() {
   })();
 
   const payoutStatusData = (() => {
-    const payouts = payoutsData?.data ?? [];
     const counts: Record<string, number> = {};
     for (const p of payouts) {
       counts[p.status] = (counts[p.status] || 0) + 1;

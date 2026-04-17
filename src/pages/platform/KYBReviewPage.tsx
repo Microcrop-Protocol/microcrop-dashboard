@@ -97,7 +97,16 @@ export default function KYBReviewPage() {
     queryFn: () => api.getOrgApplications(),
   });
 
-  const applications = data?.data ?? [];
+  const toArray = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === 'object') {
+      const maybeData = (value as { data?: unknown }).data;
+      if (Array.isArray(maybeData)) return maybeData as T[];
+    }
+    return [];
+  };
+
+  const applications = toArray<OrganizationApplication>(data?.data);
 
   // Calculate stats
   const pendingCount = applications.filter(a => a.status === 'PENDING_REVIEW').length;

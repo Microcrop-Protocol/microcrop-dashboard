@@ -101,6 +101,15 @@ export default function OrganizationsPage() {
     queryFn: () => api.getOrganizations(),
   });
 
+  const toArray = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === "object") {
+      const maybeData = (value as { data?: unknown }).data;
+      if (Array.isArray(maybeData)) return maybeData as T[];
+    }
+    return [];
+  };
+
   const handleCreateOrganization = async (data: AdminCreateOrganizationFormData) => {
     setIsCreating(true);
     try {
@@ -121,7 +130,9 @@ export default function OrganizationsPage() {
     }
   };
 
-  const filteredData = (data?.data ?? []).filter((org) => {
+  const organizations = toArray<Organization>(data?.data);
+
+  const filteredData = organizations.filter((org) => {
     const matchesType = typeFilter === "all" || org.type === typeFilter;
     const matchesStatus =
       statusFilter === "all" ||
