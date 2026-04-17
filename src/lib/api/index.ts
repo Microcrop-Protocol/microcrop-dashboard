@@ -375,9 +375,13 @@ export const api = {
 
   fundWallet: async (data: { phoneNumber: string; amountKES: number }): Promise<WalletFundResult> => {
     // Convert local phone format (07...) to international (+254...)
-    const phoneNumber = data.phoneNumber.startsWith('0')
-      ? '+254' + data.phoneNumber.slice(1)
-      : data.phoneNumber;
+    // while guarding against non-string runtime values.
+    const rawPhone = typeof data.phoneNumber === 'string'
+      ? data.phoneNumber.trim()
+      : String(data.phoneNumber ?? '').trim();
+    const phoneNumber = rawPhone.startsWith('0')
+      ? `+254${rawPhone.slice(1)}`
+      : rawPhone;
     return apiClient.fundWallet({ ...data, phoneNumber });
   },
 

@@ -60,6 +60,13 @@ export function FundWalletDialog({
     }
   };
 
+  const formatShortAddress = (value: unknown) => {
+    const address = typeof value === 'string' ? value : String(value ?? '');
+    if (!address) return '—';
+    if (address.length <= 10) return address;
+    return `${address.slice(0, 6)}…${address.slice(-4)}`;
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>
@@ -93,9 +100,7 @@ export function FundWalletDialog({
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Wallet</span>
-                <span className="font-mono text-xs">
-                  {result.walletAddress.slice(0, 6)}&hellip;{result.walletAddress.slice(-4)}
-                </span>
+                <span className="font-mono text-xs">{formatShortAddress(result.walletAddress)}</span>
               </div>
             </div>
             <div className="rounded-lg bg-info/10 p-3 text-sm text-muted-foreground">

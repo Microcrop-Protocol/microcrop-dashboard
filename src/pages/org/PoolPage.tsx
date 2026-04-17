@@ -22,6 +22,16 @@ export default function PoolPage() {
   const [isDepositsLoading, setIsDepositsLoading] = useState(false);
   const [isWithdrawalsLoading, setIsWithdrawalsLoading] = useState(false);
 
+  const shortValue = (value: unknown, start = 10, end = 0) => {
+    const text = typeof value === 'string' ? value : String(value ?? '');
+    if (!text) return '—';
+    if (end > 0) {
+      if (text.length <= start + end) return text;
+      return `${text.slice(0, start)}...${text.slice(-end)}`;
+    }
+    return text.length <= start ? text : `${text.slice(0, start)}...`;
+  };
+
   const { data: pool, isLoading: isPoolLoading, error: poolError } = useQuery({
     queryKey: ["pool"],
     queryFn: () => api.getLiquidityPool(),
@@ -41,7 +51,7 @@ export default function PoolPage() {
     onSuccess: (result) => {
       toast({
         title: "Deposit Successful",
-        description: `Minted ${result.tokensMinted} LP tokens. TX: ${result.txHash.slice(0, 10)}...`,
+        description: `Minted ${result.tokensMinted} LP tokens. TX: ${shortValue(result.txHash, 10)}`,
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
@@ -60,7 +70,7 @@ export default function PoolPage() {
     onSuccess: (result) => {
       toast({
         title: "Withdrawal Successful",
-        description: `Received ${result.usdcReceived} USDC. TX: ${result.txHash.slice(0, 10)}...`,
+        description: `Received ${result.usdcReceived} USDC. TX: ${shortValue(result.txHash, 10)}`,
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
@@ -90,7 +100,7 @@ export default function PoolPage() {
     onSuccess: (result) => {
       toast({
         title: "Pool Deployed Successfully",
-        description: `Your pool is live at ${result.pool.poolAddress.slice(0, 10)}...`,
+        description: `Your pool is live at ${shortValue(result.pool.poolAddress, 10)}`,
       });
       queryClient.invalidateQueries({ queryKey: ["pool"] });
       queryClient.invalidateQueries({ queryKey: ["poolDetails"] });
@@ -312,7 +322,7 @@ export default function PoolPage() {
           {p.address && (
             <Button variant="outline" asChild>
               <a href={`https://basescan.org/address/${p.address}`} target="_blank" rel="noopener noreferrer">
-                {`${p.address.slice(0,6)}...${p.address.slice(-4)}`}
+                {shortValue(p.address, 6, 4)}
                 <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
               </a>
             </Button>
