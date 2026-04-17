@@ -39,8 +39,17 @@ export default function NewPolicyPage() {
     enabled: !!orgId,
   });
 
-  const farmers = farmersData?.data ?? [];
-  const plots = plotsData?.data ?? [];
+  const toArray = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === 'object') {
+      const maybeData = (value as { data?: unknown }).data;
+      if (Array.isArray(maybeData)) return maybeData as T[];
+    }
+    return [];
+  };
+
+  const farmers = toArray(farmersData?.data);
+  const plots = toArray(plotsData?.data);
 
   const approvedFarmers = farmers.filter((f: any) => f.kycStatus === 'APPROVED');
   const farmerPlots = plots.filter((p: any) => p.farmerId === formData.farmerId);
