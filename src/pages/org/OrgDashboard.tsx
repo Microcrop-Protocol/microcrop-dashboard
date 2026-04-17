@@ -36,8 +36,11 @@ export default function OrgDashboard() {
     }).format(value);
   };
 
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const truncateAddress = (address: unknown) => {
+    const value = typeof address === "string" ? address : String(address ?? "");
+    if (!value) return "—";
+    if (value.length <= 10) return value;
+    return `${value.slice(0, 6)}...${value.slice(-4)}`;
   };
 
   return (
@@ -60,7 +63,12 @@ export default function OrgDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard title="Total Farmers" value={stats?.totalFarmers?.toLocaleString() ?? 0} icon={Users} />
         <StatCard title="Active Policies" value={stats?.activePolicies?.toLocaleString() ?? 0} icon={FileText} />
-        <StatCard title="New Policies" value={stats?.newPoliciesPeriod?.toLocaleString() ?? 0} subtitle="This month" icon={TrendingUp} />
+        <StatCard
+          title="Loss Ratio"
+          value={`${(stats?.lossRatio ?? 0).toFixed(1)}%`}
+          subtitle="Current period"
+          icon={TrendingUp}
+        />
         <StatCard title="Premiums" value={formatCurrency(stats?.totalPremiums ?? 0)} icon={Wallet} />
         <StatCard title="Payouts" value={formatCurrency(stats?.totalPayouts ?? 0)} icon={DollarSign} />
         <StatCard title="Fees" value={formatCurrency(stats?.totalFees ?? 0)} icon={TrendingUp} />
