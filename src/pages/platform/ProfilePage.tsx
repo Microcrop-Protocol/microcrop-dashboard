@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Loader2, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -27,6 +27,15 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState(me?.avatarUrl ?? '');
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Holds an active blob: URL for the in-progress avatar so we can revoke it.
+  const objectUrlRef = useRef<string | null>(null);
+
+  const releaseObjectUrl = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  };
 
   useEffect(() => {
     setFirstName(me?.firstName ?? '');
@@ -35,15 +44,28 @@ export default function ProfilePage() {
     setDisplayRole(me?.displayRole ?? '');
     setBio(me?.bio ?? '');
     setAvatarUrl(me?.avatarUrl ?? '');
-  }, [me?.id]);
+    setAvatarPath(null);
+    releaseObjectUrl();
+  }, [me?.id, me?.avatarUrl]);
+
+  // Clean up any blob URL on unmount.
+  useEffect(() => () => releaseObjectUrl(), []);
 
   const handleAvatarFile = async (file: File) => {
+    // Show the local file immediately so the user sees their selection
+    // without waiting for the upload round-trip.
+    releaseObjectUrl();
+    const localUrl = URL.createObjectURL(file);
+    objectUrlRef.current = localUrl;
+    setAvatarUrl(localUrl);
     setUploading(true);
     try {
       const result = await api.uploadBlogImage(file);
       setAvatarPath(result.path);
-      setAvatarUrl(result.url);
     } catch (err) {
+      releaseObjectUrl();
+      setAvatarUrl(me?.avatarUrl ?? '');
+      setAvatarPath(null);
       toast({
         title: 'Upload failed',
         description: err instanceof Error ? err.message : undefined,
@@ -148,6 +170,7 @@ export default function ProfilePage() {
                     size="sm"
                     disabled={uploading}
                     onClick={() => {
+                      releaseObjectUrl();
                       setAvatarUrl('');
                       setAvatarPath(null);
                     }}

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Image as ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,14 +24,42 @@ interface CoverImageUploaderProps {
 export function CoverImageUploader({ value, onChange }: CoverImageUploaderProps) {
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
+  // Local blob: URL shown while the upload is in flight (or after, until reload).
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  const releaseObjectUrl = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  };
+
+  // Drop the local preview when the parent supplies a fresh server-backed value
+  // (e.g. after the post loads or save returns).
+  useEffect(() => {
+    if (!value.url) {
+      releaseObjectUrl();
+      setLocalPreview(null);
+    }
+  }, [value.url]);
+
+  // Clean up on unmount.
+  useEffect(() => () => releaseObjectUrl(), []);
 
   const handleFile = useCallback(
     async (file: File) => {
+      // Show the picked file immediately so the preview never goes blank
+      // while we wait on the upload round-trip.
+      releaseObjectUrl();
+      const localUrl = URL.createObjectURL(file);
+      objectUrlRef.current = localUrl;
+      setLocalPreview(localUrl);
       setUploading(true);
       try {
         const result = await api.uploadBlogImage(file);
-        // Read natural dimensions from the loaded image so we can persist them.
-        const dims = await readImageDimensions(resolveFileUrl(result.url));
+        // Read natural dimensions from the local file (no round-trip needed).
+        const dims = await readImageDimensions(localUrl);
         onChange({
           path: result.path,
           url: result.url,
@@ -40,6 +68,8 @@ export function CoverImageUploader({ value, onChange }: CoverImageUploaderProps)
           height: dims.height,
         });
       } catch (err) {
+        releaseObjectUrl();
+        setLocalPreview(null);
         toast({
           title: 'Upload failed',
           description: err instanceof Error ? err.message : 'Could not upload image',
@@ -67,15 +97,21 @@ export function CoverImageUploader({ value, onChange }: CoverImageUploaderProps)
   });
 
   const remove = () => {
+    releaseObjectUrl();
+    setLocalPreview(null);
     onChange({ path: null, url: null, alt: '', width: null, height: null });
   };
 
+  // Prefer the local blob URL (set immediately on file pick) over the server URL
+  // so the preview is instant and doesn't depend on the upload round-trip rendering.
+  const displayUrl = localPreview ?? (value.url ? resolveFileUrl(value.url) : null);
+
   return (
     <div className="space-y-3">
-      {value.url ? (
+      {displayUrl ? (
         <div className="relative overflow-hidden rounded-md border bg-muted">
           <img
-            src={resolveFileUrl(value.url)}
+            src={displayUrl}
             alt={value.alt || 'Cover preview'}
             className="h-48 w-full object-cover"
             loading="lazy"
@@ -114,7 +150,7 @@ export function CoverImageUploader({ value, onChange }: CoverImageUploaderProps)
         </div>
       )}
 
-      {value.url && (
+      {displayUrl && (
         <Button
           type="button"
           variant="outline"
