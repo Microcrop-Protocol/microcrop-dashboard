@@ -43,6 +43,7 @@ import type {
   PaymentInitiateResponse,
   PaymentStatusResponse,
   PlotBoundary,
+  Activity,
   BlogPost,
   BlogCategory,
   BlogTag,
@@ -328,11 +329,39 @@ export const api = {
       ? await apiClient.orgDashboardActivity()
       : await apiClient.platformActivity();
 
-    const data = Array.isArray(result)
+    const raw = Array.isArray(result)
       ? result
-      : (result as { activity?: unknown }).activity;
+      : (result as { activity?: unknown; activities?: unknown }).activity
+        ?? (result as { activities?: unknown }).activities;
 
-    const activities = Array.isArray(data) ? data : [];
+    const rawList: unknown[] = Array.isArray(raw) ? raw : [];
+
+    // Backend field names have drifted (`description` vs `message`,
+    // `created_at`/`timestamp` vs `createdAt`). Map known variants.
+    const activities = rawList.map((item, idx) => {
+      const r = (item ?? {}) as Record<string, unknown>;
+      const pickString = (...keys: string[]): string | undefined => {
+        for (const k of keys) {
+          const v = r[k];
+          if (typeof v === 'string' && v.length > 0) return v;
+        }
+        return undefined;
+      };
+      return {
+        id: pickString('id', '_id', 'activityId', 'eventId') ?? `activity-${idx}`,
+        type: (pickString('type', 'eventType', 'kind') ?? 'UNKNOWN') as Activity['type'],
+        message:
+          pickString('message', 'description', 'text', 'summary', 'details', 'title') ?? '',
+        organizationId: pickString('organizationId', 'orgId', 'organization_id'),
+        userId: pickString('userId', 'user_id', 'actorId'),
+        createdAt:
+          pickString('createdAt', 'created_at', 'timestamp', 'occurredAt', 'time', 'date') ?? '',
+        metadata: (typeof r.metadata === 'object' && r.metadata !== null
+          ? (r.metadata as Record<string, unknown>)
+          : undefined),
+      } as Activity;
+    });
+
     return { data: activities, total: activities.length };
   },
 
