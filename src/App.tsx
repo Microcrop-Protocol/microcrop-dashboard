@@ -50,6 +50,10 @@ const KYBApplicationDetailPage = lazyRetry(() => import("@/pages/platform/KYBApp
 const InvitationsPage = lazyRetry(() => import("@/pages/platform/InvitationsPage"));
 const PoolsPage = lazyRetry(() => import("@/pages/platform/PoolsPage"));
 const TreasuryPage = lazyRetry(() => import("@/pages/platform/TreasuryPage"));
+const PostsListPage = lazyRetry(() => import("@/pages/platform/blog/PostsListPage"));
+const PostEditorPage = lazyRetry(() => import("@/pages/platform/blog/PostEditorPage"));
+const BlogCategoriesPage = lazyRetry(() => import("@/pages/platform/blog/CategoriesPage"));
+const ProfilePage = lazyRetry(() => import("@/pages/platform/ProfilePage"));
 
 // Org pages
 const OrgDashboard = lazyRetry(() => import("@/pages/org/OrgDashboard"));
@@ -182,6 +186,11 @@ const App = () => (
                 <Route path="invitations" element={<InvitationsPage />} />
                 <Route path="pools" element={<PoolsPage />} />
                 <Route path="treasury" element={<TreasuryPage />} />
+                <Route path="blog" element={<PostsListPage />} />
+                <Route path="blog/new" element={<PostEditorPage />} />
+                <Route path="blog/categories" element={<BlogCategoriesPage />} />
+                <Route path="blog/:id/edit" element={<PostEditorPage />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               {/* Organization routes */}

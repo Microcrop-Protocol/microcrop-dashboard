@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -1382,6 +1382,167 @@ class ApiClient {
 
   async getPaymentStatusByRef(reference: string) {
     return this.request<PaymentStatusResponse>(`/payments/status/${encodeURIComponent(reference)}`);
+  }
+
+  // ============================================
+  // PROFILE
+  // ============================================
+
+  async updateMyProfile(data: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    bio?: string;
+    avatarUrl?: string;
+    displayRole?: string;
+  }) {
+    return this.request<User>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ============================================
+  // BLOG - UPLOADS
+  // ============================================
+
+  async uploadBlogImage(file: File): Promise<UploadResult> {
+    const formData = new FormData();
+    formData.append('image', file);
+    return this.uploadRequest<UploadResult>('/dashboard/platform/blog/uploads', formData);
+  }
+
+  // ============================================
+  // BLOG - POSTS
+  // ============================================
+
+  async getBlogPosts(params?: {
+    page?: number;
+    pageSize?: number;
+    status?: PostStatus;
+    categoryId?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<BlogPost[]>(`/dashboard/platform/blog/posts${query ? `?${query}` : ''}`);
+  }
+
+  async getBlogPost(id: string) {
+    return this.request<BlogPost>(`/dashboard/platform/blog/posts/${encodeURIComponent(id)}`);
+  }
+
+  async createBlogPost(data: {
+    title: string;
+    slug?: string;
+    excerpt: string;
+    body: string;
+    coverImagePath?: string;
+    coverImageAlt?: string;
+    coverImageWidth?: number;
+    coverImageHeight?: number;
+    metaTitle?: string;
+    metaDescription?: string;
+    ogImagePath?: string;
+    categoryId?: string | null;
+    tagSlugs?: string[];
+  }) {
+    return this.request<BlogPost>('/dashboard/platform/blog/posts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateBlogPost(id: string, data: {
+    title?: string;
+    slug?: string;
+    excerpt?: string;
+    body?: string;
+    coverImagePath?: string | null;
+    coverImageAlt?: string | null;
+    coverImageWidth?: number | null;
+    coverImageHeight?: number | null;
+    metaTitle?: string | null;
+    metaDescription?: string | null;
+    ogImagePath?: string | null;
+    categoryId?: string | null;
+    tagSlugs?: string[];
+  }) {
+    return this.request<BlogPost>(`/dashboard/platform/blog/posts/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBlogPost(id: string) {
+    return this.request<{ success: boolean }>(`/dashboard/platform/blog/posts/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async publishBlogPost(id: string, scheduledFor?: string) {
+    return this.request<BlogPost>(`/dashboard/platform/blog/posts/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+      body: JSON.stringify(scheduledFor ? { scheduledFor } : {}),
+    });
+  }
+
+  async unpublishBlogPost(id: string) {
+    return this.request<BlogPost>(`/dashboard/platform/blog/posts/${encodeURIComponent(id)}/unpublish`, {
+      method: 'POST',
+    });
+  }
+
+  // ============================================
+  // BLOG - CATEGORIES
+  // ============================================
+
+  async getBlogCategories() {
+    return this.request<BlogCategory[]>('/dashboard/platform/blog/categories');
+  }
+
+  async createBlogCategory(data: { name: string; slug?: string; description?: string }) {
+    return this.request<BlogCategory>('/dashboard/platform/blog/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateBlogCategory(id: string, data: { name?: string; slug?: string; description?: string }) {
+    return this.request<BlogCategory>(`/dashboard/platform/blog/categories/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBlogCategory(id: string) {
+    return this.request<{ success: boolean }>(`/dashboard/platform/blog/categories/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ============================================
+  // BLOG - TAGS
+  // ============================================
+
+  async getBlogTags() {
+    return this.request<BlogTag[]>('/dashboard/platform/blog/tags');
+  }
+
+  async createBlogTag(data: { name: string; slug?: string }) {
+    return this.request<BlogTag>('/dashboard/platform/blog/tags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBlogTag(id: string) {
+    return this.request<{ success: boolean }>(`/dashboard/platform/blog/tags/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
   }
 }
 

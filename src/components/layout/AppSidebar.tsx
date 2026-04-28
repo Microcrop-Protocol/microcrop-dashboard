@@ -25,6 +25,7 @@ import {
   Landmark,
   PiggyBank,
   ClipboardPlus,
+  Newspaper,
 } from "lucide-react";
 import {
   Collapsible,
@@ -46,6 +47,7 @@ const platformNavItems: NavItem[] = [
   { title: "Treasury", href: "/platform/treasury", icon: Landmark },
   { title: "KYB Review", href: "/platform/kyb-review", icon: ClipboardCheck },
   { title: "Invitations", href: "/platform/invitations", icon: Mail },
+  { title: "Blog", href: "/platform/blog", icon: Newspaper },
   {
     title: "Analytics",
     href: "/platform/analytics",
@@ -221,20 +223,41 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
 
         {/* User Info */}
         <div className="border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-              {user?.firstName?.[0]}
-              {user?.lastName?.[0]}
+          {isPlatformAdmin() ? (
+            <Link
+              to="/platform/profile"
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-md p-1 -m-1 hover:bg-sidebar-accent"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                {user?.firstName?.[0]}
+                {user?.lastName?.[0]}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="truncate text-sm font-medium text-sidebar-foreground">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user?.displayRole || user?.role.replace(/_/g, " ")}
+                </p>
+              </div>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                {user?.firstName?.[0]}
+                {user?.lastName?.[0]}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="truncate text-sm font-medium text-sidebar-foreground">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user?.role.replace(/_/g, " ")}
+                </p>
+              </div>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="truncate text-sm font-medium text-sidebar-foreground">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {user?.role.replace(/_/g, " ")}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </aside>
     </>

@@ -43,6 +43,11 @@ import type {
   PaymentInitiateResponse,
   PaymentStatusResponse,
   PlotBoundary,
+  BlogPost,
+  BlogCategory,
+  BlogTag,
+  PostStatus,
+  UploadResult,
 } from '@/types';
 
 const toArray = <T>(value: unknown): T[] => {
@@ -874,5 +879,112 @@ export const api = {
 
   getPaymentStatusByRef: async (reference: string): Promise<PaymentStatusResponse> => {
     return apiClient.getPaymentStatusByRef(reference);
+  },
+
+  // ============================================
+  // PROFILE
+  // ============================================
+
+  updateMyProfile: async (data: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    bio?: string;
+    avatarUrl?: string;
+    displayRole?: string;
+  }): Promise<User> => {
+    return apiClient.updateMyProfile(data);
+  },
+
+  // ============================================
+  // BLOG
+  // ============================================
+
+  uploadBlogImage: async (file: File): Promise<UploadResult> => {
+    return apiClient.uploadBlogImage(file);
+  },
+
+  getBlogPosts: async (params?: {
+    page?: number;
+    pageSize?: number;
+    status?: PostStatus;
+    categoryId?: string;
+    search?: string;
+  }) => {
+    const result = await apiClient.getBlogPosts(params);
+    return {
+      data: toArray<BlogPost>(result.data),
+      total: result.pagination?.total || toArray<BlogPost>(result.data).length,
+      page: result.pagination?.page,
+      totalPages: result.pagination?.totalPages,
+    };
+  },
+
+  getBlogPost: async (id: string): Promise<BlogPost> => {
+    return apiClient.getBlogPost(id);
+  },
+
+  createBlogPost: async (data: {
+    title: string;
+    slug?: string;
+    excerpt: string;
+    body: string;
+    coverImagePath?: string;
+    coverImageAlt?: string;
+    coverImageWidth?: number;
+    coverImageHeight?: number;
+    metaTitle?: string;
+    metaDescription?: string;
+    ogImagePath?: string;
+    categoryId?: string | null;
+    tagSlugs?: string[];
+  }): Promise<BlogPost> => {
+    return apiClient.createBlogPost(data);
+  },
+
+  updateBlogPost: async (id: string, data: Parameters<typeof apiClient.updateBlogPost>[1]): Promise<BlogPost> => {
+    return apiClient.updateBlogPost(id, data);
+  },
+
+  deleteBlogPost: async (id: string) => {
+    return apiClient.deleteBlogPost(id);
+  },
+
+  publishBlogPost: async (id: string, scheduledFor?: string): Promise<BlogPost> => {
+    return apiClient.publishBlogPost(id, scheduledFor);
+  },
+
+  unpublishBlogPost: async (id: string): Promise<BlogPost> => {
+    return apiClient.unpublishBlogPost(id);
+  },
+
+  getBlogCategories: async (): Promise<BlogCategory[]> => {
+    const result = await apiClient.getBlogCategories();
+    return toArray<BlogCategory>(result);
+  },
+
+  createBlogCategory: async (data: { name: string; slug?: string; description?: string }): Promise<BlogCategory> => {
+    return apiClient.createBlogCategory(data);
+  },
+
+  updateBlogCategory: async (id: string, data: { name?: string; slug?: string; description?: string }): Promise<BlogCategory> => {
+    return apiClient.updateBlogCategory(id, data);
+  },
+
+  deleteBlogCategory: async (id: string) => {
+    return apiClient.deleteBlogCategory(id);
+  },
+
+  getBlogTags: async (): Promise<BlogTag[]> => {
+    const result = await apiClient.getBlogTags();
+    return toArray<BlogTag>(result);
+  },
+
+  createBlogTag: async (data: { name: string; slug?: string }): Promise<BlogTag> => {
+    return apiClient.createBlogTag(data);
+  },
+
+  deleteBlogTag: async (id: string) => {
+    return apiClient.deleteBlogTag(id);
   },
 };

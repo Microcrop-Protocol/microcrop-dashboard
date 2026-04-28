@@ -12,6 +12,10 @@ export interface User {
   isActive: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  // Author profile (used when authoring blog posts)
+  bio?: string;
+  avatarUrl?: string;
+  displayRole?: string;
 }
 
 export interface AuthTokens {
@@ -658,4 +662,70 @@ export interface PaymentStatusResponse {
   status: 'PENDING' | 'COMPLETED' | 'FAILED';
   policyId?: string;
   message?: string;
+}
+
+// Blog Types
+export type PostStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'UNPUBLISHED';
+
+export interface BlogAuthor {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  avatarUrl?: string;
+  displayRole?: string;
+  bio?: string;
+}
+
+export interface BlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  postCount?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface BlogTag {
+  id: string;
+  name: string;
+  slug: string;
+  postCount?: number;
+  createdAt?: string;
+}
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  body: string;
+  status: PostStatus;
+  coverImageUrl?: string | null;
+  coverImagePath?: string | null;
+  coverImageAlt?: string | null;
+  coverImageWidth?: number | null;
+  coverImageHeight?: number | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  ogImageUrl?: string | null;
+  ogImagePath?: string | null;
+  category?: BlogCategory | null;
+  categoryId?: string | null;
+  tags?: BlogTag[];
+  author?: BlogAuthor | null;
+  authorId?: string;
+  readingTimeMinutes?: number;
+  publishedAt?: string | null;
+  scheduledFor?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UploadResult {
+  path: string;
+  url: string;
+  mimeType: string;
+  size: number;
 }
