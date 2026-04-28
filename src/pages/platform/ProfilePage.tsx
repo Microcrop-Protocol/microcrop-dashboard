@@ -55,16 +55,26 @@ export default function ProfilePage() {
   };
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      api.updateMyProfile({
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
-        phone: phone.trim() || undefined,
-        displayRole: displayRole.trim() || undefined,
-        bio: bio.trim() || undefined,
-        // Persist path (the backend stores paths and rewrites to URLs at read time).
-        avatarUrl: avatarPath ?? avatarUrl ?? undefined,
-      }),
+    mutationFn: () => {
+      // Backend accepts `null` (or "") to clear nullable fields. firstName/lastName
+      // are required (1-100 chars), so omit when empty rather than clearing.
+      const trimmedFirst = firstName.trim();
+      const trimmedLast = lastName.trim();
+      const trimmedPhone = phone.trim();
+      const trimmedRole = displayRole.trim();
+      const trimmedBio = bio.trim();
+      // If the user just uploaded a new avatar this session, send the path.
+      // Otherwise mirror the current value (which may be empty → null to clear).
+      const nextAvatar = avatarPath ?? (avatarUrl ? avatarUrl : null);
+      return api.updateMyProfile({
+        firstName: trimmedFirst || undefined,
+        lastName: trimmedLast || undefined,
+        phone: trimmedPhone === '' ? null : trimmedPhone,
+        displayRole: trimmedRole === '' ? null : trimmedRole,
+        bio: trimmedBio === '' ? null : trimmedBio,
+        avatarUrl: nextAvatar,
+      });
+    },
     onSuccess: (updated: User) => {
       setUser(updated);
       toast({ title: 'Profile updated' });
@@ -108,7 +118,7 @@ export default function ProfilePage() {
             </div>
             <div className="space-y-2">
               <Label>Avatar</Label>
-              <div>
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -131,6 +141,20 @@ export default function ProfilePage() {
                   )}
                   {uploading ? 'Uploading…' : avatarUrl ? 'Replace' : 'Upload avatar'}
                 </Button>
+                {avatarUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={uploading}
+                    onClick={() => {
+                      setAvatarUrl('');
+                      setAvatarPath(null);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
                 Square images work best. Shown next to posts on the marketing site.

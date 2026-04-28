@@ -888,10 +888,10 @@ export const api = {
   updateMyProfile: async (data: {
     firstName?: string;
     lastName?: string;
-    phone?: string;
-    bio?: string;
-    avatarUrl?: string;
-    displayRole?: string;
+    phone?: string | null;
+    bio?: string | null;
+    avatarUrl?: string | null;
+    displayRole?: string | null;
   }): Promise<User> => {
     return apiClient.updateMyProfile(data);
   },

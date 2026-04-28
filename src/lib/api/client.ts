@@ -1391,10 +1391,10 @@ class ApiClient {
   async updateMyProfile(data: {
     firstName?: string;
     lastName?: string;
-    phone?: string;
-    bio?: string;
-    avatarUrl?: string;
-    displayRole?: string;
+    phone?: string | null;
+    bio?: string | null;
+    avatarUrl?: string | null;
+    displayRole?: string | null;
   }) {
     return this.request<User>('/auth/me', {
       method: 'PATCH',
