@@ -338,6 +338,9 @@ export const api = {
 
     // Backend field names have drifted (`description` vs `message`,
     // `created_at`/`timestamp` vs `createdAt`). Map known variants.
+    const humanizeType = (t: string): string =>
+      t.replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
+
     const activities = rawList.map((item, idx) => {
       const r = (item ?? {}) as Record<string, unknown>;
       const pickString = (...keys: string[]): string | undefined => {
@@ -347,11 +350,41 @@ export const api = {
         }
         return undefined;
       };
+      // Look for a message string nested under common wrappers too.
+      const pickNested = (parents: string[], keys: string[]): string | undefined => {
+        for (const p of parents) {
+          const parent = r[p];
+          if (parent && typeof parent === 'object') {
+            const child = parent as Record<string, unknown>;
+            for (const k of keys) {
+              const v = child[k];
+              if (typeof v === 'string' && v.length > 0) return v;
+            }
+          }
+        }
+        return undefined;
+      };
+
+      const type = (pickString('type', 'eventType', 'kind', 'action') ?? 'UNKNOWN') as Activity['type'];
+      const directMsg = pickString(
+        'message',
+        'description',
+        'text',
+        'summary',
+        'details',
+        'title',
+        'displayMessage',
+        'humanReadable',
+      );
+      const nestedMsg = pickNested(
+        ['metadata', 'data', 'payload', 'event'],
+        ['message', 'description', 'text', 'summary', 'details'],
+      );
+
       return {
         id: pickString('id', '_id', 'activityId', 'eventId') ?? `activity-${idx}`,
-        type: (pickString('type', 'eventType', 'kind') ?? 'UNKNOWN') as Activity['type'],
-        message:
-          pickString('message', 'description', 'text', 'summary', 'details', 'title') ?? '',
+        type,
+        message: directMsg ?? nestedMsg ?? humanizeType(String(type)),
         organizationId: pickString('organizationId', 'orgId', 'organization_id'),
         userId: pickString('userId', 'user_id', 'actorId'),
         createdAt:
