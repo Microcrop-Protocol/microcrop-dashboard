@@ -106,7 +106,7 @@ export default function ForgotPasswordPage() {
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="you@example.com\u2026"
+                        placeholder="you@example.com"
                         autoComplete="email"
                         spellCheck={false}
                         {...field}
