@@ -19,7 +19,7 @@ export const CROP_TYPES = [
 
 export const farmerRegistrationSchema = z.object({
   phoneNumber: z.string()
-    .regex(/^\+254[17]\d{8}$/, 'Must be a valid Kenyan phone number (+254...)'),
+    .regex(/^\+\d{1,3}\d{6,12}$/, 'Must be a valid phone number with country code (e.g. +254712345678)'),
   nationalId: z.string()
     .min(6, 'National ID must be at least 6 characters')
     .max(20, 'National ID must not exceed 20 characters'),

@@ -723,6 +723,60 @@ export interface BlogPost {
   updatedAt: string;
 }
 
+// Livestock Types
+export type LivestockType = 'CATTLE' | 'GOAT' | 'SHEEP' | 'CAMEL' | 'POULTRY';
+export type IBLISeason = 'LRLD' | 'SRSD';
+export type InsuranceProduct = 'CROP' | 'LIVESTOCK';
+
+export interface Herd {
+  id: string;
+  farmerId: string;
+  farmerName?: string;
+  organizationId: string;
+  name: string;
+  livestockType: LivestockType;
+  headCount: number;
+  estimatedValue: number;
+  tluCount: number;
+  insuranceUnitId?: string;
+  insuranceUnit?: InsuranceUnit;
+  latitude?: number;
+  longitude?: number;
+  policiesCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InsuranceUnit {
+  id: string;
+  county: string;
+  subCounty?: string;
+  unitCode: string;
+  country: string;
+  bbox?: number[];
+  ndviBaselineLRLD: number;
+  ndviBaselineSRSD: number;
+  strikeLevelLRLD: number;
+  strikeLevelSRSD: number;
+  premiumRateLRLD: number;
+  premiumRateSRSD: number;
+  valuePerTLU: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LivestockPolicyQuote {
+  tluCount: number;
+  season: IBLISeason;
+  premiumPerTLU: number;
+  premium: number;
+  platformFee: number;
+  totalCost: number;
+  sumInsured: number;
+  insuranceUnitCode: string;
+}
+
 export interface UploadResult {
   path: string;
   url: string;

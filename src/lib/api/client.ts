@@ -1544,6 +1544,130 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // ============================================
+  // HERDS
+  // ============================================
+
+  async createHerd(data: {
+    farmerId: string;
+    name: string;
+    livestockType: string;
+    headCount: number;
+    estimatedValue: number;
+    insuranceUnitId?: string;
+    latitude?: number;
+    longitude?: number;
+  }) {
+    return this.request<import('@/types').Herd>('/herds', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getHerds(params?: {
+    page?: number;
+    limit?: number;
+    livestockType?: string;
+    farmerId?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<import('@/types').Herd[]>(`/herds${query ? `?${query}` : ''}`);
+  }
+
+  async getHerd(herdId: string) {
+    return this.request<import('@/types').Herd>(`/herds/${encodeURIComponent(herdId)}`);
+  }
+
+  async updateHerd(herdId: string, data: {
+    name?: string;
+    headCount?: number;
+    estimatedValue?: number;
+    insuranceUnitId?: string;
+  }) {
+    return this.request<import('@/types').Herd>(`/herds/${encodeURIComponent(herdId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ============================================
+  // INSURANCE UNITS (Platform Admin)
+  // ============================================
+
+  async getInsuranceUnits(params?: {
+    page?: number;
+    limit?: number;
+    country?: string;
+    isActive?: boolean;
+  }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<import('@/types').InsuranceUnit[]>(`/insurance-units${query ? `?${query}` : ''}`);
+  }
+
+  async createInsuranceUnit(data: {
+    county: string;
+    subCounty?: string;
+    unitCode: string;
+    country: string;
+    bbox?: number[];
+    ndviBaselineLRLD: number;
+    ndviBaselineSRSD: number;
+    strikeLevelLRLD: number;
+    strikeLevelSRSD: number;
+    premiumRateLRLD: number;
+    premiumRateSRSD: number;
+    valuePerTLU?: number;
+  }) {
+    return this.request<import('@/types').InsuranceUnit>('/insurance-units', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getInsuranceUnit(id: string) {
+    return this.request<import('@/types').InsuranceUnit>(`/insurance-units/${encodeURIComponent(id)}`);
+  }
+
+  async updateInsuranceUnit(id: string, data: Partial<{
+    county: string;
+    subCounty: string;
+    unitCode: string;
+    country: string;
+    bbox: number[];
+    ndviBaselineLRLD: number;
+    ndviBaselineSRSD: number;
+    strikeLevelLRLD: number;
+    strikeLevelSRSD: number;
+    premiumRateLRLD: number;
+    premiumRateSRSD: number;
+    valuePerTLU: number;
+    isActive: boolean;
+  }>) {
+    return this.request<import('@/types').InsuranceUnit>(`/insurance-units/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ============================================
+  // INSURANCE UNITS (Org - Read Only, for onboarding dropdowns)
+  // ============================================
+
+  async getActiveInsuranceUnits(country?: string) {
+    const params = new URLSearchParams({ isActive: 'true' });
+    if (country) params.set('country', country);
+    return this.requestWithPagination<import('@/types').InsuranceUnit[]>(`/insurance-units?${params.toString()}`);
+  }
 }
 
 // Create singleton instance

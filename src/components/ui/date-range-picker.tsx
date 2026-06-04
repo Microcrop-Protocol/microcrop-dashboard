@@ -1,7 +1,16 @@
 import * as React from "react";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
+
+const safeFormat = (d: Date | undefined, fmt: string): string => {
+  if (!d || !(d instanceof Date) || !isValid(d)) return "";
+  try {
+    return format(d, fmt);
+  } catch {
+    return "";
+  }
+};
 
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -82,14 +91,14 @@ export function DateRangePicker({
           >
             <CalendarIcon className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">
-              {value?.from ? (
-                value.to ? (
+              {value?.from && isValid(value.from) ? (
+                value.to && isValid(value.to) ? (
                   <>
-                    {format(value.from, "LLL dd, y")} -{" "}
-                    {format(value.to, "LLL dd, y")}
+                    {safeFormat(value.from, "LLL dd, y")} -{" "}
+                    {safeFormat(value.to, "LLL dd, y")}
                   </>
                 ) : (
-                  format(value.from, "LLL dd, y")
+                  safeFormat(value.from, "LLL dd, y")
                 )
               ) : (
                 "Pick a date range"

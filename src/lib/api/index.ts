@@ -1049,4 +1049,51 @@ export const api = {
   deleteBlogTag: async (id: string) => {
     return apiClient.deleteBlogTag(id);
   },
+
+  // ============================================
+  // HERDS (Organization specific)
+  // ============================================
+
+  getHerds: async (params?: Parameters<typeof apiClient.getHerds>[0]) => {
+    const result = await apiClient.getHerds(params);
+    return { data: toArray<import('@/types').Herd>(result), pagination: result.pagination };
+  },
+
+  getHerd: async (herdId: string) => {
+    return apiClient.getHerd(herdId);
+  },
+
+  createHerd: async (data: Parameters<typeof apiClient.createHerd>[0]) => {
+    return apiClient.createHerd(data);
+  },
+
+  // ============================================
+  // INSURANCE UNITS (Platform Admin)
+  // ============================================
+
+  getInsuranceUnits: async (params?: Parameters<typeof apiClient.getInsuranceUnits>[0]) => {
+    const result = await apiClient.getInsuranceUnits(params);
+    return { data: toArray<import('@/types').InsuranceUnit>(result), pagination: result.pagination };
+  },
+
+  createInsuranceUnit: async (data: Parameters<typeof apiClient.createInsuranceUnit>[0]) => {
+    return apiClient.createInsuranceUnit(data);
+  },
+
+  getInsuranceUnit: async (id: string) => {
+    return apiClient.getInsuranceUnit(id);
+  },
+
+  updateInsuranceUnit: async (id: string, data: Parameters<typeof apiClient.updateInsuranceUnit>[1]) => {
+    return apiClient.updateInsuranceUnit(id, data);
+  },
+
+  // ============================================
+  // INSURANCE UNITS (Org - Read Only)
+  // ============================================
+
+  getActiveInsuranceUnits: async (country?: string) => {
+    const result = await apiClient.getActiveInsuranceUnits(country);
+    return { data: toArray<import('@/types').InsuranceUnit>(result), pagination: result.pagination };
+  },
 };
