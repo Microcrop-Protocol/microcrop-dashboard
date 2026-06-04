@@ -39,6 +39,7 @@ const AcceptInvitationPage = lazyRetry(() => import("@/pages/auth/AcceptInvitati
 const PlatformDashboard = lazyRetry(() => import("@/pages/platform/PlatformDashboard"));
 const OrganizationsPage = lazyRetry(() => import("@/pages/platform/OrganizationsPage"));
 const OrganizationDetailPage = lazyRetry(() => import("@/pages/platform/OrganizationDetailPage"));
+const InsuranceUnitsPage = lazyRetry(() => import("@/pages/platform/InsuranceUnitsPage"));
 const RevenueAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/RevenueAnalyticsPage"));
 const PoliciesAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/PoliciesAnalyticsPage"));
 const FarmersAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/FarmersAnalyticsPage"));
@@ -73,6 +74,8 @@ const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
 const ExportPage = lazyRetry(() => import("@/pages/org/ExportPage"));
 const OrgActivityPage = lazyRetry(() => import("@/pages/org/OrgActivityPage"));
 const FieldOnboardingPage = lazyRetry(() => import("@/pages/org/FieldOnboardingPage"));
+const LivestockOnboardingPage = lazyRetry(() => import("@/pages/org/LivestockOnboardingPage"));
+const HerdsPage = lazyRetry(() => import("@/pages/org/HerdsPage"));
 
 const NotFound = lazyRetry(() => import("@/pages/NotFound"));
 
@@ -175,6 +178,7 @@ const App = () => (
                 <Route path="dashboard" element={<PlatformDashboard />} />
                 <Route path="organizations" element={<OrganizationsPage />} />
                 <Route path="organizations/:orgId" element={<OrganizationDetailPage />} />
+                <Route path="insurance-units" element={<InsuranceUnitsPage />} />
                 <Route path="analytics/revenue" element={<RevenueAnalyticsPage />} />
                 <Route path="analytics/policies" element={<PoliciesAnalyticsPage />} />
                 <Route path="analytics/farmers" element={<FarmersAnalyticsPage />} />
@@ -219,6 +223,8 @@ const App = () => (
                 <Route path="export" element={<ExportPage />} />
                 <Route path="activity" element={<OrgActivityPage />} />
                 <Route path="onboard" element={<FieldOnboardingPage />} />
+                <Route path="livestock-onboard" element={<LivestockOnboardingPage />} />
+                <Route path="herds" element={<HerdsPage />} />
               </Route>
 
               {/* 404 */}
