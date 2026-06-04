@@ -60,6 +60,14 @@ export function LivestockOnboardingWizard() {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'polling' | 'completed' | 'failed'>('idle');
+  const [paymentPhone, setPaymentPhone] = useState('');
+
+  // Sync paymentPhone when farmer is registered
+  useEffect(() => {
+    if (farmer?.phone && !paymentPhone) {
+      setPaymentPhone(farmer.phone);
+    }
+  }, [farmer, paymentPhone]);
 
   // ── Queries ──────────────────────────────────────────────
 
@@ -774,16 +782,19 @@ export function LivestockOnboardingWizard() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">M-Pesa Phone Number</label>
-                <Input defaultValue={farmer?.phone} id="payment-phone" />
+                <Input 
+                  value={paymentPhone} 
+                  onChange={(e) => setPaymentPhone(e.target.value)} 
+                  placeholder="+254700000000"
+                />
                 <p className="text-xs text-muted-foreground">The prompt will be sent to this number.</p>
               </div>
               <Button
                 className="w-full"
                 onClick={() => {
-                  const el = document.getElementById('payment-phone') as HTMLInputElement;
-                  if (el?.value) paymentMutation.mutate(el.value);
+                  if (paymentPhone) paymentMutation.mutate(paymentPhone);
                 }}
-                disabled={paymentMutation.isPending}
+                disabled={paymentMutation.isPending || !paymentPhone}
               >
                 {paymentMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {paymentStatus === 'failed' ? 'Retry Payment' : 'Send Payment Prompt'}

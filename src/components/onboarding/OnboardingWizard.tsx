@@ -66,6 +66,14 @@ export function OnboardingWizard() {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'polling' | 'completed' | 'failed'>('idle');
+  const [paymentPhone, setPaymentPhone] = useState('');
+
+  // Sync paymentPhone when farmer is registered
+  useEffect(() => {
+    if (farmer?.phone && !paymentPhone) {
+      setPaymentPhone(farmer.phone);
+    }
+  }, [farmer, paymentPhone]);
 
   // ── Forms ──────────────────────────────────────────────
 
@@ -824,8 +832,6 @@ export function OnboardingWizard() {
   // ── Step 7: M-Pesa Payment ─────────────────────────────
 
   const renderPaymentStep = () => {
-    const phoneNumber = farmer?.phone || '';
-
     return (
       <Card>
         <CardHeader>
@@ -844,9 +850,14 @@ export function OnboardingWizard() {
                   <span className="text-muted-foreground">Policy</span>
                   <span className="font-mono">{policy?.policyNumber}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Phone Number</span>
-                  <span>{phoneNumber}</span>
+                  <Input 
+                    value={paymentPhone} 
+                    onChange={(e) => setPaymentPhone(e.target.value)} 
+                    placeholder="+254700000000"
+                    className="max-w-[200px]"
+                  />
                 </div>
                 {quote && (
                   <div className="flex justify-between font-bold border-t pt-2">
@@ -857,8 +868,8 @@ export function OnboardingWizard() {
               </div>
               <Button
                 className="w-full"
-                onClick={() => paymentMutation.mutate(phoneNumber)}
-                disabled={paymentMutation.isPending || !phoneNumber}
+                onClick={() => { if (paymentPhone) paymentMutation.mutate(paymentPhone); }}
+                disabled={paymentMutation.isPending || !paymentPhone}
               >
                 {paymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 <Smartphone className="mr-2 h-4 w-4" />
