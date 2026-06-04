@@ -316,7 +316,7 @@ export function LivestockOnboardingWizard() {
                 className={cn(
                   'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
                   isCompleted && 'border-primary bg-primary text-primary-foreground',
-                  isCurrent && 'border-primary bg-background text-primary',
+                  isCurrent && 'border-primary bg-background text-primary animate-pulse ring-4 ring-primary/20',
                   !isCompleted && !isCurrent && 'border-muted-foreground/25 bg-background text-muted-foreground/50',
                 )}
                 aria-current={isCurrent ? 'step' : undefined}

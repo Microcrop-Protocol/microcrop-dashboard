@@ -163,8 +163,8 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                       <Button
                         variant="ghost"
                         className={cn(
-                          "w-full justify-between text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                          item.children?.some((c) => isActive(c.href)) && "bg-sidebar-accent"
+                          "w-full justify-between text-sidebar-foreground transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          item.children?.some((c) => isActive(c.href)) && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )}
                       >
                         <span className="flex items-center gap-3">
@@ -188,9 +188,9 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                           size="sm"
                           asChild
                           className={cn(
-                            "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            "w-full justify-start text-sidebar-foreground transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                             isActive(child.href) &&
-                              "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground"
+                              "bg-gradient-to-r from-sidebar-primary to-sidebar-primary/80 text-sidebar-primary-foreground shadow-sm hover:from-sidebar-primary/90 hover:to-sidebar-primary/70 hover:text-sidebar-primary-foreground font-medium"
                           )}
                         >
                           <Link to={child.href} onClick={onClose}>
@@ -209,9 +209,9 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                   variant="ghost"
                   asChild
                   className={cn(
-                    "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "w-full justify-start text-sidebar-foreground transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     active &&
-                      "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground"
+                      "bg-gradient-to-r from-sidebar-primary to-sidebar-primary/80 text-sidebar-primary-foreground shadow-sm hover:from-sidebar-primary/90 hover:to-sidebar-primary/70 hover:text-sidebar-primary-foreground font-medium"
                   )}
                 >
                   <Link to={item.href} onClick={onClose} className="flex items-center gap-3">
