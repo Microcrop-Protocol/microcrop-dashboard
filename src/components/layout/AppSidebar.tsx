@@ -75,7 +75,7 @@ const orgNavItems: NavItem[] = [
   { title: "Herds", href: "/org/herds", icon: MapPin },
   { title: "Damage", href: "/org/damage", icon: AlertTriangle },
   { title: "Financials", href: "/org/financials", icon: BarChart3 },
-  { title: "Pool", href: "/org/pool", icon: PiggyBank },
+  { title: "Reserve", href: "/org/reserve", icon: PiggyBank },
   { title: "Wallet", href: "/org/wallet", icon: Wallet },
   { title: "Staff", href: "/org/staff", icon: UserCog },
   { title: "Export", href: "/org/export", icon: Download },

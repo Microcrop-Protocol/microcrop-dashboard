@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -373,6 +373,21 @@ class ApiClient {
     });
   }
 
+  // Per-org treasury (v3): provision the org's wallet (reserve key) + set its reserve ratio.
+  async platformProvisionWallet(orgId: string) {
+    return this.request<{ walletAddress: string; privyWalletId: string; alreadyProvisioned: boolean }>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/provision-wallet`,
+      { method: 'POST' }
+    );
+  }
+
+  async platformSetReserveRatio(orgId: string, ratioBps: number) {
+    return this.request<{ orgId: string; walletAddress: string; ratioBps: number; txHash: string }>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/reserve-ratio`,
+      { method: 'POST', body: JSON.stringify({ ratioBps }) }
+    );
+  }
+
   async platformActivateOrganization(orgId: string) {
     return this.request<Organization>(`/platform/organizations/${encodeURIComponent(orgId)}/activate`, {
       method: 'POST',
@@ -661,6 +676,28 @@ class ApiClient {
         blockNumber: number;
       };
     }>('/organizations/me/pool/deploy', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ============================================
+  // ORGANIZATION RESERVE (per-org treasury / v3)
+  // ============================================
+
+  async getReserve() {
+    return this.request<ReserveStatus>('/organizations/me/reserve');
+  }
+
+  async depositReserve(data: { amountUsdc: number }) {
+    return this.request<{ txHash: string; amountUsdc: number }>('/organizations/me/reserve/deposit', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async withdrawReserve(data: { amountUsdc: number; to?: string }) {
+    return this.request<{ txHash: string; amountUsdc: number; to: string }>('/organizations/me/reserve/withdraw', {
       method: 'POST',
       body: JSON.stringify(data),
     });

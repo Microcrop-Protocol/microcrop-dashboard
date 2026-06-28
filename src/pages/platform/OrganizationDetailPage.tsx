@@ -17,8 +17,8 @@ import type { Policy, Payout } from "@/types";
 const onboardingSteps = [
   { key: 'REGISTERED', label: 'Registered' },
   { key: 'CONFIGURED', label: 'Configured' },
-  { key: 'POOL_DEPLOYED', label: 'Pool Deployed' },
-  { key: 'FUNDED', label: 'Funded' },
+  { key: 'WALLET_PROVISIONED', label: 'Wallet Provisioned' },
+  { key: 'RESERVE_FUNDED', label: 'Reserve Funded' },
   { key: 'STAFF_INVITED', label: 'Staff Invited' },
   { key: 'ACTIVATED', label: 'Activated' },
 ];

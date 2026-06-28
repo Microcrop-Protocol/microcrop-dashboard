@@ -26,7 +26,20 @@ export interface AuthTokens {
 
 // Organization Types
 export type OrganizationType = 'COOPERATIVE' | 'NGO' | 'MFI' | 'INSURANCE_COMPANY' | 'GOVERNMENT' | 'OTHER';
-export type OnboardingStep = 'REGISTERED' | 'CONFIGURED' | 'POOL_DEPLOYED' | 'FUNDED' | 'STAFF_INVITED' | 'ACTIVATED';
+// Per-org treasury (v3): the org funds an on-chain reserve (RESERVE_FUNDED) instead of deploying a pool.
+export type OnboardingStep = 'REGISTERED' | 'CONFIGURED' | 'WALLET_PROVISIONED' | 'RESERVE_FUNDED' | 'STAFF_INVITED' | 'ACTIVATED';
+
+/** Per-org treasury reserve status (GET /me/reserve). All amounts are USDC. */
+export interface ReserveStatus {
+  walletAddress: string | null;
+  reserve: string; // base units (6dp), as string
+  required: string;
+  headroom: string;
+  reserveUsdc: number;
+  requiredUsdc: number;
+  headroomUsdc: number;
+  solvent: boolean;
+}
 
 export interface Organization {
   id: string;

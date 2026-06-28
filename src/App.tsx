@@ -69,6 +69,7 @@ const PlotsPage = lazyRetry(() => import("@/pages/org/PlotsPage"));
 const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
 const FinancialsPage = lazyRetry(() => import("@/pages/org/FinancialsPage"));
 const PoolPage = lazyRetry(() => import("@/pages/org/PoolPage"));
+const ReservePage = lazyRetry(() => import("@/pages/org/ReservePage"));
 const WalletPage = lazyRetry(() => import("@/pages/org/WalletPage"));
 const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
 const ExportPage = lazyRetry(() => import("@/pages/org/ExportPage"));
@@ -76,6 +77,8 @@ const OrgActivityPage = lazyRetry(() => import("@/pages/org/OrgActivityPage"));
 const FieldOnboardingPage = lazyRetry(() => import("@/pages/org/FieldOnboardingPage"));
 const LivestockOnboardingPage = lazyRetry(() => import("@/pages/org/LivestockOnboardingPage"));
 const HerdsPage = lazyRetry(() => import("@/pages/org/HerdsPage"));
+
+const DocsPage = lazyRetry(() => import("@/pages/docs/DocsPage"));
 
 const NotFound = lazyRetry(() => import("@/pages/NotFound"));
 
@@ -165,6 +168,9 @@ const App = () => (
               />
               <Route path="/accept-invitation/:token" element={<AcceptInvitationPage />} />
               <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
+              
+              {/* Public API Docs */}
+              <Route path="/docs" element={<DocsPage />} />
 
               {/* Platform Admin routes */}
               <Route
@@ -217,6 +223,7 @@ const App = () => (
                 <Route path="plots" element={<PlotsPage />} />
                 <Route path="damage" element={<DamagePage />} />
                 <Route path="financials" element={<FinancialsPage />} />
+                <Route path="reserve" element={<ReservePage />} />
                 <Route path="pool" element={<PoolPage />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="staff" element={<StaffPage />} />
