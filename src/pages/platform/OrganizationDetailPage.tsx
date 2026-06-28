@@ -10,8 +10,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { DeployPoolDialog } from "@/components/pool/DeployPoolDialog";
-import type { DeployPoolFormData } from "@/lib/validations/pool";
 import type { Policy, Payout } from "@/types";
 
 const onboardingSteps = [
@@ -34,44 +32,28 @@ export default function OrganizationDetailPage() {
     enabled: !!orgId,
   });
 
-  const deployPoolMutation = useMutation({
-    mutationFn: (data: DeployPoolFormData) =>
-      api.deployPoolForOrg(orgId!, {
-        name: data.name,
-        symbol: data.symbol,
-        poolType: data.poolType,
-        coverageType: data.coverageType,
-        region: data.region,
-        minDeposit: data.minDeposit,
-        maxDeposit: data.maxDeposit,
-        targetCapital: data.targetCapital,
-        maxCapital: data.maxCapital,
-        poolOwner: data.poolOwner,
-      }),
+  // Per-org treasury (v3): provision the org's Privy wallet (its reserve key) instead of
+  // deploying a pool. The org then funds its reserve from the Reserve page.
+  const provisionWalletMutation = useMutation({
+    mutationFn: () => api.platformProvisionWallet(orgId!),
     onSuccess: (result) => {
       toast({
-        title: "Pool Deployed",
-        description: `Pool deployed at ${result.poolAddress.slice(0, 10)}...`,
+        title: result.alreadyProvisioned ? "Wallet already provisioned" : "Wallet provisioned",
+        description: `${result.walletAddress.slice(0, 10)}...`,
       });
       queryClient.setQueryData(["organization", orgId], (previous: unknown) => {
         if (!previous || typeof previous !== "object") return previous;
         return {
           ...(previous as Record<string, unknown>),
-          poolAddress: result.poolAddress,
-          onboardingStep: "POOL_DEPLOYED",
+          walletAddress: result.walletAddress,
+          onboardingStep: "WALLET_PROVISIONED",
         };
       });
       queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      queryClient.invalidateQueries({ queryKey: ["platformPools"] });
-      queryClient.invalidateQueries({ queryKey: ["platformPoolCounts"] });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to deploy pool",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to provision wallet", description: error.message, variant: "destructive" });
     },
   });
 
@@ -179,22 +161,18 @@ export default function OrganizationDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {!org.poolAddress ? (
-            <DeployPoolDialog
-              organization={org}
-              onSubmit={async (data) => {
-                await deployPoolMutation.mutateAsync(data);
-              }}
-              isLoading={deployPoolMutation.isPending}
-            />
+          {!org.walletAddress ? (
+            <Button onClick={() => provisionWalletMutation.mutate()} disabled={provisionWalletMutation.isPending}>
+              {provisionWalletMutation.isPending ? "Provisioning…" : "Provision Wallet"}
+            </Button>
           ) : (
             <Button variant="outline" asChild>
               <a
-                href={`https://basescan.org/address/${org.poolAddress}`}
+                href={`https://basescan.org/address/${org.walletAddress}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                View Pool
+                View Wallet
                 <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
               </a>
             </Button>

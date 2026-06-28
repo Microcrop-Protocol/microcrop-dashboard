@@ -14,18 +14,10 @@ import type {
   OrganizationApplication,
   OrgAdminInvitation,
   OnboardingStep,
-  PoolStatus,
-  PoolDepositResult,
-  PoolWithdrawResult,
-  PoolSettings,
-  PlatformPool,
-  PoolCounts,
+  ReserveStatus,
   TreasuryStats,
   TreasuryPremiumAmounts,
   TreasuryPayoutAmounts,
-  DeployPoolRequest,
-  DeployPoolResult,
-  LiquidityPool,
   OrgWallet,
   WalletFundResult,
   Farmer,
@@ -35,7 +27,6 @@ import type {
   PolicyStatus,
   Payout,
   Payment,
-  InvestorInfo,
   PolicyExpireCheck,
   GpsPoint,
   GpsTrackResponse,
@@ -399,78 +390,19 @@ export const api = {
   },
 
   // ============================================
-  // POOL
+  // ORGANIZATION RESERVE (per-org treasury / v3)
   // ============================================
 
-  getLiquidityPool: async (): Promise<LiquidityPool> => {
-  const raw = (await apiClient.getOrganizationPool()) as unknown as Record<string, unknown>;
-    return {
-      address: typeof raw.address === 'string'
-        ? raw.address
-        : typeof raw.poolAddress === 'string'
-          ? raw.poolAddress
-          : '',
-      balance: toNumber(raw.balance),
-      utilizationRate: toNumber(raw.utilizationRate),
-      capitalDeposited: toNumber(raw.capitalDeposited),
-      premiumsReceived: toNumber(raw.premiumsReceived),
-      payoutsSent: toNumber(raw.payoutsSent),
-      feesPaid: toNumber(raw.feesPaid),
-      availableForWithdrawal: toNumber(raw.availableForWithdrawal),
-    };
+  getReserve: async (): Promise<ReserveStatus> => {
+    return apiClient.getReserve();
   },
 
-  getPoolDetails: async (): Promise<PoolStatus> => {
-    const pool = await apiClient.getOrganizationPoolDetails();
-    return {
-      poolAddress: pool.poolAddress,
-      poolValue: pool.poolValue,
-      totalSupply: pool.totalSupply,
-      tokenPrice: pool.tokenPrice,
-      totalPremiums: pool.totalPremiums,
-      totalPayouts: pool.totalPayouts,
-      activeExposure: pool.activeExposure,
-      minDeposit: pool.minDeposit,
-      maxDeposit: pool.maxDeposit,
-      targetCapital: pool.targetCapital,
-      maxCapital: pool.maxCapital,
-      depositsOpen: pool.depositsOpen,
-      withdrawalsOpen: pool.withdrawalsOpen,
-      paused: pool.paused,
-      utilizationRate: pool.utilizationRate,
-    };
+  depositReserve: async (data: { amountUsdc: number }): Promise<{ txHash: string; amountUsdc: number }> => {
+    return apiClient.depositReserve(data);
   },
 
-  depositToPool: async (data: { amount: number; minTokensOut?: number }): Promise<PoolDepositResult> => {
-    return apiClient.depositToPool(data);
-  },
-
-  withdrawFromPool: async (data: { tokenAmount: number; minUsdcOut?: number }): Promise<PoolWithdrawResult> => {
-    return apiClient.withdrawFromPool(data);
-  },
-
-  updatePoolSettings: async (settings: Partial<PoolSettings>): Promise<PoolSettings> => {
-    return apiClient.updatePoolSettings(settings);
-  },
-
-  deployOrgPool: async (data: {
-    name?: string;
-    symbol?: string;
-    poolType: 'PRIVATE' | 'PUBLIC' | 'MUTUAL';
-    coverageType: string;
-    region: string;
-    targetCapital: number;
-    maxCapital?: number;
-    minDeposit?: number;
-    maxDeposit?: number;
-    memberContribution?: number;
-    poolOwner?: string;
-  }) => {
-    const coverageTypeMap: Record<string, number> = { DROUGHT: 0, FLOOD: 1, PEST: 2, DISEASE: 3, COMPREHENSIVE: 4 };
-    return apiClient.deployOrgPool({
-      ...data,
-      coverageType: coverageTypeMap[data.coverageType] ?? 4,
-    });
+  withdrawReserve: async (data: { amountUsdc: number; to?: string }): Promise<{ txHash: string; amountUsdc: number; to: string }> => {
+    return apiClient.withdrawReserve(data);
   },
 
   // ============================================
@@ -494,44 +426,15 @@ export const api = {
   },
 
   // ============================================
-  // PLATFORM POOLS
+  // PLATFORM — PER-ORG TREASURY (v3)
   // ============================================
 
-  getPlatformPools: async (): Promise<{ total: number; pools: PlatformPool[] }> => {
-    const result = await apiClient.platformGetPools();
-    return {
-      total: result.total,
-      pools: result.pools.map((p) => ({
-        address: p.address,
-        name: p.name,
-        symbol: p.symbol,
-        poolType: p.poolType === 0 ? 'PUBLIC' : p.poolType === 1 ? 'PRIVATE' : 'MUTUAL',
-        poolValue: parseFloat(p.poolValue),
-        utilizationRate: p.utilizationRate,
-        organizationId: p.organizationId,
-        organizationName: p.organizationName,
-      })),
-    };
+  platformProvisionWallet: async (orgId: string): Promise<{ walletAddress: string; privyWalletId: string; alreadyProvisioned: boolean }> => {
+    return apiClient.platformProvisionWallet(orgId);
   },
 
-  getPlatformPoolCounts: async (): Promise<PoolCounts> => {
-    return apiClient.platformGetPoolCounts();
-  },
-
-  deployPoolForOrg: async (orgId: string, data: DeployPoolRequest): Promise<DeployPoolResult> => {
-    const coverageTypeMap = { DROUGHT: 0, FLOOD: 1, PEST: 2, DISEASE: 3, COMPREHENSIVE: 4 };
-    return apiClient.platformDeployPoolForOrg(orgId, {
-      ...data,
-      coverageType: coverageTypeMap[data.coverageType],
-    });
-  },
-
-  createPublicPool: async (data: Omit<DeployPoolRequest, 'poolType' | 'minDeposit' | 'maxDeposit' | 'poolOwner'>): Promise<DeployPoolResult> => {
-    const coverageTypeMap = { DROUGHT: 0, FLOOD: 1, PEST: 2, DISEASE: 3, COMPREHENSIVE: 4 };
-    return apiClient.platformCreatePublicPool({
-      ...data,
-      coverageType: coverageTypeMap[data.coverageType],
-    });
+  platformSetReserveRatio: async (orgId: string, ratioBps: number): Promise<{ orgId: string; walletAddress: string; ratioBps: number; txHash: string }> => {
+    return apiClient.platformSetReserveRatio(orgId, ratioBps);
   },
 
   // ============================================
@@ -652,18 +555,6 @@ export const api = {
     return apiClient.platformGetOnboardingStatus(orgId);
   },
 
-  platformDeployPool: async (orgId: string, initialCapital: number) => {
-    return apiClient.platformDeployPool(orgId, initialCapital);
-  },
-
-  getPoolByAddress: async (poolAddress: string): Promise<PoolStatus> => {
-    return apiClient.platformGetPoolByAddress(poolAddress);
-  },
-
-  getPoolById: async (poolId: string): Promise<PoolStatus> => {
-    return apiClient.platformGetPoolById(poolId);
-  },
-
   // ============================================
   // ORG SELF-SERVICE
   // ============================================
@@ -682,22 +573,6 @@ export const api = {
     contactPhone?: string;
   }) => {
     return apiClient.updateOrganizationSettings(settings);
-  },
-
-  // ============================================
-  // POOL MANAGEMENT (additional)
-  // ============================================
-
-  addPoolDepositor: async (depositorAddress: string) => {
-    return apiClient.addPoolDepositor(depositorAddress);
-  },
-
-  removePoolDepositor: async (depositorAddress: string) => {
-    return apiClient.removePoolDepositor(depositorAddress);
-  },
-
-  getInvestorInfo: async (poolAddress: string): Promise<InvestorInfo> => {
-    return apiClient.getInvestorInfo(poolAddress);
   },
 
   // ============================================

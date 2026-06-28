@@ -352,10 +352,10 @@ describe('apiClient', () => {
       apiClient.setAccessToken('tok');
       globalThis.fetch = mockFetchResponse(envelope({ success: true }));
 
-      await apiClient.removePoolDepositor('0xabc');
+      await apiClient.deleteBlogPost('abc');
 
       const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(url).toContain('/api/organizations/me/pool/depositors/0xabc');
+      expect(url).toContain('/api/dashboard/platform/blog/posts/abc');
       expect(options.method).toBe('DELETE');
     });
   });
@@ -727,13 +727,30 @@ describe('apiClient', () => {
       expect(options.method).toBe('POST');
     });
 
-    it('platformGetPools returns pool data', async () => {
-      const poolsData = { total: 2, pools: [{ address: '0x1' }, { address: '0x2' }] };
-      globalThis.fetch = mockFetchResponse(envelope(poolsData));
+    it('platformProvisionWallet provisions an org wallet', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({ walletAddress: '0xwallet', privyWalletId: 'pw-1', alreadyProvisioned: false })
+      );
 
-      const result = await apiClient.platformGetPools();
-      expect(result.total).toBe(2);
-      expect(result.pools).toHaveLength(2);
+      const result = await apiClient.platformProvisionWallet('org-1');
+
+      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/platform/organizations/org-1/provision-wallet');
+      expect(options.method).toBe('POST');
+      expect(result.walletAddress).toBe('0xwallet');
+    });
+
+    it('platformSetReserveRatio posts the ratio in bps', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({ orgId: 'org-1', walletAddress: '0xwallet', ratioBps: 2500, txHash: '0xtx' })
+      );
+
+      await apiClient.platformSetReserveRatio('org-1', 2500);
+
+      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/platform/organizations/org-1/reserve-ratio');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body)).toEqual({ ratioBps: 2500 });
     });
 
     it('platformGetTreasury returns treasury data', async () => {
@@ -750,40 +767,28 @@ describe('apiClient', () => {
       apiClient.setAccessToken('org-tok');
     });
 
-    it('depositToPool sends correct data', async () => {
-      globalThis.fetch = mockFetchResponse(
-        envelope({ txHash: '0xabc', blockNumber: 100, tokensMinted: '50', tokenPrice: '1.0' })
-      );
+    it('depositReserve sends correct data', async () => {
+      globalThis.fetch = mockFetchResponse(envelope({ txHash: '0xabc', amountUsdc: 1000 }));
 
-      const result = await apiClient.depositToPool({ amount: 1000 });
+      const result = await apiClient.depositReserve({ amountUsdc: 1000 });
 
       const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(url).toContain('/api/organizations/me/pool/deposit');
+      expect(url).toContain('/api/organizations/me/reserve/deposit');
       expect(options.method).toBe('POST');
-      expect(JSON.parse(options.body)).toEqual({ amount: 1000 });
+      expect(JSON.parse(options.body)).toEqual({ amountUsdc: 1000 });
       expect(result.txHash).toBe('0xabc');
     });
 
-    it('deployOrgPool sends pool configuration', async () => {
+    it('getReserve reads the org reserve status', async () => {
       globalThis.fetch = mockFetchResponse(
-        envelope({
-          organization: { id: 'org-1' },
-          pool: { poolAddress: '0xpool', poolId: 'p1', txHash: '0xtx', blockNumber: 200 },
-        })
+        envelope({ walletAddress: '0xwallet', reserveUsdc: 5000, requiredUsdc: 2000, headroomUsdc: 3000, solvent: true })
       );
 
-      await apiClient.deployOrgPool({
-        poolType: 'PRIVATE',
-        coverageType: 1,
-        region: 'Kenya',
-        targetCapital: 50000,
-      });
+      const result = await apiClient.getReserve();
 
-      const [, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(options.method).toBe('POST');
-      const body = JSON.parse(options.body);
-      expect(body.poolType).toBe('PRIVATE');
-      expect(body.targetCapital).toBe(50000);
+      const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/organizations/me/reserve');
+      expect(result.solvent).toBe(true);
     });
   });
 

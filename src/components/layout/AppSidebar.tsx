@@ -43,7 +43,6 @@ interface NavItem {
 const platformNavItems: NavItem[] = [
   { title: "Dashboard", href: "/platform/dashboard", icon: LayoutDashboard },
   { title: "Organizations", href: "/platform/organizations", icon: Building2 },
-  { title: "Pools", href: "/platform/pools", icon: PiggyBank },
   { title: "Insurance Units", href: "/platform/insurance-units", icon: MapPin },
   { title: "Treasury", href: "/platform/treasury", icon: Landmark },
   { title: "KYB Review", href: "/platform/kyb-review", icon: ClipboardCheck },

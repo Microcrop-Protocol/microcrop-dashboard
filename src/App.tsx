@@ -49,7 +49,6 @@ const PlatformActivityPage = lazyRetry(() => import("@/pages/platform/PlatformAc
 const KYBReviewPage = lazyRetry(() => import("@/pages/platform/KYBReviewPage"));
 const KYBApplicationDetailPage = lazyRetry(() => import("@/pages/platform/KYBApplicationDetailPage"));
 const InvitationsPage = lazyRetry(() => import("@/pages/platform/InvitationsPage"));
-const PoolsPage = lazyRetry(() => import("@/pages/platform/PoolsPage"));
 const TreasuryPage = lazyRetry(() => import("@/pages/platform/TreasuryPage"));
 const PostsListPage = lazyRetry(() => import("@/pages/platform/blog/PostsListPage"));
 const PostEditorPage = lazyRetry(() => import("@/pages/platform/blog/PostEditorPage"));
@@ -68,7 +67,6 @@ const PayoutsPage = lazyRetry(() => import("@/pages/org/PayoutsPage"));
 const PlotsPage = lazyRetry(() => import("@/pages/org/PlotsPage"));
 const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
 const FinancialsPage = lazyRetry(() => import("@/pages/org/FinancialsPage"));
-const PoolPage = lazyRetry(() => import("@/pages/org/PoolPage"));
 const ReservePage = lazyRetry(() => import("@/pages/org/ReservePage"));
 const WalletPage = lazyRetry(() => import("@/pages/org/WalletPage"));
 const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
@@ -194,7 +192,6 @@ const App = () => (
                 <Route path="kyb-review" element={<KYBReviewPage />} />
                 <Route path="kyb-review/:applicationId" element={<KYBApplicationDetailPage />} />
                 <Route path="invitations" element={<InvitationsPage />} />
-                <Route path="pools" element={<PoolsPage />} />
                 <Route path="treasury" element={<TreasuryPage />} />
                 <Route path="blog" element={<PostsListPage />} />
                 <Route path="blog/new" element={<PostEditorPage />} />
@@ -224,7 +221,6 @@ const App = () => (
                 <Route path="damage" element={<DamagePage />} />
                 <Route path="financials" element={<FinancialsPage />} />
                 <Route path="reserve" element={<ReservePage />} />
-                <Route path="pool" element={<PoolPage />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="staff" element={<StaffPage />} />
                 <Route path="export" element={<ExportPage />} />
