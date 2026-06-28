@@ -67,7 +67,7 @@ export default function KYBApplicationDetailPage() {
       // First, find the organization that was created for this application
       const orgsResult = await api.getOrganizations();
       const org = orgsResult.data.find(
-        (o: any) => o.contactEmail === application.contactEmail && o.name === application.name
+        (o) => o.contactEmail === application.contactEmail && o.name === application.name
       );
 
       if (!org) {

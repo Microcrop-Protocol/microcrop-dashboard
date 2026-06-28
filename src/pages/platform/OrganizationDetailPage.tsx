@@ -113,7 +113,7 @@ export default function OrganizationDetailPage() {
   const coverageTypeData = (() => {
     const counts: Record<string, number> = {};
     for (const p of policies) {
-      const type = (p as any).coverageType || 'Unknown';
+      const type = p.coverageType || 'Unknown';
       counts[type] = (counts[type] || 0) + 1;
     }
     return Object.entries(counts).map(([name, value]) => ({ name, value }));

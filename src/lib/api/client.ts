@@ -116,7 +116,7 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    let data: any;
+    let data: unknown;
     try {
       data = await response.json();
     } catch {
@@ -168,7 +168,7 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    let result: any;
+    let result: unknown;
     try {
       result = await response.json();
     } catch {
@@ -223,7 +223,7 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    let data: any;
+    let data: unknown;
     try {
       data = await response.json();
     } catch {

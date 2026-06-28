@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { Farmer, Plot } from "@/types";
 
 export default function NewPolicyPage() {
   const { user } = useAuthStore();
@@ -48,11 +49,11 @@ export default function NewPolicyPage() {
     return [];
   };
 
-  const farmers = toArray(farmersData?.data);
-  const plots = toArray(plotsData?.data);
+  const farmers = toArray<Farmer>(farmersData?.data);
+  const plots = toArray<Plot>(plotsData?.data);
 
-  const approvedFarmers = farmers.filter((f: any) => f.kycStatus === 'APPROVED');
-  const farmerPlots = plots.filter((p: any) => p.farmerId === formData.farmerId);
+  const approvedFarmers = farmers.filter((f) => f.kycStatus === 'APPROVED');
+  const farmerPlots = plots.filter((p) => p.farmerId === formData.farmerId);
 
   const premium = formData.sumInsured * 0.05;
   const fee = premium * 0.05;
@@ -96,7 +97,7 @@ export default function NewPolicyPage() {
               >
                 <SelectTrigger><SelectValue placeholder="Select farmer" /></SelectTrigger>
                 <SelectContent>
-                  {approvedFarmers.map((f: any) => (
+                  {approvedFarmers.map((f) => (
                     <SelectItem key={f.id} value={f.id}>
                       {f.firstName} {f.lastName}
                     </SelectItem>
@@ -114,7 +115,7 @@ export default function NewPolicyPage() {
               >
                 <SelectTrigger><SelectValue placeholder="Select plot" /></SelectTrigger>
                 <SelectContent>
-                  {farmerPlots.map((p: any) => (
+                  {farmerPlots.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
