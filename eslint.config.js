@@ -23,4 +23,14 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // shadcn/ui primitives intentionally co-export variants/helpers (e.g.
+    // buttonVariants, getStatusVariant) alongside their component. Fast Refresh
+    // doesn't meaningfully apply to these vendored primitives, so relax the
+    // component-only-export rule here.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
 );
