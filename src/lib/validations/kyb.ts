@@ -38,7 +38,7 @@ export type OrganizationRegistrationFormData = z.infer<typeof organizationRegist
 
 // KYB verification schema (for admin review)
 export const kybVerificationSchema = z.object({
-  status: z.enum(['APPROVED', 'VERIFIED', 'REJECTED'], {
+  status: z.enum(['APPROVED', 'REJECTED'], {
     required_error: 'Please select a verification status',
   }),
   reviewNotes: z

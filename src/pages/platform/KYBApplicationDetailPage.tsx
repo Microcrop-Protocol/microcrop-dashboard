@@ -154,7 +154,9 @@ export default function KYBApplicationDetailPage() {
           {application.kybVerification ? (
             <KYBVerificationPanel
               verification={application.kybVerification}
-              onVerify={verifyMutation.mutateAsync}
+              onVerify={async (data) => {
+                await verifyMutation.mutateAsync(data);
+              }}
               isLoading={verifyMutation.isPending}
               readonly={application.status !== 'PENDING_REVIEW'}
             />

@@ -64,25 +64,25 @@ export default function TreasuryPage() {
             title="Total Premiums"
             value="--"
             icon={Wallet}
-            description="All-time premiums collected"
+            subtitle="All-time premiums collected"
           />
           <StatCard
             title="Total Payouts"
             value="--"
             icon={ArrowUpFromLine}
-            description="All-time claims paid"
+            subtitle="All-time claims paid"
           />
           <StatCard
             title="Accumulated Fees"
             value="--"
             icon={DollarSign}
-            description="Platform fees earned"
+            subtitle="Platform fees earned"
           />
           <StatCard
             title="Available for Payouts"
             value="--"
             icon={TrendingUp}
-            description="Funds available for claims"
+            subtitle="Funds available for claims"
           />
         </div>
       </div>
@@ -163,25 +163,25 @@ export default function TreasuryPage() {
           title="Total Premiums"
           value={formatCurrency(treasury.totalPremiums)}
           icon={Wallet}
-          description="All-time premiums collected"
+          subtitle="All-time premiums collected"
         />
         <StatCard
           title="Total Payouts"
           value={formatCurrency(treasury.totalPayouts)}
           icon={ArrowUpFromLine}
-          description="All-time claims paid"
+          subtitle="All-time claims paid"
         />
         <StatCard
           title="Accumulated Fees"
           value={formatCurrency(treasury.accumulatedFees)}
           icon={DollarSign}
-          description="Platform fees earned"
+          subtitle="Platform fees earned"
         />
         <StatCard
           title="Available for Payouts"
           value={formatCurrency(treasury.availableForPayouts)}
           icon={TrendingUp}
-          description="Funds available for claims"
+          subtitle="Funds available for claims"
         />
       </div>
 

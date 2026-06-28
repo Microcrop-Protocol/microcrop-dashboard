@@ -117,6 +117,8 @@ export interface OrganizationApplication {
   kybVerification?: KYBVerification | null;
   rejectionReason?: string;
   status: ApplicationStatus;
+  // Set by the verify endpoint when an application is approved and an org is created.
+  organization?: Organization;
   createdAt: string;
   updatedAt: string;
 }
@@ -320,6 +322,8 @@ export interface Activity {
 }
 
 // Analytics Types
+export type Granularity = 'daily' | 'weekly' | 'monthly';
+
 export interface TimeSeriesDataPoint {
   date: string;
   value: number;

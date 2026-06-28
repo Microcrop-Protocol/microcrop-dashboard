@@ -77,7 +77,8 @@ export default function InsuranceUnitsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: Parameters<typeof api.createInsuranceUnit>[0]) => {
+    // The dialog submits bbox as a raw JSON string; the API expects number[].
+    mutationFn: (data: Omit<Parameters<typeof api.createInsuranceUnit>[0], "bbox"> & { bbox?: string }) => {
       // parse bbox if provided as string
       let parsedBbox: number[] | undefined;
       if (typeof data.bbox === 'string' && data.bbox.trim().length > 0) {
@@ -134,7 +135,9 @@ export default function InsuranceUnitsPage() {
           </p>
         </div>
         <CreateInsuranceUnitDialog
-          onSubmit={async (data) => await createMutation.mutateAsync(data)}
+          onSubmit={async (data) => {
+            await createMutation.mutateAsync(data);
+          }}
           isLoading={createMutation.isPending}
         />
       </div>
