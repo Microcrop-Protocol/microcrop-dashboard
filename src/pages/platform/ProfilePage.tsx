@@ -46,7 +46,10 @@ export default function ProfilePage() {
     setAvatarUrl(me?.avatarUrl ?? '');
     setAvatarPath(null);
     releaseObjectUrl();
-  }, [me?.id, me?.avatarUrl]);
+    // Re-initialise the form whenever the loaded user record changes. `me` is a
+    // react-query result with stable identity (structural sharing), so this only
+    // re-runs when the data actually changes, not on every render.
+  }, [me]);
 
   // Clean up any blob URL on unmount.
   useEffect(() => () => releaseObjectUrl(), []);

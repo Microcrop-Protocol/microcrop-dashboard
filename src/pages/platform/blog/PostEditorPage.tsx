@@ -659,7 +659,6 @@ export default function PostEditorPage() {
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
           {me?.avatarUrl ? (
-            // eslint-disable-next-line jsx-a11y/img-redundant-alt
             <img
               src={resolveFileUrl(me.avatarUrl)}
               alt="Author avatar"

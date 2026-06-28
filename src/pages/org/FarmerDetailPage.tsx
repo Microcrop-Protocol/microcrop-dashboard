@@ -40,8 +40,8 @@ export default function FarmerDetailPage() {
 
   if (!farmer) return <div className="p-8 text-center">Farmer not found</div>;
 
-  const farmerPlots = plotsData?.data?.filter((p: any) => p.farmerId === farmerId) ?? [];
-  const farmerPolicies = policiesData?.data?.filter((p: any) => p.farmerId === farmerId) ?? [];
+  const farmerPlots = plotsData?.data?.filter((p) => p.farmerId === farmerId) ?? [];
+  const farmerPolicies = policiesData?.data?.filter((p) => p.farmerId === farmerId) ?? [];
 
   return (
     <div className="space-y-6">
@@ -68,7 +68,7 @@ export default function FarmerDetailPage() {
             {farmerPlots.length === 0 ? (
               <p className="text-muted-foreground">No plots registered</p>
             ) : (
-              farmerPlots.map((plot: any) => (
+              farmerPlots.map((plot) => (
                 <div key={plot.id} className="flex justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{plot.name}</p>
@@ -85,7 +85,7 @@ export default function FarmerDetailPage() {
             {farmerPolicies.length === 0 ? (
               <p className="text-muted-foreground">No policies found</p>
             ) : (
-              farmerPolicies.map((policy: any) => (
+              farmerPolicies.map((policy) => (
                 <div key={policy.id} className="flex justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{policy.policyNumber}</p>

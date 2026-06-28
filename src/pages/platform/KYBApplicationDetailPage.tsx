@@ -67,7 +67,7 @@ export default function KYBApplicationDetailPage() {
       // First, find the organization that was created for this application
       const orgsResult = await api.getOrganizations();
       const org = orgsResult.data.find(
-        (o: any) => o.contactEmail === application.contactEmail && o.name === application.name
+        (o) => o.contactEmail === application.contactEmail && o.name === application.name
       );
 
       if (!org) {
@@ -154,7 +154,9 @@ export default function KYBApplicationDetailPage() {
           {application.kybVerification ? (
             <KYBVerificationPanel
               verification={application.kybVerification}
-              onVerify={verifyMutation.mutateAsync}
+              onVerify={async (data) => {
+                await verifyMutation.mutateAsync(data);
+              }}
               isLoading={verifyMutation.isPending}
               readonly={application.status !== 'PENDING_REVIEW'}
             />

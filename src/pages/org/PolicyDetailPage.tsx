@@ -40,8 +40,8 @@ export default function PolicyDetailPage() {
 
   if (!policy) return <div className="p-8 text-center">Policy not found</div>;
 
-  const policyPayouts = payoutsData?.data?.filter((p: any) => p.policyId === policyId) ?? [];
-  const policyDamage = damageData?.data?.filter((d: any) => d.policyId === policyId) ?? [];
+  const policyPayouts = payoutsData?.data?.filter((p) => p.policyId === policyId) ?? [];
+  const policyDamage = damageData?.data?.filter((d) => d.policyId === policyId) ?? [];
 
   return (
     <div className="space-y-6">
@@ -86,7 +86,7 @@ export default function PolicyDetailPage() {
             {policyDamage.length === 0 ? (
               <p className="text-muted-foreground">No assessments yet</p>
             ) : (
-              policyDamage.map((d: any) => (
+              policyDamage.map((d) => (
                 <div key={d.id} className="border-b py-2 last:border-0">
                   <p>Combined: {(d.combinedDamageScore * 100).toFixed(0)}%</p>
                 </div>
@@ -100,7 +100,7 @@ export default function PolicyDetailPage() {
             {policyPayouts.length === 0 ? (
               <p className="text-muted-foreground">No payouts yet</p>
             ) : (
-              policyPayouts.map((p: any) => (
+              policyPayouts.map((p) => (
                 <div key={p.id} className="flex justify-between border-b py-2 last:border-0">
                   <span>KES {p.amount?.toLocaleString() ?? 0}</span>
                   <StatusBadge variant={getStatusVariant(p.status)}>{p.status}</StatusBadge>

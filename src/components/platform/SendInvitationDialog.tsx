@@ -19,7 +19,7 @@ interface SendInvitationDialogProps {
   contactEmail?: string;
   contactFirstName?: string;
   contactLastName?: string;
-  onCreateAndSend?: () => Promise<OrgAdminInvitation>;
+  onCreateAndSend?: () => Promise<void>;
   onSend?: (invitationId: string) => Promise<void>;
   isLoading?: boolean;
   trigger?: React.ReactNode;

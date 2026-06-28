@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Wallet,
@@ -8,7 +7,6 @@ import {
   ExternalLink,
   Loader2,
   Banknote,
-  ArrowRight,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -96,14 +94,8 @@ export default function WalletPage() {
             </div>
             <h3 className="text-xl font-semibold mb-2">No Wallet Yet</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
-              {wallet?.message || 'Deploy a liquidity pool to automatically create your organization wallet.'}
+              {wallet?.message || 'Your organization wallet is provisioned by the platform during onboarding. Once it’s ready, you can fund your reserve here.'}
             </p>
-            <Button asChild>
-              <Link to="/org/pool">
-                Go to Pool
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
           </CardContent>
         </Card>
       </div>

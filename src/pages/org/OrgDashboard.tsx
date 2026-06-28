@@ -22,9 +22,9 @@ export default function OrgDashboard() {
     enabled: !!orgId,
   });
 
-  const { data: pool } = useQuery({
-    queryKey: ["liquidityPool"],
-    queryFn: () => api.getLiquidityPool(),
+  const { data: wallet } = useQuery({
+    queryKey: ["orgWallet"],
+    queryFn: () => api.getOrgWallet(),
   });
 
   const formatCurrency = (value: number) => {
@@ -50,10 +50,10 @@ export default function OrgDashboard() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Organization overview and key metrics</p>
         </div>
-        {pool?.address && (
+        {wallet?.walletAddress && (
           <Button variant="outline" asChild>
-            <a href={`https://basescan.org/address/${pool.address}`} target="_blank" rel="noopener noreferrer">
-              Pool: {truncateAddress(pool.address)}
+            <a href={`https://basescan.org/address/${wallet.walletAddress}`} target="_blank" rel="noopener noreferrer">
+              Wallet: {truncateAddress(wallet.walletAddress)}
               <ExternalLink className="ml-2 h-4 w-4" />
             </a>
           </Button>

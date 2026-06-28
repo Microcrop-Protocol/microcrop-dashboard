@@ -43,7 +43,6 @@ interface NavItem {
 const platformNavItems: NavItem[] = [
   { title: "Dashboard", href: "/platform/dashboard", icon: LayoutDashboard },
   { title: "Organizations", href: "/platform/organizations", icon: Building2 },
-  { title: "Pools", href: "/platform/pools", icon: PiggyBank },
   { title: "Insurance Units", href: "/platform/insurance-units", icon: MapPin },
   { title: "Treasury", href: "/platform/treasury", icon: Landmark },
   { title: "KYB Review", href: "/platform/kyb-review", icon: ClipboardCheck },
@@ -75,7 +74,7 @@ const orgNavItems: NavItem[] = [
   { title: "Herds", href: "/org/herds", icon: MapPin },
   { title: "Damage", href: "/org/damage", icon: AlertTriangle },
   { title: "Financials", href: "/org/financials", icon: BarChart3 },
-  { title: "Pool", href: "/org/pool", icon: PiggyBank },
+  { title: "Reserve", href: "/org/reserve", icon: PiggyBank },
   { title: "Wallet", href: "/org/wallet", icon: Wallet },
   { title: "Staff", href: "/org/staff", icon: UserCog },
   { title: "Export", href: "/org/export", icon: Download },

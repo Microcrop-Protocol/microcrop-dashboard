@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, PoolStatus, LiquidityPool, PoolSettings, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, InvestorInfo, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -116,7 +116,7 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    let data: any;
+    let data: unknown;
     try {
       data = await response.json();
     } catch {
@@ -168,7 +168,7 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    let result: any;
+    let result: unknown;
     try {
       result = await response.json();
     } catch {
@@ -223,7 +223,7 @@ class ApiClient {
       throw new ApiError('Network error. Please check your connection.', 0);
     }
 
-    let data: any;
+    let data: unknown;
     try {
       data = await response.json();
     } catch {
@@ -366,11 +366,19 @@ class ApiClient {
     });
   }
 
-  async platformDeployPool(orgId: string, initialCapital: number) {
-    return this.request<Organization>(`/platform/organizations/${encodeURIComponent(orgId)}/deploy-pool`, {
-      method: 'POST',
-      body: JSON.stringify({ initialCapital }),
-    });
+  // Per-org treasury (v3): provision the org's wallet (reserve key) + set its reserve ratio.
+  async platformProvisionWallet(orgId: string) {
+    return this.request<{ walletAddress: string; privyWalletId: string; alreadyProvisioned: boolean }>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/provision-wallet`,
+      { method: 'POST' }
+    );
+  }
+
+  async platformSetReserveRatio(orgId: string, ratioBps: number) {
+    return this.request<{ orgId: string; walletAddress: string; ratioBps: number; txHash: string }>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/reserve-ratio`,
+      { method: 'POST', body: JSON.stringify({ ratioBps }) }
+    );
   }
 
   async platformActivateOrganization(orgId: string) {
@@ -454,83 +462,6 @@ class ApiClient {
   }
 
   // ============================================
-  // PLATFORM ADMIN - POOLS
-  // ============================================
-
-  async platformGetPools() {
-    return this.request<{
-      total: number;
-      pools: {
-        address: string;
-        name: string;
-        symbol: string;
-        poolType: number;
-        poolValue: string;
-        utilizationRate: number;
-        organizationId?: string;
-        organizationName?: string;
-      }[];
-    }>('/platform/pools');
-  }
-
-  async platformGetPoolCounts() {
-    return this.request<{
-      total: number;
-      public: number;
-      private: number;
-      mutual: number;
-    }>('/platform/pools/counts');
-  }
-
-  async platformGetPoolById(poolId: string) {
-    return this.request<PoolStatus>(`/platform/pools/${encodeURIComponent(poolId)}`);
-  }
-
-  async platformGetPoolByAddress(poolAddress: string) {
-    return this.request<PoolStatus>(`/platform/pools/address/${encodeURIComponent(poolAddress)}`);
-  }
-
-  async platformDeployPoolForOrg(orgId: string, data: {
-    name: string;
-    symbol: string;
-    poolType: string;
-    coverageType: number;
-    region: string;
-    minDeposit: number;
-    maxDeposit: number;
-    targetCapital: number;
-    maxCapital: number;
-    poolOwner?: string;
-  }) {
-    return this.request<{
-      poolAddress: string;
-      txHash: string;
-      blockNumber: number;
-    }>(`/platform/organizations/${encodeURIComponent(orgId)}/deploy-pool`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async platformCreatePublicPool(data: {
-    name: string;
-    symbol: string;
-    coverageType: number;
-    region: string;
-    targetCapital: number;
-    maxCapital: number;
-  }) {
-    return this.request<{
-      poolAddress: string;
-      txHash: string;
-      blockNumber: number;
-    }>('/platform/pools/public', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  // ============================================
   // PLATFORM ADMIN - TREASURY
   // ============================================
 
@@ -584,83 +515,23 @@ class ApiClient {
     });
   }
 
-  async getOrganizationPool() {
-    return this.request<LiquidityPool>('/organizations/me/pool');
+  // ============================================
+  // ORGANIZATION RESERVE (per-org treasury / v3)
+  // ============================================
+
+  async getReserve() {
+    return this.request<ReserveStatus>('/organizations/me/reserve');
   }
 
-  async getOrganizationPoolDetails() {
-    return this.request<PoolStatus>('/organizations/me/pool/details');
-  }
-
-  async depositToPool(data: { amount: number; minTokensOut?: number }) {
-    return this.request<{
-      txHash: string;
-      blockNumber: number;
-      tokensMinted: string;
-      tokenPrice: string;
-    }>('/organizations/me/pool/deposit', {
+  async depositReserve(data: { amountUsdc: number }) {
+    return this.request<{ txHash: string; amountUsdc: number }>('/organizations/me/reserve/deposit', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async withdrawFromPool(data: { tokenAmount: number; minUsdcOut?: number }) {
-    return this.request<{
-      txHash: string;
-      blockNumber: number;
-      usdcReceived: string;
-    }>('/organizations/me/pool/withdraw', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async addPoolDepositor(depositorAddress: string) {
-    return this.request<{ success: boolean }>('/organizations/me/pool/depositors', {
-      method: 'POST',
-      body: JSON.stringify({ depositorAddress }),
-    });
-  }
-
-  async removePoolDepositor(depositorAddress: string) {
-    return this.request<{ success: boolean }>(`/organizations/me/pool/depositors/${encodeURIComponent(depositorAddress)}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async updatePoolSettings(settings: { depositsOpen?: boolean; withdrawalsOpen?: boolean }) {
-    return this.request<PoolSettings>('/organizations/me/pool/settings', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    });
-  }
-
-  async getInvestorInfo(poolAddress: string) {
-    return this.request<InvestorInfo>(`/organizations/me/pool/investor/${encodeURIComponent(poolAddress)}`);
-  }
-
-  async deployOrgPool(data: {
-    name?: string;
-    symbol?: string;
-    poolType: 'PRIVATE' | 'PUBLIC' | 'MUTUAL';
-    coverageType: number;
-    region: string;
-    targetCapital: number;
-    maxCapital?: number;
-    minDeposit?: number;
-    maxDeposit?: number;
-    memberContribution?: number;
-    poolOwner?: string;
-  }) {
-    return this.request<{
-      organization: Organization;
-      pool: {
-        poolAddress: string;
-        poolId: string;
-        txHash: string;
-        blockNumber: number;
-      };
-    }>('/organizations/me/pool/deploy', {
+  async withdrawReserve(data: { amountUsdc: number; to?: string }) {
+    return this.request<{ txHash: string; amountUsdc: number; to: string }>('/organizations/me/reserve/withdraw', {
       method: 'POST',
       body: JSON.stringify(data),
     });

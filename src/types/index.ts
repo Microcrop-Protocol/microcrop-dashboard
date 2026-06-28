@@ -26,7 +26,20 @@ export interface AuthTokens {
 
 // Organization Types
 export type OrganizationType = 'COOPERATIVE' | 'NGO' | 'MFI' | 'INSURANCE_COMPANY' | 'GOVERNMENT' | 'OTHER';
-export type OnboardingStep = 'REGISTERED' | 'CONFIGURED' | 'POOL_DEPLOYED' | 'FUNDED' | 'STAFF_INVITED' | 'ACTIVATED';
+// Per-org treasury (v3): the org funds an on-chain reserve (RESERVE_FUNDED) instead of deploying a pool.
+export type OnboardingStep = 'REGISTERED' | 'CONFIGURED' | 'WALLET_PROVISIONED' | 'RESERVE_FUNDED' | 'STAFF_INVITED' | 'ACTIVATED';
+
+/** Per-org treasury reserve status (GET /me/reserve). All amounts are USDC. */
+export interface ReserveStatus {
+  walletAddress: string | null;
+  reserve: string; // base units (6dp), as string
+  required: string;
+  headroom: string;
+  reserveUsdc: number;
+  requiredUsdc: number;
+  headroomUsdc: number;
+  solvent: boolean;
+}
 
 export interface Organization {
   id: string;
@@ -104,6 +117,8 @@ export interface OrganizationApplication {
   kybVerification?: KYBVerification | null;
   rejectionReason?: string;
   status: ApplicationStatus;
+  // Set by the verify endpoint when an application is approved and an org is created.
+  organization?: Organization;
   createdAt: string;
   updatedAt: string;
 }
@@ -245,57 +260,6 @@ export interface FinancialSummary {
   policyCount: number;
 }
 
-// Liquidity Pool Types
-export interface LiquidityPool {
-  address: string;
-  balance: number;
-  utilizationRate: number;
-  capitalDeposited: number;
-  premiumsReceived: number;
-  payoutsSent: number;
-  feesPaid: number;
-  availableForWithdrawal: number;
-}
-
-// Enhanced Pool Status (from API)
-export type PoolType = 'PUBLIC' | 'PRIVATE' | 'MUTUAL';
-
-export interface PoolStatus {
-  poolAddress: string;
-  poolValue: number;
-  totalSupply: number;
-  tokenPrice: number;
-  totalPremiums: number;
-  totalPayouts: number;
-  activeExposure: number;
-  minDeposit: number;
-  maxDeposit: number;
-  targetCapital: number;
-  maxCapital: number;
-  depositsOpen: boolean;
-  withdrawalsOpen: boolean;
-  paused: boolean;
-  utilizationRate: number;
-}
-
-export interface PoolDepositResult {
-  txHash: string;
-  blockNumber: number;
-  tokensMinted: string;
-  tokenPrice: string;
-}
-
-export interface PoolWithdrawResult {
-  txHash: string;
-  blockNumber: number;
-  usdcReceived: string;
-}
-
-export interface PoolSettings {
-  depositsOpen: boolean;
-  withdrawalsOpen: boolean;
-}
-
 // Organization Wallet
 export interface OrgWallet {
   walletAddress: string | null;
@@ -315,47 +279,6 @@ export interface WalletFundResult {
   status: string;
   walletAddress: string;
   instructions: string;
-}
-
-// Platform Pool (for admin overview)
-export interface PlatformPool {
-  address: string;
-  name: string;
-  symbol: string;
-  poolType: PoolType;
-  poolValue: number;
-  utilizationRate: number;
-  organizationId?: string;
-  organizationName?: string;
-}
-
-export interface PoolCounts {
-  total: number;
-  public: number;
-  private: number;
-  mutual: number;
-}
-
-// Pool Deployment Types
-export type PoolCoverageType = 'DROUGHT' | 'FLOOD' | 'PEST' | 'DISEASE' | 'COMPREHENSIVE';
-
-export interface DeployPoolRequest {
-  name: string;
-  symbol: string;
-  poolType: PoolType;
-  coverageType: PoolCoverageType;
-  region: string;
-  minDeposit: number;
-  maxDeposit: number;
-  targetCapital: number;
-  maxCapital: number;
-  poolOwner?: string;
-}
-
-export interface DeployPoolResult {
-  poolAddress: string;
-  txHash: string;
-  blockNumber: number;
 }
 
 // Treasury Types
@@ -399,6 +322,8 @@ export interface Activity {
 }
 
 // Analytics Types
+export type Granularity = 'daily' | 'weekly' | 'monthly';
+
 export interface TimeSeriesDataPoint {
   date: string;
   value: number;
@@ -489,15 +414,6 @@ export interface TreasuryPremiumAmounts {
 export interface TreasuryPayoutAmounts {
   total: string;
   byOrganization: { organizationId: string; organizationName: string; amount: string }[];
-}
-
-// Investor Info
-export interface InvestorInfo {
-  address: string;
-  tokenBalance: string;
-  shareOfPool: number;
-  totalDeposited: string;
-  totalWithdrawn: string;
 }
 
 // Policy Expire Check
