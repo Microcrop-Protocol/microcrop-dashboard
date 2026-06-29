@@ -67,6 +67,7 @@ const PayoutsPage = lazyRetry(() => import("@/pages/org/PayoutsPage"));
 const PlotsPage = lazyRetry(() => import("@/pages/org/PlotsPage"));
 const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
 const FinancialsPage = lazyRetry(() => import("@/pages/org/FinancialsPage"));
+const KYBPage = lazyRetry(() => import("@/pages/org/KYBPage"));
 const ReservePage = lazyRetry(() => import("@/pages/org/ReservePage"));
 const WalletPage = lazyRetry(() => import("@/pages/org/WalletPage"));
 const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
@@ -221,6 +222,7 @@ const App = () => (
                 <Route path="damage" element={<DamagePage />} />
                 <Route path="financials" element={<FinancialsPage />} />
                 <Route path="reserve" element={<ReservePage />} />
+                <Route path="kyb" element={<KYBPage />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="staff" element={<StaffPage />} />
                 <Route path="export" element={<ExportPage />} />

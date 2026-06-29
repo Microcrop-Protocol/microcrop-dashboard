@@ -65,6 +65,7 @@ const platformNavItems: NavItem[] = [
 
 const orgNavItems: NavItem[] = [
   { title: "Dashboard", href: "/org/dashboard", icon: LayoutDashboard },
+  { title: "Verification", href: "/org/kyb", icon: ClipboardCheck },
   { title: "Field Onboarding", href: "/org/onboard", icon: ClipboardPlus },
   { title: "Livestock Onboarding", href: "/org/livestock-onboard", icon: ClipboardPlus },
   { title: "Farmers", href: "/org/farmers", icon: Users },

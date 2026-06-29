@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, FileText, DollarSign, Wallet, TrendingUp, ExternalLink } from "lucide-react";
+import { Users, FileText, DollarSign, Wallet, TrendingUp, ExternalLink, ShieldAlert, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function OrgDashboard() {
@@ -25,6 +26,11 @@ export default function OrgDashboard() {
   const { data: wallet } = useQuery({
     queryKey: ["orgWallet"],
     queryFn: () => api.getOrgWallet(),
+  });
+
+  const { data: kyb } = useQuery({
+    queryKey: ["my-kyb"],
+    queryFn: () => api.getMyKyb(),
   });
 
   const formatCurrency = (value: number) => {
@@ -59,6 +65,42 @@ export default function OrgDashboard() {
           </Button>
         )}
       </div>
+
+      {kyb && kyb.kybStatus !== "VERIFIED" && (
+        <Card className={kyb.kybStatus === "REJECTED" ? "border-destructive" : "border-warning/40"}>
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              {kyb.kybStatus === "PENDING_REVIEW" ? (
+                <Clock className="mt-0.5 h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ShieldAlert className="mt-0.5 h-5 w-5 text-warning" />
+              )}
+              <div className="text-sm">
+                <p className="font-medium">
+                  {kyb.kybStatus === "PENDING_REVIEW"
+                    ? "KYB under review"
+                    : kyb.kybStatus === "REJECTED"
+                      ? "KYB needs changes"
+                      : "Complete your verification"}
+                </p>
+                <p className="text-muted-foreground">
+                  {kyb.kybStatus === "PENDING_REVIEW"
+                    ? "We'll email you once your documents are reviewed. Policy creation and reserve funding unlock after approval."
+                    : "Submit your KYB documents to unlock policy creation and reserve funding."}
+                </p>
+              </div>
+            </div>
+            {kyb.kybStatus !== "PENDING_REVIEW" && (
+              <Button asChild className="shrink-0">
+                <Link to="/org/kyb">
+                  Complete KYB
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard title="Total Farmers" value={stats?.totalFarmers?.toLocaleString() ?? 0} icon={Users} />
