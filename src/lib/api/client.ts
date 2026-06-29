@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -275,6 +275,39 @@ class ApiClient {
     return result;
   }
 
+  // Self-service organization signup (creates org + first ORG_ADMIN, immediate login).
+  async registerOrganization(data: {
+    organizationName: string;
+    registrationNumber: string;
+    type: string;
+    county?: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    phone?: string;
+  }) {
+    const result = await this.request<{
+      user: {
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        role: string;
+        organizationId?: string;
+      };
+      organization: { id: string; name: string };
+      accessToken: string;
+      refreshToken: string;
+    }>('/auth/register-organization', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    this.setAccessToken(result.accessToken);
+    return result;
+  }
+
   async register(data: {
     email: string;
     password: string;
@@ -535,6 +568,33 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // ============================================
+  // ORGANIZATION KYB (in-dashboard verification)
+  // ============================================
+
+  async getMyKyb() {
+    return this.request<OrgKyb>('/organizations/me/kyb');
+  }
+
+  async submitMyKyb(formData: FormData) {
+    return this.uploadRequest<OrgKybVerification>('/organizations/me/kyb', formData);
+  }
+
+  async getKybReviews() {
+    return this.request<OrgKybReview[]>('/platform/organizations/kyb-reviews');
+  }
+
+  async getOrgKyb(orgId: string) {
+    return this.request<OrgKyb>(`/platform/organizations/${encodeURIComponent(orgId)}/kyb`);
+  }
+
+  async reviewOrgKyb(orgId: string, decision: 'APPROVED' | 'REJECTED', notes?: string) {
+    return this.request<{ id: string; kybStatus: string }>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/kyb/review`,
+      { method: 'POST', body: JSON.stringify({ decision, notes }) }
+    );
   }
 
   // ============================================

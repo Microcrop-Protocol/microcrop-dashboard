@@ -82,8 +82,57 @@ export const api = {
     };
   },
 
+  registerOrganization: async (data: {
+    organizationName: string;
+    registrationNumber: string;
+    type: string;
+    county?: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    phone?: string;
+  }) => {
+    const result = await apiClient.registerOrganization(data);
+    return {
+      user: {
+        ...result.user,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      } as User,
+      organization: result.organization,
+      tokens: {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        expiresAt: Date.now() + 3600000,
+      },
+    };
+  },
+
   getMe: async () => {
     return apiClient.getMe();
+  },
+
+  // ---- Org KYB (in-dashboard) ----
+  getMyKyb: async () => {
+    return apiClient.getMyKyb();
+  },
+
+  submitMyKyb: async (formData: FormData) => {
+    return apiClient.submitMyKyb(formData);
+  },
+
+  // ---- Platform KYB review ----
+  getKybReviews: async () => {
+    return apiClient.getKybReviews();
+  },
+
+  getOrgKyb: async (orgId: string) => {
+    return apiClient.getOrgKyb(orgId);
+  },
+
+  reviewOrgKyb: async (orgId: string, decision: 'APPROVED' | 'REJECTED', notes?: string) => {
+    return apiClient.reviewOrgKyb(orgId, decision, notes);
   },
 
   refreshToken: async (refreshToken: string) => {

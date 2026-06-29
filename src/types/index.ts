@@ -64,8 +64,44 @@ export interface Organization {
 }
 
 // KYB (Know Your Business) Types
-export type KYBStatus = 'PENDING_REVIEW' | 'VERIFIED' | 'REJECTED';
+export type KYBStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_REVIEW' | 'VERIFIED' | 'REJECTED';
 export type KYBDocumentType = 'BUSINESS_REGISTRATION_CERT' | 'TAX_PIN_CERT';
+
+// Org-attached KYB (self-service signup → in-dashboard verification)
+export interface OrgKybDocument {
+  id: string;
+  documentType: 'BUSINESS_REGISTRATION' | 'TAX_CERTIFICATE' | string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedAt: string;
+}
+export interface OrgKybVerification {
+  id: string;
+  status: string;
+  verifierNotes?: string | null;
+  verifiedAt?: string | null;
+  documents: OrgKybDocument[];
+}
+export interface OrgKyb {
+  kybStatus: KYBStatus;
+  onboardingStep: string;
+  verification: OrgKybVerification | null;
+}
+export interface OrgKybReview {
+  id: string;
+  name: string;
+  type: string;
+  registrationNumber: string;
+  contactPerson?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  county?: string | null;
+  kybStatus: KYBStatus;
+  createdAt: string;
+  kybVerification: OrgKybVerification | null;
+}
 export type InvitationStatus = 'PENDING' | 'SENT' | 'ACCEPTED' | 'EXPIRED';
 export type ApplicationStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
 

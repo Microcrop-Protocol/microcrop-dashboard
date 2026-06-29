@@ -1,50 +1,75 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { CheckCircle, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { OrganizationRegistrationForm } from '@/components/kyb/OrganizationRegistrationForm';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/hooks/use-toast';
-import type { OrganizationRegistrationFormData } from '@/lib/validations/kyb';
-import type { KYBDocumentType } from '@/types';
+import { orgSignupSchema, orgTypeLabels, type OrgSignupFormData } from '@/lib/validations/kyb';
 
-interface UploadedDocument {
-  file: File;
-  type: KYBDocumentType;
-  preview?: string;
+// Backend expects +254XXXXXXXXX; accept 07.../01... and normalise.
+function normalizePhone(phone?: string): string | undefined {
+  if (!phone) return undefined;
+  const p = phone.trim();
+  if (!p) return undefined;
+  if (p.startsWith('+254')) return p;
+  if (p.startsWith('0')) return `+254${p.slice(1)}`;
+  return p;
 }
 
 export default function RegisterOrganizationPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { login } = useAuthStore();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const handleSubmit = async (
-    data: OrganizationRegistrationFormData,
-    documents: UploadedDocument[]
-  ) => {
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<OrgSignupFormData>({
+    resolver: zodResolver(orgSignupSchema),
+  });
+  const type = watch('type');
+
+  const onSubmit = async (data: OrgSignupFormData) => {
     setIsLoading(true);
     try {
-      await api.submitOrgApplication({
-        ...data,
-        documents: documents.map((doc) => ({
-          type: doc.type,
-          fileName: doc.file.name,
-          fileSize: doc.file.size,
-          file: doc.file, // Include actual file for real API upload
-        })),
+      const { user, tokens } = await api.registerOrganization({
+        organizationName: data.organizationName,
+        registrationNumber: data.registrationNumber,
+        type: data.type,
+        county: data.county || undefined,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        password: data.password,
+        phone: normalizePhone(data.phone),
       });
-
-      setIsSubmitted(true);
+      login(user, tokens);
       toast({
-        title: 'Application Submitted',
-        description: 'Your organization application has been submitted for review.',
+        title: 'Welcome to MicroCrop',
+        description: 'Your account is ready. Complete KYB verification to start underwriting.',
       });
+      navigate('/org/kyb', { replace: true });
     } catch (error) {
       toast({
-        title: 'Submission Failed',
-        description: 'There was an error submitting your application. Please try again.',
+        title: 'Signup failed',
+        description: error instanceof Error ? error.message : 'Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -52,86 +77,104 @@ export default function RegisterOrganizationPage() {
     }
   };
 
-  if (isSubmitted) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-background p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle className="h-8 w-8 text-success" aria-hidden="true" />
-            </div>
-            <CardTitle>Application Submitted!</CardTitle>
-            <CardDescription>
-              Thank you for registering your organization with MicroCrop
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-              <p>Your application is now under review. Our team will verify your documents and get back to you within 2-3 business days.</p>
-              <p className="mt-2">You will receive an email notification once the review is complete.</p>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium">What happens next?</h4>
-              <ul className="text-left text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-                  Our team reviews your submitted documents
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-                  Upon approval, your organization account is created
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-                  You receive an email with login credentials
-                </li>
-              </ul>
-            </div>
-
-            <Button asChild className="w-full">
-              <Link to="/login">
-                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                Back to Login
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-background">
-      <div className="container mx-auto max-w-3xl px-4 py-8">
-        {/* Header */}
+      <div className="container mx-auto max-w-2xl px-4 py-8">
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2 mb-6">
-            <img
-              src="/microcropsymb.png"
-              alt="MicroCrop"
-              width={40}
-              height={40}
-              className="h-10 w-10 object-contain"
-              loading="lazy"
-            />
+            <img src="/microcropsymb.png" alt="MicroCrop" width={40} height={40} className="h-10 w-10 object-contain" loading="lazy" />
             <span className="text-xl font-bold">MicroCrop</span>
           </Link>
-          <h1 className="text-2xl font-bold">Register Your Organization</h1>
+          <h1 className="text-2xl font-bold">Create your organization account</h1>
           <p className="mt-2 text-muted-foreground">
-            Join MicroCrop to provide crop insurance to your farmers
+            Sign up to get started — you can complete KYB verification from your dashboard afterwards.
           </p>
         </div>
 
-        {/* Registration Form */}
-        <OrganizationRegistrationForm onSubmit={handleSubmit} isLoading={isLoading} />
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Organization</CardTitle>
+              <CardDescription>Details about your organization.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="organizationName">Organization name</Label>
+                <Input id="organizationName" {...register('organizationName')} placeholder="Acme Cooperative" />
+                {errors.organizationName && <p className="mt-1 text-sm text-destructive">{errors.organizationName.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="registrationNumber">Registration number</Label>
+                <Input id="registrationNumber" {...register('registrationNumber')} placeholder="CPR/2024/0001" />
+                {errors.registrationNumber && <p className="mt-1 text-sm text-destructive">{errors.registrationNumber.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="type">Type</Label>
+                <Select value={type} onValueChange={(v) => setValue('type', v as OrgSignupFormData['type'], { shouldValidate: true })}>
+                  <SelectTrigger id="type"><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(orgTypeLabels).map(([v, label]) => (
+                      <SelectItem key={v} value={v}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.type && <p className="mt-1 text-sm text-destructive">{errors.type.message}</p>}
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="county">County <span className="text-muted-foreground">(optional)</span></Label>
+                <Input id="county" {...register('county')} placeholder="Nakuru" />
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Footer */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Admin account</CardTitle>
+              <CardDescription>This becomes the organization's first admin user.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="firstName">First name</Label>
+                <Input id="firstName" {...register('firstName')} />
+                {errors.firstName && <p className="mt-1 text-sm text-destructive">{errors.firstName.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="lastName">Last name</Label>
+                <Input id="lastName" {...register('lastName')} />
+                {errors.lastName && <p className="mt-1 text-sm text-destructive">{errors.lastName.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" {...register('email')} />
+                {errors.email && <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone <span className="text-muted-foreground">(optional)</span></Label>
+                <Input id="phone" {...register('phone')} placeholder="0712345678" />
+                {errors.phone && <p className="mt-1 text-sm text-destructive">{errors.phone.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" {...register('password')} />
+                {errors.password && <p className="mt-1 text-sm text-destructive">{errors.password.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <Input id="confirmPassword" type="password" {...register('confirmPassword')} />
+                {errors.confirmPassword && <p className="mt-1 text-sm text-destructive">{errors.confirmPassword.message}</p>}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button type="submit" className="mt-6 w-full" disabled={isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Create account
+          </Button>
+        </form>
+
         <div className="mt-8 text-center text-sm text-muted-foreground">
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-primary hover:underline">
-            Sign in
-          </Link>
+          <Link to="/login" className="font-medium text-primary hover:underline">Sign in</Link>
         </div>
       </div>
     </div>

@@ -36,6 +36,49 @@ export const organizationRegistrationSchema = z.object({
 
 export type OrganizationRegistrationFormData = z.infer<typeof organizationRegistrationSchema>;
 
+// Self-service org signup: organization + first admin user (with password).
+// KYB documents are NOT collected here — they're submitted later, in the dashboard.
+export const orgSignupSchema = z
+  .object({
+    organizationName: z.string().min(2, 'Organization name must be at least 2 characters').max(100),
+    registrationNumber: z.string().min(1, 'Registration number is required').max(50),
+    type: z.enum(['COOPERATIVE', 'NGO', 'MFI', 'INSURANCE_COMPANY', 'GOVERNMENT', 'OTHER'], {
+      required_error: 'Please select an organization type',
+    }),
+    county: z.string().max(100).optional(),
+    firstName: z.string().min(2, 'First name must be at least 2 characters').max(50),
+    lastName: z.string().min(2, 'Last name must be at least 2 characters').max(50),
+    email: z.string().email('Please enter a valid email address'),
+    phone: z
+      .string()
+      .regex(kenyanPhoneRegex, 'Enter a valid Kenyan phone number (+254… or 07… or 01…)')
+      .optional()
+      .or(z.literal('')),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(
+        /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/,
+        'Include an uppercase letter, a number, and a special character'
+      ),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export type OrgSignupFormData = z.infer<typeof orgSignupSchema>;
+
+export const orgTypeLabels: Record<string, string> = {
+  COOPERATIVE: 'Cooperative',
+  NGO: 'NGO',
+  MFI: 'Microfinance Institution',
+  INSURANCE_COMPANY: 'Insurance Company',
+  GOVERNMENT: 'Government',
+  OTHER: 'Other',
+};
+
 // KYB verification schema (for admin review)
 export const kybVerificationSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED'], {
