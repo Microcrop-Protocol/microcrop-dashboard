@@ -46,7 +46,7 @@ const FarmersAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/
 const PayoutsAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/PayoutsAnalyticsPage"));
 const DamageAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/DamageAnalyticsPage"));
 const PlatformActivityPage = lazyRetry(() => import("@/pages/platform/PlatformActivityPage"));
-const KYBReviewPage = lazyRetry(() => import("@/pages/platform/KYBReviewPage"));
+const KYBReviewPage = lazyRetry(() => import("@/pages/platform/OrgKybReviewPage"));
 const KYBApplicationDetailPage = lazyRetry(() => import("@/pages/platform/KYBApplicationDetailPage"));
 const InvitationsPage = lazyRetry(() => import("@/pages/platform/InvitationsPage"));
 const TreasuryPage = lazyRetry(() => import("@/pages/platform/TreasuryPage"));
