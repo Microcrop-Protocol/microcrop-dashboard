@@ -47,6 +47,19 @@ export default function StaffPage() {
     queryFn: () => api.getStaff(),
   });
 
+  // Guard against a non-array response so DataTable's `.map` can't break.
+  const toArray = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      const nested = record.data ?? record.items ?? record.results;
+      if (Array.isArray(nested)) return nested as T[];
+    }
+    return [];
+  };
+
+  const staffList = toArray<User>(staff);
+
   const inviteMutation = useMutation({
     mutationFn: () => api.inviteStaff(form),
     onSuccess: () => {
@@ -118,7 +131,7 @@ export default function StaffPage() {
       </div>
       <DataTable
         columns={columns}
-        data={staff ?? []}
+        data={staffList}
         isLoading={isLoading}
         searchKey="email"
       />

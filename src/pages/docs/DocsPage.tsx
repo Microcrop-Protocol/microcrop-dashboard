@@ -1,12 +1,9 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, Key, Webhook, Users, FileText, AlertTriangle, ArrowRight } from "lucide-react";
-import { useAuthStore } from "@/stores/authStore";
+import { Copy, Key, Webhook, Users, FileText, AlertTriangle, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Code Snippets as constants to prevent template literal compilation issues
@@ -172,18 +169,14 @@ const EventRow = ({ name, description }: { name: string; description: string }) 
 );
 
 export default function DocsPage() {
-  const { user } = useAuthStore();
   const { toast } = useToast();
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
-    setCopiedKey(type);
     toast({
       title: "Copied!",
       description: `${type} copied to clipboard.`,
     });
-    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   const CodeBlock = ({ code }: { code: string }) => (
@@ -224,10 +217,6 @@ export default function DocsPage() {
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Production</Badge>
             <code className="text-xs bg-muted px-2 py-1 rounded font-mono">https://api.microcrop.app/api</code>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Sandbox</Badge>
-            <code className="text-xs bg-muted px-2 py-1 rounded font-mono">https://sandbox.api.microcrop.app/api</code>
-          </div>
         </div>
       </div>
 
@@ -251,33 +240,21 @@ export default function DocsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Organizations use two types of keys for API access. The public key is safe for client-side configurations. The secret key is for server-side requests and must not be exposed.
+                Organizations authenticate with a secret API key. Pass it in the <code>x-api-key</code> header on every server-side request. Keep it secure and never expose it in client-side code.
               </p>
-              
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Public Key</label>
-                  <div className="flex gap-2">
-                    <Input value={`org_live_${user?.organizationId || "demo123"}`} readOnly className="font-mono text-xs bg-muted/50" />
-                    <Button variant="outline" size="icon" onClick={() => handleCopy(`org_live_${user?.organizationId || "demo123"}`, "Public Key")}>
-                      {copiedKey === "Public Key" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Used to identify your organization in public or frontend interfaces.</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Secret Key</label>
-                  <div className="rounded-md border border-dashed p-3 bg-muted/30 space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Your secret key is shown only once, when you generate or rotate it. Pass it inside the <code>x-api-key</code> header and keep it secure.
-                    </p>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to="/org/developers?tab=api-keys">
-                        <Key className="mr-2 h-4 w-4" /> Manage API keys
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
+
+              <div className="space-y-2 max-w-md">
+                <label className="text-sm font-semibold">Secret Key</label>
+                <div className="rounded-md border border-dashed p-3 bg-muted/30 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Your secret key is shown only once, when you generate or rotate it. Pass it inside the <code>x-api-key</code> header and keep it secure.
+                  </p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/org/developers?tab=api-keys">
+                      <Key className="mr-2 h-4 w-4" /> Manage API keys
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
                 </div>
               </div>
 

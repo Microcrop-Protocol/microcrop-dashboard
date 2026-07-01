@@ -382,7 +382,7 @@ export default function OrganizationDetailPage() {
                       <p className="text-sm text-muted-foreground">{payout.farmerName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">KES {payout.amount.toLocaleString()}</p>
+                      <p className="font-medium">KES {Number(payout.amount ?? 0).toLocaleString()}</p>
                       <StatusBadge variant={getStatusVariant(payout.status)}>
                         {payout.status}
                       </StatusBadge>

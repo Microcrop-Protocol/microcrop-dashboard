@@ -96,7 +96,8 @@ export default function TreasuryPage() {
       maximumFractionDigits: 0,
     }).format(v);
 
-  const reserveUtilization = (treasury.requiredReserve / treasury.balance) * 100;
+  const reserveUtilization =
+    treasury.balance > 0 ? (treasury.requiredReserve / treasury.balance) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -233,7 +234,9 @@ export default function TreasuryPage() {
             <div className="flex justify-between pt-2 border-t">
               <span className="text-muted-foreground">Loss Ratio</span>
               <span className="font-bold">
-                {((treasury.totalPayouts / treasury.totalPremiums) * 100).toFixed(1)}%
+                {treasury.totalPremiums > 0
+                  ? `${((treasury.totalPayouts / treasury.totalPremiums) * 100).toFixed(1)}%`
+                  : "—"}
               </span>
             </div>
           </CardContent>

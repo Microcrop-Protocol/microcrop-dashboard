@@ -18,7 +18,7 @@ const columns: ColumnDef<Herd>[] = [
     header: "Type",
     cell: ({ row }) => (
       <Badge variant="outline" className="capitalize">
-        {(row.getValue("livestockType") as string).toLowerCase()}
+        {((row.getValue("livestockType") as string | null) ?? "").toLowerCase()}
       </Badge>
     )
   },
@@ -165,7 +165,7 @@ export default function HerdsPage() {
             <div className="mt-4 space-y-2">
               {livestockDistribution.map((livestock) => (
                 <div key={livestock.name} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground capitalize">{livestock.name.toLowerCase()}</span>
+                  <span className="text-muted-foreground capitalize">{(livestock.name ?? "").toLowerCase()}</span>
                   <span className="font-medium">{livestock.count} herds • {livestock.value.toLocaleString()} heads</span>
                 </div>
               ))}
@@ -187,7 +187,7 @@ export default function HerdsPage() {
             <div className="mt-4 space-y-2">
               {tluDistribution.map((livestock) => (
                 <div key={livestock.name} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground capitalize">{livestock.name.toLowerCase()}</span>
+                  <span className="text-muted-foreground capitalize">{(livestock.name ?? "").toLowerCase()}</span>
                   <span className="font-medium">{livestock.value.toFixed(2)} TLU</span>
                 </div>
               ))}
