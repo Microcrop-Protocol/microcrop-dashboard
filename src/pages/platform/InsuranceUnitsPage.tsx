@@ -36,8 +36,9 @@ const columns: ColumnDef<InsuranceUnit>[] = [
     header: "LRLD Season",
     cell: ({ row }) => (
       <div className="text-sm">
-        <div>Base: {row.original.ndviBaselineLRLD.toFixed(3)}</div>
-        <div className="text-muted-foreground">Rate: {row.original.premiumRateLRLD.toLocaleString()}</div>
+        {/* NDVI baselines & rates are Prisma Decimals — they arrive as strings over JSON. */}
+        <div>Base: {Number(row.original.ndviBaselineLRLD).toFixed(3)}</div>
+        <div className="text-muted-foreground">Rate: {Number(row.original.premiumRateLRLD).toLocaleString()}</div>
       </div>
     ),
   },
@@ -45,8 +46,8 @@ const columns: ColumnDef<InsuranceUnit>[] = [
     header: "SRSD Season",
     cell: ({ row }) => (
       <div className="text-sm">
-        <div>Base: {row.original.ndviBaselineSRSD.toFixed(3)}</div>
-        <div className="text-muted-foreground">Rate: {row.original.premiumRateSRSD.toLocaleString()}</div>
+        <div>Base: {Number(row.original.ndviBaselineSRSD).toFixed(3)}</div>
+        <div className="text-muted-foreground">Rate: {Number(row.original.premiumRateSRSD).toLocaleString()}</div>
       </div>
     ),
   },
