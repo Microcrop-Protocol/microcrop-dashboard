@@ -38,7 +38,7 @@ const formatFileSize = (bytes: number) => {
 export function KYBDocumentUpload({
   documents,
   onDocumentsChange,
-  requiredTypes = ['BUSINESS_REGISTRATION_CERT', 'TAX_PIN_CERT'],
+  requiredTypes = ['BUSINESS_REGISTRATION', 'TAX_CERTIFICATE'],
   maxFileSize = 5 * 1024 * 1024,
   disabled = false,
 }: KYBDocumentUploadProps) {

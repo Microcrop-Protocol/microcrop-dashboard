@@ -62,7 +62,7 @@ export default function InvitationsPage() {
 
   // Calculate stats
   const pendingCount = invitations.filter(i => i.status === 'PENDING').length;
-  const sentCount = invitations.filter(i => i.status === 'SENT').length;
+  const sentCount = invitations.filter(i => !!i.sentAt).length;
   const acceptedCount = invitations.filter(i => i.status === 'ACCEPTED').length;
   const expiredCount = invitations.filter(i => {
     if (i.status === 'EXPIRED') return true;
@@ -150,7 +150,7 @@ export default function InvitationsPage() {
         const status = row.original.status;
         const expiresAt = new Date(row.original.tokenExpiresAt);
         const isExpired = isValid(expiresAt) && expiresAt < new Date();
-        const canResend = (status === 'PENDING' || status === 'SENT') && !isExpired;
+        const canResend = status === 'PENDING' && !isExpired;
 
         if (!canResend) return null;
 
@@ -246,9 +246,9 @@ export default function InvitationsPage() {
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="PENDING">Pending</SelectItem>
-            <SelectItem value="SENT">Sent</SelectItem>
             <SelectItem value="ACCEPTED">Accepted</SelectItem>
             <SelectItem value="EXPIRED">Expired</SelectItem>
+            <SelectItem value="REVOKED">Revoked</SelectItem>
           </SelectContent>
         </Select>
       </div>

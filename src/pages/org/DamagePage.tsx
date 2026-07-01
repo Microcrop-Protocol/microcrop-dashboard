@@ -15,10 +15,10 @@ const columns: ColumnDef<DamageAssessment>[] = [
   { accessorKey: "policyNumber", header: "Policy" },
   { accessorKey: "plotName", header: "Plot" },
   { 
-    accessorKey: "combinedDamageScore", 
+    accessorKey: "combinedDamage", 
     header: "Damage %", 
     cell: ({ row }) => { 
-      const s = (row.getValue("combinedDamageScore") as number) * 100; 
+      const s = (row.getValue("combinedDamage") as number) * 100; 
       return (
         <span className={s >= 60 ? "text-destructive font-medium" : s >= 30 ? "text-warning font-medium" : "text-primary font-medium"}>
           {s.toFixed(0)}%
@@ -27,18 +27,18 @@ const columns: ColumnDef<DamageAssessment>[] = [
     } 
   },
   { 
-    accessorKey: "isTriggered", 
+    accessorKey: "triggered", 
     header: "Triggered", 
     cell: ({ row }) => (
-      <StatusBadge variant={row.getValue("isTriggered") ? "success" : "default"}>
-        {row.getValue("isTriggered") ? "Yes" : "No"}
+      <StatusBadge variant={row.getValue("triggered") ? "success" : "default"}>
+        {row.getValue("triggered") ? "Yes" : "No"}
       </StatusBadge>
     ) 
   },
   {
-    accessorKey: "assessmentDate",
+    accessorKey: "triggerDate",
     header: "Date",
-    cell: ({ row }) => formatDate(row.getValue("assessmentDate"))
+    cell: ({ row }) => formatDate(row.getValue("triggerDate"))
   },
 ];
 
@@ -53,16 +53,16 @@ export default function DamagePage() {
 
   // Calculate summary stats
   const avgWeather = assessments.length > 0 
-    ? assessments.reduce((sum, a) => sum + a.weatherDamageScore, 0) / assessments.length 
+    ? assessments.reduce((sum, a) => sum + a.weatherDamage, 0) / assessments.length 
     : 0;
   const avgSatellite = assessments.length > 0 
-    ? assessments.reduce((sum, a) => sum + a.satelliteDamageScore, 0) / assessments.length 
+    ? assessments.reduce((sum, a) => sum + a.satelliteDamage, 0) / assessments.length 
     : 0;
   const avgCombined = assessments.length > 0 
-    ? assessments.reduce((sum, a) => sum + a.combinedDamageScore, 0) / assessments.length 
+    ? assessments.reduce((sum, a) => sum + a.combinedDamage, 0) / assessments.length 
     : 0;
   const triggerRate = assessments.length > 0 
-    ? (assessments.filter(a => a.isTriggered).length / assessments.length) * 100 
+    ? (assessments.filter(a => a.triggered).length / assessments.length) * 100 
     : 0;
 
   return (

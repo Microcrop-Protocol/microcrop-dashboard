@@ -320,7 +320,7 @@ export function OrganizationRegistrationForm({
                 <KYBDocumentUpload
                   documents={documents}
                   onDocumentsChange={setDocuments}
-                  requiredTypes={['BUSINESS_REGISTRATION_CERT', 'TAX_PIN_CERT']}
+                  requiredTypes={['BUSINESS_REGISTRATION', 'TAX_CERTIFICATE']}
                 />
               </CardContent>
             </Card>
@@ -377,7 +377,7 @@ export function OrganizationRegistrationForm({
                     {documents.map((doc) => (
                       <p key={doc.type}>
                         <span className="text-muted-foreground">
-                          {doc.type === 'BUSINESS_REGISTRATION_CERT'
+                          {doc.type === 'BUSINESS_REGISTRATION'
                             ? 'Business Registration:'
                             : 'Tax PIN:'}
                         </span>{' '}

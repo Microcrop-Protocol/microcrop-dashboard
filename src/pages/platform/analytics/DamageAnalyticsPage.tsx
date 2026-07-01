@@ -21,20 +21,20 @@ const columns: ColumnDef<DamageAssessment>[] = [
     header: "Plot",
   },
   {
-    accessorKey: "weatherDamageScore",
+    accessorKey: "weatherDamage",
     header: "Weather Score",
-    cell: ({ row }) => `${(row.getValue("weatherDamageScore") as number * 100).toFixed(0)}%`,
+    cell: ({ row }) => `${(row.getValue("weatherDamage") as number * 100).toFixed(0)}%`,
   },
   {
-    accessorKey: "satelliteDamageScore",
+    accessorKey: "satelliteDamage",
     header: "Satellite Score",
-    cell: ({ row }) => `${(row.getValue("satelliteDamageScore") as number * 100).toFixed(0)}%`,
+    cell: ({ row }) => `${(row.getValue("satelliteDamage") as number * 100).toFixed(0)}%`,
   },
   {
-    accessorKey: "combinedDamageScore",
+    accessorKey: "combinedDamage",
     header: "Combined Score",
     cell: ({ row }) => {
-      const score = row.getValue("combinedDamageScore") as number;
+      const score = row.getValue("combinedDamage") as number;
       const percentage = score * 100;
       return (
         <span className={
@@ -48,18 +48,18 @@ const columns: ColumnDef<DamageAssessment>[] = [
     },
   },
   {
-    accessorKey: "isTriggered",
+    accessorKey: "triggered",
     header: "Triggered",
     cell: ({ row }) => (
-      <StatusBadge variant={row.getValue("isTriggered") ? "success" : "default"}>
-        {row.getValue("isTriggered") ? "Yes" : "No"}
+      <StatusBadge variant={row.getValue("triggered") ? "success" : "default"}>
+        {row.getValue("triggered") ? "Yes" : "No"}
       </StatusBadge>
     ),
   },
   {
-    accessorKey: "assessmentDate",
+    accessorKey: "triggerDate",
     header: "Date",
-    cell: ({ row }) => formatDate(row.getValue("assessmentDate")),
+    cell: ({ row }) => formatDate(row.getValue("triggerDate")),
   },
 ];
 

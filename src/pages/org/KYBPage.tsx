@@ -16,9 +16,9 @@ interface UploadedDocument {
 }
 
 // Dashboard KYB doc type -> backend multipart field name.
-const FIELD_FOR: Record<KYBDocumentType, string> = {
-  BUSINESS_REGISTRATION_CERT: 'businessRegistrationCert',
-  TAX_PIN_CERT: 'taxPinCert',
+const FIELD_FOR: Partial<Record<KYBDocumentType, string>> = {
+  BUSINESS_REGISTRATION: 'businessRegistrationCert',
+  TAX_CERTIFICATE: 'taxPinCert',
 };
 
 const STATUS_META: Record<
@@ -45,7 +45,10 @@ export default function KYBPage() {
   const submitMutation = useMutation({
     mutationFn: async (docs: UploadedDocument[]) => {
       const fd = new FormData();
-      for (const d of docs) fd.append(FIELD_FOR[d.type], d.file);
+      for (const d of docs) {
+        const field = FIELD_FOR[d.type];
+        if (field) fd.append(field, d.file);
+      }
       return api.submitMyKyb(fd);
     },
     onSuccess: () => {
@@ -141,7 +144,7 @@ export default function KYBPage() {
             <KYBDocumentUpload
               documents={documents}
               onDocumentsChange={setDocuments}
-              requiredTypes={['BUSINESS_REGISTRATION_CERT', 'TAX_PIN_CERT']}
+              requiredTypes={['BUSINESS_REGISTRATION', 'TAX_CERTIFICATE']}
             />
             <Button
               onClick={() => submitMutation.mutate(documents)}
