@@ -88,7 +88,7 @@ export default function PolicyDetailPage() {
             ) : (
               policyDamage.map((d) => (
                 <div key={d.id} className="border-b py-2 last:border-0">
-                  <p>Combined: {(d.combinedDamageScore * 100).toFixed(0)}%</p>
+                  <p>Combined: {(d.combinedDamage * 100).toFixed(0)}%</p>
                 </div>
               ))
             )}

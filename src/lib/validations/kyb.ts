@@ -121,8 +121,12 @@ export type AcceptInvitationFormData = z.infer<typeof acceptInvitationSchema>;
 
 // Document type labels
 export const documentTypeLabels: Record<string, string> = {
-  BUSINESS_REGISTRATION_CERT: 'Business Registration Certificate',
-  TAX_PIN_CERT: 'Tax PIN Certificate',
+  BUSINESS_REGISTRATION: 'Business Registration Certificate',
+  TAX_CERTIFICATE: 'Tax PIN Certificate',
+  DIRECTOR_ID: 'Director ID',
+  PROOF_OF_ADDRESS: 'Proof of Address',
+  BANK_STATEMENT: 'Bank Statement',
+  OTHER: 'Other Document',
 };
 
 // Organization type labels

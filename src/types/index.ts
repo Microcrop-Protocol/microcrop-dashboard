@@ -26,8 +26,9 @@ export interface AuthTokens {
 
 // Organization Types
 export type OrganizationType = 'COOPERATIVE' | 'NGO' | 'MFI' | 'INSURANCE_COMPANY' | 'GOVERNMENT' | 'OTHER';
-// Per-org treasury (v3): the org funds an on-chain reserve (RESERVE_FUNDED) instead of deploying a pool.
-export type OnboardingStep = 'REGISTERED' | 'CONFIGURED' | 'WALLET_PROVISIONED' | 'RESERVE_FUNDED' | 'STAFF_INVITED' | 'ACTIVATED';
+// Onboarding lifecycle emitted by the backend (application.service / kyb.service / invitation.service).
+// POOL_DEPLOYMENT is the legacy enum name for the wallet & reserve setup phase.
+export type OnboardingStep = 'APPLICATION' | 'KYB_VERIFICATION' | 'POOL_DEPLOYMENT' | 'ADMIN_SETUP' | 'COMPLETED';
 
 /** Per-org treasury reserve status (GET /me/reserve). All amounts are USDC. */
 export interface ReserveStatus {
@@ -65,7 +66,22 @@ export interface Organization {
 
 // KYB (Know Your Business) Types
 export type KYBStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_REVIEW' | 'VERIFIED' | 'REJECTED';
-export type KYBDocumentType = 'BUSINESS_REGISTRATION_CERT' | 'TAX_PIN_CERT';
+// KYBDocument.documentType enum (schema.prisma). Matches the values the API stores/returns.
+export type KYBDocumentType =
+  | 'BUSINESS_REGISTRATION'
+  | 'TAX_CERTIFICATE'
+  | 'DIRECTOR_ID'
+  | 'PROOF_OF_ADDRESS'
+  | 'BANK_STATEMENT'
+  | 'OTHER';
+// KYBVerification.status enum (distinct from the org-level KYBStatus).
+export type VerificationStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'DOCUMENTS_REQUIRED'
+  | 'UNDER_REVIEW'
+  | 'VERIFIED'
+  | 'REJECTED';
 
 // Org-attached KYB (self-service signup → in-dashboard verification)
 export interface OrgKybDocument {
@@ -102,8 +118,15 @@ export interface OrgKybReview {
   createdAt: string;
   kybVerification: OrgKybVerification | null;
 }
-export type InvitationStatus = 'PENDING' | 'SENT' | 'ACCEPTED' | 'EXPIRED';
-export type ApplicationStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
+export type ApplicationStatus =
+  | 'PENDING_REVIEW'
+  | 'UNDER_REVIEW'
+  | 'KYB_REQUIRED'
+  | 'KYB_IN_PROGRESS'
+  | 'KYB_SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED';
 
 export interface KYBDocument {
   id: string;
@@ -122,7 +145,7 @@ export interface KYBVerification {
   id: string;
   organizationId?: string;
   applicationId?: string;
-  status: KYBStatus;
+  status: VerificationStatus;
   documents: KYBDocument[];
   reviewNotes?: string;
   reviewedBy?: string;
@@ -219,8 +242,15 @@ export interface Plot {
 }
 
 // Policy Types
-export type PolicyStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'CLAIMED';
-export type CoverageType = 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
+export type PolicyStatus = 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'CLAIMED';
+export type CoverageType =
+  | 'DROUGHT'
+  | 'FLOOD'
+  | 'BOTH'
+  | 'COMPREHENSIVE'
+  | 'LIVESTOCK_DROUGHT'
+  | 'LIVESTOCK_DISEASE'
+  | 'LIVESTOCK_COMPREHENSIVE';
 
 export interface Policy {
   id: string;
@@ -270,6 +300,8 @@ export interface Payout {
 }
 
 // Damage Assessment Types
+// Field names match the raw DamageAssessment record the API returns
+// (prisma.damageAssessment.findMany in dashboard.org.service.js / dashboard.platform.service.js).
 export interface DamageAssessment {
   id: string;
   policyId: string;
@@ -278,11 +310,12 @@ export interface DamageAssessment {
   plotName: string;
   latitude: number;
   longitude: number;
-  weatherDamageScore: number;
-  satelliteDamageScore: number;
-  combinedDamageScore: number;
-  isTriggered: boolean;
-  assessmentDate: string;
+  weatherDamage: number;
+  satelliteDamage: number;
+  ndviDamage?: number;
+  combinedDamage: number;
+  triggered: boolean;
+  triggerDate: string;
   createdAt: string;
 }
 
@@ -424,21 +457,28 @@ export interface DamageAnalytics {
   totalCount: number;
 }
 
-// Payment Types
-export type PaymentType = 'PREMIUM' | 'DEPOSIT' | 'WITHDRAWAL' | 'FEE';
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
+// Transaction Types (backend Transaction model — schema.prisma)
+export type TransactionType = 'PREMIUM' | 'PAYOUT' | 'REFUND' | 'WALLET_FUNDING';
+export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 
-export interface Payment {
+export interface Transaction {
   id: string;
-  policyId?: string;
+  organizationId: string;
   farmerId?: string;
-  organizationId?: string;
+  type: TransactionType;
   amount: number;
-  type: PaymentType;
-  status: PaymentStatus;
-  mpesaRef?: string;
-  transactionHash?: string;
+  currency: string;
+  status: TransactionStatus;
+  policyId?: string;
+  payoutId?: string;
+  reference: string;
+  phoneNumber?: string;
+  description?: string;
+  externalRef?: string;
+  failureReason?: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
+  completedAt?: string;
 }
 
 // Treasury Amount Types
@@ -734,4 +774,52 @@ export interface UploadResult {
   url: string;
   mimeType: string;
   size: number;
+}
+
+// Livestock peril (backend LivestockPeril enum). Types only — no UI yet.
+export type LivestockPeril = 'DROUGHT_PASTURE' | 'DISEASE_OUTBREAK' | 'HEAT_STRESS';
+
+// Determination (per-org treasury settlement determination). Types only — no UI yet.
+export type DeterminationStatus =
+  | 'RECEIVED'
+  | 'SUBMITTING'
+  | 'CONFIRMED'
+  | 'FAILED'
+  | 'UNDERFUNDED';
+
+export interface Determination {
+  id: string;
+  kind: string; // CROP_DAMAGE | LIVESTOCK_FORAGE | LIVESTOCK_PAYOUT
+  schemaVersion: string;
+  methodologyVersion: string;
+  onChainPolicyId?: string | null;
+  unitCode?: string | null;
+  damagePercentBp: number;
+  payoutAmount?: string | null; // USDC base units (6dp), string to preserve precision
+  chainId: number;
+  verifyingContract: string;
+  status: DeterminationStatus;
+  submittedTxHash?: string | null;
+  blockNumber?: string | null;
+  failureReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Outbound webhook delivery (partner integration). Types only — no UI yet.
+export type WebhookDeliveryStatus = 'PENDING' | 'DELIVERED' | 'FAILED';
+
+export interface WebhookDelivery {
+  id: string;
+  organizationId: string;
+  event: string; // e.g. policy.activated, payout.completed, kyb.verified
+  url: string;
+  payload: Record<string, unknown>;
+  status: WebhookDeliveryStatus;
+  attempts: number;
+  responseStatus?: number | null;
+  lastError?: string | null;
+  deliveredAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

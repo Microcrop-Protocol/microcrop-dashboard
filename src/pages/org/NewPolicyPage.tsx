@@ -64,7 +64,7 @@ export default function NewPolicyPage() {
         farmerId: formData.farmerId,
         plotId: formData.plotId,
         sumInsured: formData.sumInsured,
-        coverageType: formData.coverageType as "DROUGHT" | "FLOOD" | "BOTH",
+        coverageType: formData.coverageType as "DROUGHT" | "FLOOD" | "BOTH" | "COMPREHENSIVE",
         durationDays: formData.duration,
       }),
     onSuccess: () => {
@@ -141,7 +141,8 @@ export default function NewPolicyPage() {
                 <SelectContent>
                   <SelectItem value="DROUGHT">Drought</SelectItem>
                   <SelectItem value="FLOOD">Flood</SelectItem>
-                  <SelectItem value="BOTH">Both</SelectItem>
+                  <SelectItem value="BOTH">Both (Drought &amp; Flood)</SelectItem>
+                  <SelectItem value="COMPREHENSIVE">Comprehensive</SelectItem>
                 </SelectContent>
               </Select>
             </div>

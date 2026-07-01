@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, Payment, TreasuryPremiumAmounts, TreasuryPayoutAmounts, PolicyExpireCheck, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -517,14 +517,6 @@ class ApiClient {
     return this.request<{ balance: string }>('/platform/treasury/balance');
   }
 
-  async platformGetTreasuryPremiumAmounts() {
-    return this.request<TreasuryPremiumAmounts>('/platform/treasury/premium-amounts');
-  }
-
-  async platformGetTreasuryPayoutAmounts() {
-    return this.request<TreasuryPayoutAmounts>('/platform/treasury/payout-amounts');
-  }
-
   // ============================================
   // ORGANIZATION ENDPOINTS
   // ============================================
@@ -754,7 +746,7 @@ class ApiClient {
     plotId?: string;
     herdId?: string;
     sumInsured: number;
-    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
+    coverageType: CoverageType;
     durationDays: number;
     season?: 'LRLD' | 'SRSD';
   }) {
@@ -770,7 +762,7 @@ class ApiClient {
     plotId?: string;
     herdId?: string;
     sumInsured: number;
-    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
+    coverageType: CoverageType;
     durationDays: number;
     season?: 'LRLD' | 'SRSD';
   }) {
@@ -809,9 +801,6 @@ class ApiClient {
     });
   }
 
-  async checkPolicyExpiry(policyId: string) {
-    return this.request<PolicyExpireCheck>(`/policies/${encodeURIComponent(policyId)}/expire-check`);
-  }
 
   async cancelPolicy(policyId: string, reason: string) {
     return this.request<Policy>(`/policies/${encodeURIComponent(policyId)}/cancel`, {
@@ -862,32 +851,6 @@ class ApiClient {
     return this.request<{ matched: number; unmatched: number; total: number }>(`/payouts/reconciliation${query ? `?${query}` : ''}`);
   }
 
-  // ============================================
-  // PAYMENTS
-  // ============================================
-
-  async getPayments(params?: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    type?: string;
-    farmerId?: string;
-  }) {
-    const query = new URLSearchParams(
-      Object.fromEntries(
-        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-      )
-    ).toString();
-    return this.requestWithPagination<Payment[]>(`/payments${query ? `?${query}` : ''}`);
-  }
-
-  async getPayment(paymentId: string) {
-    return this.request<Payment>(`/payments/${encodeURIComponent(paymentId)}`);
-  }
-
-  async getPaymentByRef(mpesaRef: string) {
-    return this.request<Payment>(`/payments/mpesa/${encodeURIComponent(mpesaRef)}`);
-  }
 
   // ============================================
   // STAFF MANAGEMENT
@@ -1174,14 +1137,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * @todo Backend needs to implement this endpoint
-   * GET /api/kyb/pending-count
-   */
-  async getPendingKybCount() {
-    return this.request<{ count: number }>('/kyb/pending-count');
-  }
-
   // ============================================
   // SATELLITE MONITORING
   // ============================================
@@ -1294,14 +1249,14 @@ class ApiClient {
     points: GpsPoint[];
     accuracyThreshold?: number;
   }) {
-    return this.request<GpsTrackResponse>(`/plots/${encodeURIComponent(plotId)}/boundary/gps-track`, {
+    return this.request<GpsTrackResponse>(`/satellite/plots/${encodeURIComponent(plotId)}/boundary/gps-track`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async getPlotBoundaryReview(plotId: string) {
-    return this.request<PlotBoundary>(`/plots/${encodeURIComponent(plotId)}/boundary`);
+    return this.request<PlotBoundary>(`/satellite/plots/${encodeURIComponent(plotId)}/boundary`);
   }
 
   async initiatePayment(data: { policyId: string; phoneNumber: string }) {

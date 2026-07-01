@@ -10,15 +10,15 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import type { Policy, Payout } from "@/types";
+import type { Policy, Payout, OnboardingStep } from "@/types";
 
-const onboardingSteps = [
-  { key: 'REGISTERED', label: 'Registered' },
-  { key: 'CONFIGURED', label: 'Configured' },
-  { key: 'WALLET_PROVISIONED', label: 'Wallet Provisioned' },
-  { key: 'RESERVE_FUNDED', label: 'Reserve Funded' },
-  { key: 'STAFF_INVITED', label: 'Staff Invited' },
-  { key: 'ACTIVATED', label: 'Activated' },
+// Keys MUST match the backend OnboardingStep enum; labels are human-friendly.
+const onboardingSteps: { key: OnboardingStep; label: string }[] = [
+  { key: 'APPLICATION', label: 'Application' },
+  { key: 'KYB_VERIFICATION', label: 'KYB Verification' },
+  { key: 'POOL_DEPLOYMENT', label: 'Wallet & Reserve Setup' },
+  { key: 'ADMIN_SETUP', label: 'Admin Setup' },
+  { key: 'COMPLETED', label: 'Activated' },
 ];
 
 export default function OrganizationDetailPage() {
@@ -46,7 +46,7 @@ export default function OrganizationDetailPage() {
         return {
           ...(previous as Record<string, unknown>),
           walletAddress: result.walletAddress,
-          onboardingStep: "WALLET_PROVISIONED",
+          onboardingStep: "POOL_DEPLOYMENT",
         };
       });
       queryClient.invalidateQueries({ queryKey: ["organization", orgId] });

@@ -16,8 +16,6 @@ import type {
   OnboardingStep,
   ReserveStatus,
   TreasuryStats,
-  TreasuryPremiumAmounts,
-  TreasuryPayoutAmounts,
   OrgWallet,
   WalletFundResult,
   Farmer,
@@ -25,9 +23,8 @@ import type {
   Policy,
   PolicyQuote,
   PolicyStatus,
+  CoverageType,
   Payout,
-  Payment,
-  PolicyExpireCheck,
   GpsPoint,
   GpsTrackResponse,
   KycFieldVerifyResponse,
@@ -217,7 +214,7 @@ export const api = {
     estimatedFarmers?: number;
     website?: string;
     description?: string;
-    documents: { type: 'BUSINESS_REGISTRATION_CERT' | 'TAX_PIN_CERT'; fileName: string; fileSize: number; file?: File }[];
+    documents: { type: 'BUSINESS_REGISTRATION' | 'TAX_CERTIFICATE'; fileName: string; fileSize: number; file?: File }[];
   }) => {
     const formData = new FormData();
     formData.append('name', data.name);
@@ -235,7 +232,7 @@ export const api = {
 
     data.documents.forEach((doc) => {
       if (doc.file) {
-        const fieldName = doc.type === 'BUSINESS_REGISTRATION_CERT'
+        const fieldName = doc.type === 'BUSINESS_REGISTRATION'
           ? 'businessRegistrationCert'
           : 'taxPinCert';
         formData.append(fieldName, doc.file);
@@ -259,11 +256,6 @@ export const api = {
       status: verification.status === 'APPROVED' ? 'VERIFIED' : 'REJECTED',
       reviewNotes: verification.reviewNotes,
     });
-  },
-
-  getPendingKYBCount: async () => {
-    const result = await apiClient.getPendingKybCount();
-    return result.count;
   },
 
   // ============================================
@@ -717,7 +709,7 @@ export const api = {
     plotId?: string;
     herdId?: string;
     sumInsured: number;
-    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
+    coverageType: CoverageType;
     durationDays: number;
     season?: 'LRLD' | 'SRSD';
   }): Promise<PolicyQuote> => {
@@ -730,7 +722,7 @@ export const api = {
     plotId?: string;
     herdId?: string;
     sumInsured: number;
-    coverageType: 'DROUGHT' | 'FLOOD' | 'BOTH' | 'COMPREHENSIVE';
+    coverageType: CoverageType;
     durationDays: number;
     season?: 'LRLD' | 'SRSD';
   }): Promise<Policy> => {
@@ -747,10 +739,6 @@ export const api = {
 
   cancelPolicy: async (policyId: string, reason: string): Promise<Policy> => {
     return apiClient.cancelPolicy(policyId, reason);
-  },
-
-  checkPolicyExpiry: async (policyId: string): Promise<PolicyExpireCheck> => {
-    return apiClient.checkPolicyExpiry(policyId);
   },
 
   // ============================================
@@ -774,42 +762,11 @@ export const api = {
   },
 
   // ============================================
-  // PAYMENTS
-  // ============================================
-
-  getPayments: async (params?: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    type?: string;
-    farmerId?: string;
-  }) => {
-    const result = await apiClient.getPayments(params);
-    return { data: result.data, total: result.pagination?.total || result.data.length };
-  },
-
-  getPayment: async (paymentId: string): Promise<Payment> => {
-    return apiClient.getPayment(paymentId);
-  },
-
-  getPaymentByRef: async (mpesaRef: string): Promise<Payment> => {
-    return apiClient.getPaymentByRef(mpesaRef);
-  },
-
-  // ============================================
   // TREASURY (additional)
   // ============================================
 
   getTreasuryBalance: async () => {
     return apiClient.platformGetTreasuryBalance();
-  },
-
-  getTreasuryPremiumAmounts: async (): Promise<TreasuryPremiumAmounts> => {
-    return apiClient.platformGetTreasuryPremiumAmounts();
-  },
-
-  getTreasuryPayoutAmounts: async (): Promise<TreasuryPayoutAmounts> => {
-    return apiClient.platformGetTreasuryPayoutAmounts();
   },
 
   // ============================================

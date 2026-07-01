@@ -98,7 +98,7 @@ export function KYBVerificationPanel({
     form.reset();
   };
 
-  const isPending = verification.status === 'PENDING_REVIEW';
+  const isPending = verification.status !== 'VERIFIED' && verification.status !== 'REJECTED';
 
   return (
     <div className="space-y-6">

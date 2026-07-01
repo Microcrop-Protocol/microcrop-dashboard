@@ -127,6 +127,10 @@ export default function KYBApplicationDetailPage() {
   }
 
   const isApproved = application.status === 'APPROVED';
+  // States where a reviewer can still approve/reject (not yet terminal).
+  const canReview = (['PENDING_REVIEW', 'UNDER_REVIEW', 'KYB_SUBMITTED'] as const).includes(
+    application.status as 'PENDING_REVIEW' | 'UNDER_REVIEW' | 'KYB_SUBMITTED'
+  );
 
   return (
     <div className="space-y-6">
@@ -158,7 +162,7 @@ export default function KYBApplicationDetailPage() {
                 await verifyMutation.mutateAsync(data);
               }}
               isLoading={verifyMutation.isPending}
-              readonly={application.status !== 'PENDING_REVIEW'}
+              readonly={!canReview}
             />
           ) : (
             <Card>
@@ -229,7 +233,7 @@ export default function KYBApplicationDetailPage() {
                     )}
 
                     {/* Verification Actions */}
-                    {application.status === 'PENDING_REVIEW' && (
+                    {canReview && (
                       <div className="pt-4 border-t space-y-4">
                         <p className="text-sm font-medium">Verification Decision:</p>
                         <div className="flex gap-2">
@@ -271,7 +275,7 @@ export default function KYBApplicationDetailPage() {
                       <li>Tax PIN Certificate</li>
                     </ul>
 
-                    {application.status === 'PENDING_REVIEW' && (
+                    {canReview && (
                       <div className="pt-4 border-t space-y-4">
                         <p className="text-sm font-medium">Administrative Actions:</p>
                         <div className="flex gap-2">
