@@ -10,20 +10,18 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { getSubdomainContext } from "@/lib/subdomain";
+import { reloadOnceForStaleChunk } from "@/lib/chunk-reload";
 
-// Retry dynamic imports once on failure (handles stale chunks after deploy)
+// Recover from stale route chunks after a deploy (see lib/chunk-reload).
 function lazyRetry(importFn: () => Promise<{ default: ComponentType }>) {
   return lazy(() =>
-    importFn().catch(() => {
-      const hasReloaded = sessionStorage.getItem('chunk_reload');
-      if (!hasReloaded) {
-        sessionStorage.setItem('chunk_reload', '1');
-        window.location.reload();
-        // Return a pending promise so nothing renders while the page reloads
+    importFn().catch((error) => {
+      // Not reloaded recently → reload to pick up the new build, and hang this
+      // import until the page navigates away. Otherwise surface the error.
+      if (reloadOnceForStaleChunk()) {
         return new Promise<{ default: ComponentType }>(() => {});
       }
-      sessionStorage.removeItem('chunk_reload');
-      return importFn();
+      throw error;
     })
   );
 }
