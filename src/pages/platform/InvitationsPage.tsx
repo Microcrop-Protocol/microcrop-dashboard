@@ -17,16 +17,15 @@ import { DataTable } from '@/components/ui/data-table';
 import { KYBStatusBadge } from '@/components/kyb/KYBStatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ColumnDef } from '@tanstack/react-table';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import type { OrgAdminInvitation, InvitationStatus } from '@/types';
 
 export default function InvitationsPage() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['invitations'],
     queryFn: () => api.getOrgInvitations(),
   });
@@ -44,17 +43,10 @@ export default function InvitationsPage() {
     mutationFn: (invitationId: string) => api.sendOrgAdminInvitation(invitationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
-      toast({
-        title: 'Invitation Resent',
-        description: 'The invitation email has been sent again.',
-      });
+      notifySuccess('Invitation sent', 'The invitation email has been sent again.');
     },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to resend invitation',
-        variant: 'destructive',
-      });
+    onError: (err) => {
+      notifyError(err, "Couldn't resend the invitation.");
     },
   });
 
@@ -254,11 +246,17 @@ export default function InvitationsPage() {
       </div>
 
       {/* Table */}
-      <DataTable
-        columns={columns}
-        data={filteredInvitations}
-        isLoading={isLoading}
-      />
+      {isError ? (
+        <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+          We couldn't load invitations. Please try again.
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filteredInvitations}
+          isLoading={isLoading}
+        />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { Loader2, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
 import { resolveFileUrl } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +17,6 @@ const BIO_MAX = 500;
 export default function ProfilePage() {
   const me = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
-  const { toast } = useToast();
 
   const [firstName, setFirstName] = useState(me?.firstName ?? '');
   const [lastName, setLastName] = useState(me?.lastName ?? '');
@@ -69,11 +68,7 @@ export default function ProfilePage() {
       releaseObjectUrl();
       setAvatarUrl(me?.avatarUrl ?? '');
       setAvatarPath(null);
-      toast({
-        title: 'Upload failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
+      notifyError(err, "Couldn't upload your avatar.");
     } finally {
       setUploading(false);
     }
@@ -102,14 +97,9 @@ export default function ProfilePage() {
     },
     onSuccess: (updated: User) => {
       setUser(updated);
-      toast({ title: 'Profile updated' });
+      notifySuccess('Profile updated');
     },
-    onError: (err) =>
-      toast({
-        title: 'Save failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't save your profile."),
   });
 
   const bioOver = bio.length > BIO_MAX;

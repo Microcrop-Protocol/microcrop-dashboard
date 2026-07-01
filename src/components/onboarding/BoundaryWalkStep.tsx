@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Loader2, Navigation, AlertTriangle, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
 import type { GpsPoint, GpsTrackResponse } from '@/types';
 
@@ -16,7 +16,6 @@ interface BoundaryWalkStepProps {
 type WalkState = 'idle' | 'requesting' | 'tracking' | 'submitting';
 
 export function BoundaryWalkStep({ plotId, onComplete }: BoundaryWalkStepProps) {
-  const { toast } = useToast();
   const [walkState, setWalkState] = useState<WalkState>('idle');
   const [pointCount, setPointCount] = useState(0);
   const [lastAccuracy, setLastAccuracy] = useState<number | null>(null);
@@ -42,10 +41,10 @@ export function BoundaryWalkStep({ plotId, onComplete }: BoundaryWalkStepProps) 
       sessionStorage.removeItem('gps-walk-backup');
       onComplete(result);
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       walkStateRef.current = 'idle';
       setWalkState('idle');
-      toast({ title: 'Boundary submission failed', description: error.message, variant: 'destructive' });
+      notifyError(error, "Couldn't submit the plot boundary.");
     },
   });
 
@@ -224,11 +223,10 @@ export function BoundaryWalkStep({ plotId, onComplete }: BoundaryWalkStepProps) 
 
     const points = [...pointsRef.current];
     if (points.length < 4) {
-      toast({
-        title: 'Not enough points',
-        description: `At least 4 GPS points are required but only ${points.length} were collected. Walk for longer to collect more.`,
-        variant: 'destructive',
-      });
+      notifyError(
+        null,
+        `At least 4 GPS points are required but only ${points.length} were collected. Walk for longer to collect more.`,
+      );
       walkStateRef.current = 'idle';
       setWalkState('idle');
       return;
@@ -238,7 +236,7 @@ export function BoundaryWalkStep({ plotId, onComplete }: BoundaryWalkStepProps) 
     setWalkState('submitting');
     updateMap(points);
     submitMutation.mutate(points);
-  }, [submitMutation, toast, updateMap]);
+  }, [submitMutation, updateMap]);
 
   // Cleanup on unmount
   useEffect(() => {

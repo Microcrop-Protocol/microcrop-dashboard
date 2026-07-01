@@ -10,13 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
 import type { Farmer, Plot } from "@/types";
 
 export default function NewPolicyPage() {
   const { user } = useAuthStore();
-  const { toast } = useToast();
   const navigate = useNavigate();
   const orgId = user?.organizationId || "";
 
@@ -69,11 +68,11 @@ export default function NewPolicyPage() {
         durationDays: formData.duration,
       }),
     onSuccess: () => {
-      toast({ title: "Policy created", description: "The policy has been activated successfully." });
+      notifySuccess("Policy created", "The policy has been activated successfully.");
       navigate("/org/policies");
     },
-    onError: (error: Error) => {
-      toast({ title: "Failed to create policy", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      notifyError(error, "Couldn't create the policy. Please try again.");
     },
   });
 

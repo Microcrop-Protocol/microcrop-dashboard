@@ -16,7 +16,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { orgSignupSchema, orgTypeLabels, type OrgSignupFormData } from '@/lib/validations/kyb';
 
 // Backend expects +254XXXXXXXXX; accept 07.../01... and normalise.
@@ -32,7 +32,6 @@ function normalizePhone(phone?: string): string | undefined {
 export default function RegisterOrganizationPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuthStore();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const {
@@ -61,17 +60,13 @@ export default function RegisterOrganizationPage() {
         phone: normalizePhone(data.phone),
       });
       login(user, tokens);
-      toast({
-        title: 'Welcome to MicroCrop',
-        description: 'Your account is ready. Complete KYB verification to start underwriting.',
-      });
+      notifySuccess(
+        'Welcome to MicroCrop',
+        'Your account is ready. Complete KYB verification to start underwriting.',
+      );
       navigate('/org/kyb', { replace: true });
     } catch (error) {
-      toast({
-        title: 'Signup failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      notifyError(error, "Couldn't create your account. Please try again.");
     } finally {
       setIsLoading(false);
     }

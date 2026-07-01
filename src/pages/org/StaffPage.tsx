@@ -10,7 +10,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { User } from "@/types";
 import { UserPlus, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +38,6 @@ const columns: ColumnDef<User>[] = [
 ];
 
 export default function StaffPage() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_STAFF" as "ORG_ADMIN" | "ORG_STAFF" });
@@ -51,13 +50,13 @@ export default function StaffPage() {
   const inviteMutation = useMutation({
     mutationFn: () => api.inviteStaff(form),
     onSuccess: () => {
-      toast({ title: "Invitation sent", description: `Invitation sent to ${form.email}` });
+      notifySuccess("Invitation sent", `We've sent an invitation to ${form.email}.`);
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       setOpen(false);
       setForm({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_STAFF" });
     },
-    onError: (error: Error) => {
-      toast({ title: "Failed to invite", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      notifyError(error, "Couldn't send the invitation. Please try again.");
     },
   });
 

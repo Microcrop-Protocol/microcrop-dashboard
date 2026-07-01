@@ -16,7 +16,7 @@ import { api } from '@/lib/api';
 import { slugify } from '@/lib/slugify';
 import { resolveFileUrl } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -89,7 +89,6 @@ export default function PostEditorPage() {
   const { id } = useParams<{ id: string }>();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
-  const { toast } = useToast();
   const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
 
@@ -196,17 +195,12 @@ export default function PostEditorPage() {
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['blog-posts'] });
       qc.invalidateQueries({ queryKey: ['blog-post', saved.id] });
-      toast({ title: 'Draft saved' });
+      notifySuccess('Draft saved');
       if (!isEditing) {
         navigate(`/platform/blog/${saved.id}/edit`, { replace: true });
       }
     },
-    onError: (err) =>
-      toast({
-        title: 'Save failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't save the draft."),
   });
 
   const publishMutation = useMutation({
@@ -218,20 +212,13 @@ export default function PostEditorPage() {
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['blog-posts'] });
       qc.invalidateQueries({ queryKey: ['blog-post', saved.id] });
-      toast({
-        title: saved.status === 'SCHEDULED' ? 'Post scheduled' : 'Post published',
-      });
+      notifySuccess(saved.status === 'SCHEDULED' ? 'Post scheduled' : 'Post published');
       setScheduleOpen(false);
       if (!isEditing) {
         navigate(`/platform/blog/${saved.id}/edit`, { replace: true });
       }
     },
-    onError: (err) =>
-      toast({
-        title: 'Publish failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't publish the post."),
   });
 
   const unpublishMutation = useMutation({
@@ -239,14 +226,9 @@ export default function PostEditorPage() {
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['blog-posts'] });
       qc.invalidateQueries({ queryKey: ['blog-post', saved.id] });
-      toast({ title: 'Post unpublished' });
+      notifySuccess('Post unpublished');
     },
-    onError: (err) =>
-      toast({
-        title: 'Unpublish failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't unpublish the post."),
   });
 
   const slugChangedOnPublished =
@@ -268,13 +250,9 @@ export default function PostEditorPage() {
       const result = await api.uploadBlogImage(file);
       const md = `\n\n![](${result.url})\n\n`;
       setForm((f) => ({ ...f, body: (f.body || '') + md }));
-      toast({ title: 'Image inserted' });
+      notifySuccess('Image inserted');
     } catch (err) {
-      toast({
-        title: 'Image upload failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
+      notifyError(err, "Couldn't upload the image.");
     }
   };
 
@@ -304,8 +282,8 @@ export default function PostEditorPage() {
           </Link>
         </Button>
         <Card>
-          <CardContent className="py-8 text-center text-destructive">
-            Failed to load post. {postQuery.error instanceof Error ? postQuery.error.message : ''}
+          <CardContent className="py-8 text-center text-muted-foreground">
+            We couldn't load this post. Please try again.
           </CardContent>
         </Card>
       </div>

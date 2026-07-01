@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import { formatDate } from "@/lib/utils";
 import {
   Webhook,
@@ -66,7 +66,6 @@ const isHttpsUrl = (value: string): boolean => {
 };
 
 export function WebhooksCard() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [urlInput, setUrlInput] = useState<string | null>(null);
@@ -100,17 +99,17 @@ export function WebhooksCard() {
   const saveUrlMutation = useMutation({
     mutationFn: (url: string) => api.setWebhookConfig(url),
     onSuccess: (result) => {
-      toast({ title: "Webhook endpoint saved", description: result.url ?? undefined });
+      notifySuccess("Webhook endpoint saved", result.url ?? undefined);
       setUrlInput(null);
       queryClient.setQueryData(["webhook-config"], result);
     },
-    onError: (e: Error) => toast({ title: "Failed to save endpoint", description: e.message, variant: "destructive" }),
+    onError: (e) => notifyError(e, "Couldn't save the webhook endpoint."),
   });
 
   const rotateSecretMutation = useMutation({
     mutationFn: () => api.rotateWebhookSecret(),
     onSuccess: (result) => {
-      toast({ title: "Signing secret rotated", description: "Update your endpoint with the new secret." });
+      notifySuccess("Signing secret rotated", "Update your endpoint with the new secret.");
       setRotateOpen(false);
       setRevealSecret(true);
       queryClient.setQueryData(["webhook-config"], (prev: unknown) => {
@@ -119,21 +118,21 @@ export function WebhooksCard() {
       });
       queryClient.invalidateQueries({ queryKey: ["webhook-config"] });
     },
-    onError: (e: Error) => toast({ title: "Failed to rotate secret", description: e.message, variant: "destructive" }),
+    onError: (e) => notifyError(e, "Couldn't rotate the signing secret."),
   });
 
   const retryMutation = useMutation({
     mutationFn: (id: string) => api.retryWebhookDelivery(id),
     onSuccess: () => {
-      toast({ title: "Delivery re-queued" });
+      notifySuccess("Delivery re-queued");
       queryClient.invalidateQueries({ queryKey: ["webhook-deliveries"] });
     },
-    onError: (e: Error) => toast({ title: "Retry failed", description: e.message, variant: "destructive" }),
+    onError: (e) => notifyError(e, "Couldn't retry the delivery."),
   });
 
   const onSaveUrl = () => {
     if (!urlValid || urlValue.length === 0) {
-      toast({ title: "Enter a valid https:// URL", variant: "destructive" });
+      notifyError(null, "Enter a valid https:// URL.");
       return;
     }
     saveUrlMutation.mutate(urlValue);
@@ -143,7 +142,7 @@ export function WebhooksCard() {
     if (!config?.secret) return;
     navigator.clipboard.writeText(config.secret);
     setCopied(true);
-    toast({ title: "Signing secret copied" });
+    notifySuccess("Signing secret copied");
     setTimeout(() => setCopied(false), 2000);
   };
 

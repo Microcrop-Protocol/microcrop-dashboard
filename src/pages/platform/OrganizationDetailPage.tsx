@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink, Percent, Loader2, Info } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import type { Policy, Payout, OnboardingStep } from "@/types";
 
 // Keys MUST match the backend OnboardingStep enum; labels are human-friendly.
@@ -34,7 +34,6 @@ const onboardingSteps: { key: OnboardingStep; label: string }[] = [
 
 export default function OrganizationDetailPage() {
   const { orgId } = useParams();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
@@ -51,10 +50,10 @@ export default function OrganizationDetailPage() {
   const provisionWalletMutation = useMutation({
     mutationFn: () => api.platformProvisionWallet(orgId!),
     onSuccess: (result) => {
-      toast({
-        title: result.alreadyProvisioned ? "Wallet already provisioned" : "Wallet provisioned",
-        description: `${result.walletAddress.slice(0, 10)}...`,
-      });
+      notifySuccess(
+        result.alreadyProvisioned ? "Wallet already provisioned" : "Wallet provisioned",
+        `${result.walletAddress.slice(0, 10)}...`,
+      );
       queryClient.setQueryData(["organization", orgId], (previous: unknown) => {
         if (!previous || typeof previous !== "object") return previous;
         return {
@@ -66,8 +65,8 @@ export default function OrganizationDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
     },
-    onError: (error: Error) => {
-      toast({ title: "Failed to provision wallet", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      notifyError(error, "Couldn't provision the wallet.");
     },
   });
 
@@ -80,15 +79,15 @@ export default function OrganizationDetailPage() {
   const setReserveRatioMutation = useMutation({
     mutationFn: () => api.platformSetReserveRatio(orgId!, ratioBps),
     onSuccess: (result) => {
-      toast({
-        title: "Reserve ratio updated",
-        description: `Set to ${(result.ratioBps / 100).toFixed(2)}% · tx ${result.txHash.slice(0, 10)}…`,
-      });
+      notifySuccess(
+        "Reserve ratio updated",
+        `Set to ${(result.ratioBps / 100).toFixed(2)}% · tx ${result.txHash.slice(0, 10)}…`,
+      );
       setReserveDialogOpen(false);
       setRatioPct("");
     },
-    onError: (error: Error) => {
-      toast({ title: "Failed to set reserve ratio", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      notifyError(error, "Couldn't set the reserve ratio.");
     },
   });
 

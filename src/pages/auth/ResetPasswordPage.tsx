@@ -16,14 +16,13 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { resetPasswordSchema, type ResetPasswordFormData } from '@/lib/validations/auth';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -45,17 +44,9 @@ export default function ResetPasswordPage() {
     try {
       await api.resetPassword(token, values.password);
       setIsSuccess(true);
-      toast({
-        title: 'Password reset successful',
-        description: 'You can now sign in with your new password.',
-      });
+      notifySuccess('Password reset successful', 'You can now sign in with your new password.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to reset password';
-      toast({
-        title: 'Reset failed',
-        description: message,
-        variant: 'destructive',
-      });
+      notifyError(error, "Couldn't reset your password. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

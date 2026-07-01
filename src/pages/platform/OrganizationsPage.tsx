@@ -18,7 +18,7 @@ import {
 import { useState } from "react";
 import { Search, Plus } from "lucide-react";
 import { CreateOrganizationDialog } from "@/components/platform/CreateOrganizationDialog";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import type { AdminCreateOrganizationFormData } from "@/lib/validations/kyb";
 
 const columns: ColumnDef<Organization>[] = [
@@ -90,13 +90,12 @@ const columns: ColumnDef<Organization>[] = [
 export default function OrganizationsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["organizations"],
     queryFn: () => api.getOrganizations(),
   });
@@ -115,16 +114,9 @@ export default function OrganizationsPage() {
     try {
       const newOrg = await api.adminCreateOrganization(data);
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      toast({
-        title: "Organization Created",
-        description: `${newOrg.name} has been created successfully.`,
-      });
+      notifySuccess("Organization created", `${newOrg.name} has been created successfully.`);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create organization",
-        variant: "destructive",
-      });
+      notifyError(error, "Couldn't create the organization.");
     } finally {
       setIsCreating(false);
     }
@@ -196,12 +188,18 @@ export default function OrganizationsPage() {
       </div>
 
       {/* Table */}
-      <DataTable
-        columns={columns}
-        data={filteredData}
-        isLoading={isLoading}
-        onRowClick={(row) => navigate(`/platform/organizations/${row.id}`)}
-      />
+      {isError ? (
+        <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+          We couldn't load organizations. Please try again.
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filteredData}
+          isLoading={isLoading}
+          onRowClick={(row) => navigate(`/platform/organizations/${row.id}`)}
+        />
+      )}
     </div>
   );
 }

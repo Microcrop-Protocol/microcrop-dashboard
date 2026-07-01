@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
 import { slugify } from '@/lib/slugify';
 import type { BlogCategory } from '@/types';
@@ -25,7 +25,6 @@ interface CategoryDialogProps {
 }
 
 export function CategoryDialog({ open, onOpenChange, category, onSaved }: CategoryDialogProps) {
-  const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -59,19 +58,12 @@ export function CategoryDialog({ open, onOpenChange, category, onSaved }: Catego
     },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['blog-categories'] });
-      toast({
-        title: category ? 'Category updated' : 'Category created',
-        description: saved.name,
-      });
+      notifySuccess(category ? 'Category updated' : 'Category created', saved.name);
       onSaved?.(saved);
       onOpenChange(false);
     },
     onError: (err) => {
-      toast({
-        title: 'Save failed',
-        description: err instanceof Error ? err.message : 'Could not save category',
-        variant: 'destructive',
-      });
+      notifyError(err, "Couldn't save the category.");
     },
   });
 

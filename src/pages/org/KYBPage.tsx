@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { KYBDocumentUpload } from '@/components/kyb/KYBDocumentUpload';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { ShieldCheck, ShieldAlert, Clock, Loader2, FileText } from 'lucide-react';
 import type { KYBDocumentType } from '@/types';
 
@@ -33,7 +33,6 @@ const STATUS_META: Record<
 };
 
 export default function KYBPage() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
 
@@ -52,12 +51,12 @@ export default function KYBPage() {
       return api.submitMyKyb(fd);
     },
     onSuccess: () => {
-      toast({ title: 'KYB submitted', description: 'Your documents are now under review.' });
+      notifySuccess('KYB submitted', 'Your documents are now under review.');
       setDocuments([]);
       queryClient.invalidateQueries({ queryKey: ['my-kyb'] });
       queryClient.invalidateQueries({ queryKey: ['organization'] });
     },
-    onError: (e: Error) => toast({ title: 'Submission failed', description: e.message, variant: 'destructive' }),
+    onError: (e) => notifyError(e, "Couldn't submit your documents. Please try again."),
   });
 
   if (isLoading) {

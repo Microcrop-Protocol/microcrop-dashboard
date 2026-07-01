@@ -18,7 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import { isRoleAllowedOnSubdomain, getCorrectSubdomain, getSubdomainContext } from "@/lib/subdomain";
 
 const loginSchema = z.object({
@@ -34,7 +34,6 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login } = useAuthStore();
-  const { toast } = useToast();
   const context = getSubdomainContext();
   const isDeactivated = searchParams.get('reason') === 'deactivated';
 
@@ -56,19 +55,13 @@ export default function LoginPage() {
       if (!isRoleAllowedOnSubdomain(user.role)) {
         const redirect = getCorrectSubdomain(user.role);
         if (redirect) {
-          toast({
-            title: "Wrong portal",
-            description: `Redirecting you to ${redirect.label}...`,
-          });
+          notifySuccess("Wrong portal", `Redirecting you to ${redirect.label}...`);
           window.location.href = redirect.url;
           return;
         }
       }
 
-      toast({
-        title: "Welcome back!",
-        description: `Logged in as ${user.firstName} ${user.lastName}`,
-      });
+      notifySuccess("Welcome back!", `Logged in as ${user.firstName} ${user.lastName}`);
 
       // Redirect based on role
       if (user.role === 'PLATFORM_ADMIN') {
@@ -77,11 +70,7 @@ export default function LoginPage() {
         navigate('/org/dashboard');
       }
     } catch (error) {
-      toast({
-        title: "Login failed",
-        description: "Invalid email or password. Please check your credentials and try again.",
-        variant: "destructive",
-      });
+      notifyError(error, "Invalid email or password. Please check your credentials and try again.");
     } finally {
       setIsLoading(false);
     }
