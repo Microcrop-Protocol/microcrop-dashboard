@@ -806,20 +806,43 @@ export interface Determination {
   updatedAt: string;
 }
 
-// Outbound webhook delivery (partner integration). Types only — no UI yet.
+// Outbound webhook delivery (partner integration). Shape matches
+// GET /organizations/me/webhook/deliveries.
 export type WebhookDeliveryStatus = 'PENDING' | 'DELIVERED' | 'FAILED';
 
 export interface WebhookDelivery {
   id: string;
-  organizationId: string;
-  event: string; // e.g. policy.activated, payout.completed, kyb.verified
+  event: string; // e.g. policy.activated, payout.executed, policy.expired
   url: string;
-  payload: Record<string, unknown>;
   status: WebhookDeliveryStatus;
   attempts: number;
-  responseStatus?: number | null;
-  lastError?: string | null;
-  deliveredAt?: string | null;
+  responseStatus: number | null;
+  lastError: string | null;
+  deliveredAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// Webhook endpoint configuration (GET/PUT /organizations/me/webhook).
+export interface WebhookConfig {
+  url: string | null;
+  secretSet: boolean;
+  secret: string | null;
+}
+
+// API key status — always masked (GET /organizations/me/api-key).
+export interface ApiKeyStatus {
+  keyPrefix: string;
+  last4: string;
+  masked: string;
+  active: boolean;
+  rotatedAt: string | null;
+  createdAt: string;
+}
+
+// Plaintext credentials returned exactly once on rotate
+// (POST /organizations/me/api-key/rotate).
+export interface ApiKeyRotateResult {
+  apiKey: string;
+  apiSecret: string;
 }

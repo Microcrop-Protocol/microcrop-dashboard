@@ -26,6 +26,7 @@ import {
   PiggyBank,
   ClipboardPlus,
   Newspaper,
+  Code2,
 } from "lucide-react";
 import {
   Collapsible,
@@ -38,6 +39,7 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   children?: { title: string; href: string }[];
+  adminOnly?: boolean;
 }
 
 const platformNavItems: NavItem[] = [
@@ -78,6 +80,7 @@ const orgNavItems: NavItem[] = [
   { title: "Reserve", href: "/org/reserve", icon: PiggyBank },
   { title: "Wallet", href: "/org/wallet", icon: Wallet },
   { title: "Staff", href: "/org/staff", icon: UserCog },
+  { title: "Developers", href: "/org/developers", icon: Code2, adminOnly: true },
   { title: "Export", href: "/org/export", icon: Download },
   { title: "Activity", href: "/org/activity", icon: Activity },
 ];
@@ -92,7 +95,9 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const { user, isPlatformAdmin } = useAuthStore();
   const [openGroups, setOpenGroups] = useState<string[]>([]);
 
-  const navItems = isPlatformAdmin() ? platformNavItems : orgNavItems;
+  const navItems = (isPlatformAdmin() ? platformNavItems : orgNavItems).filter(
+    (item) => !item.adminOnly || user?.role === "ORG_ADMIN"
+  );
 
   const toggleGroup = (title: string) => {
     setOpenGroups((prev) =>

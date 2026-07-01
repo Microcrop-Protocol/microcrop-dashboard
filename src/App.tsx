@@ -76,6 +76,7 @@ const OrgActivityPage = lazyRetry(() => import("@/pages/org/OrgActivityPage"));
 const FieldOnboardingPage = lazyRetry(() => import("@/pages/org/FieldOnboardingPage"));
 const LivestockOnboardingPage = lazyRetry(() => import("@/pages/org/LivestockOnboardingPage"));
 const HerdsPage = lazyRetry(() => import("@/pages/org/HerdsPage"));
+const DevelopersPage = lazyRetry(() => import("@/pages/org/DevelopersPage"));
 
 const DocsPage = lazyRetry(() => import("@/pages/docs/DocsPage"));
 
@@ -230,6 +231,14 @@ const App = () => (
                 <Route path="onboard" element={<FieldOnboardingPage />} />
                 <Route path="livestock-onboard" element={<LivestockOnboardingPage />} />
                 <Route path="herds" element={<HerdsPage />} />
+                <Route
+                  path="developers"
+                  element={
+                    <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
+                      <DevelopersPage />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
 
               {/* 404 */}

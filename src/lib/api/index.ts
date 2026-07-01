@@ -467,6 +467,46 @@ export const api = {
   },
 
   // ============================================
+  // ORGANIZATION WEBHOOKS (partner integration)
+  // ============================================
+
+  getWebhookConfig: async () => {
+    return apiClient.getWebhookConfig();
+  },
+
+  setWebhookConfig: async (url: string) => {
+    return apiClient.setWebhookConfig(url);
+  },
+
+  rotateWebhookSecret: async () => {
+    return apiClient.rotateWebhookSecret();
+  },
+
+  getWebhookDeliveries: async (params?: Parameters<typeof apiClient.getWebhookDeliveries>[0]) => {
+    return apiClient.getWebhookDeliveries(params);
+  },
+
+  retryWebhookDelivery: async (id: string) => {
+    return apiClient.retryWebhookDelivery(id);
+  },
+
+  // ============================================
+  // ORGANIZATION API KEY (rotate-only)
+  // ============================================
+
+  getApiKey: async () => {
+    return apiClient.getApiKey();
+  },
+
+  rotateApiKey: async () => {
+    return apiClient.rotateApiKey();
+  },
+
+  revokeApiKey: async () => {
+    return apiClient.revokeApiKey();
+  },
+
+  // ============================================
   // PLATFORM — PER-ORG TREASURY (v3)
   // ============================================
 

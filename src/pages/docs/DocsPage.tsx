@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, Key, Webhook, Users, FileText, AlertTriangle } from "lucide-react";
+import { Copy, Check, Key, Webhook, Users, FileText, AlertTriangle, ArrowRight } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "@/hooks/use-toast";
 
@@ -175,8 +176,6 @@ export default function DocsPage() {
   const { toast } = useToast();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const mockApiKey = "sk_live_YOUR_API_KEY_HERE";
-
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(type);
@@ -268,13 +267,17 @@ export default function DocsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Secret Key</label>
-                  <div className="flex gap-2">
-                    <Input type="password" value={mockApiKey} readOnly className="font-mono text-xs bg-muted/50" />
-                    <Button variant="outline" size="icon" onClick={() => handleCopy(mockApiKey, "Secret Key")}>
-                      {copiedKey === "Secret Key" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  <div className="rounded-md border border-dashed p-3 bg-muted/30 space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Your secret key is shown only once, when you generate or rotate it. Pass it inside the <code>x-api-key</code> header and keep it secure.
+                    </p>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/org/developers?tab=api-keys">
+                        <Key className="mr-2 h-4 w-4" /> Manage API keys
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Pass this inside the <code>x-api-key</code> header. Keep this value secure.</p>
                 </div>
               </div>
 
@@ -444,9 +447,15 @@ export default function DocsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                MicroCrop uses webhooks to notify external systems when state changes occur asynchronously, such as oracle validation events and mobile money claim executions. Set your endpoint URL in the organization settings panel.
+                MicroCrop uses webhooks to notify external systems when state changes occur asynchronously, such as oracle validation events and mobile money claim executions. Configure your endpoint URL and signing secret, and review delivery attempts, in the Developers settings panel.
               </p>
-              
+              <Button asChild variant="outline" size="sm">
+                <Link to="/org/developers?tab=webhooks">
+                  <Webhook className="mr-2 h-4 w-4" /> Configure webhooks
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+
               <div className="space-y-1">
                 <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider mb-2">Event Types Supported</h4>
                 <div className="border rounded-md px-4 py-2 bg-slate-50/50">
