@@ -52,9 +52,9 @@ const columns: ColumnDef<ForageAlert>[] = [
     header: "Forage Deficit",
     cell: ({ row }) => (
       <div className="text-sm">
-        <div className="font-medium">{row.original.deficitPercent.toFixed(1)}%</div>
+        <div className="font-medium">{Number(row.original.deficitPercent).toFixed(1)}%</div>
         <div className="text-muted-foreground">
-          NDVI {row.original.cumulativeNDVI.toFixed(3)} / strike {row.original.strikeLevel.toFixed(3)}
+          NDVI {Number(row.original.cumulativeNDVI).toFixed(3)} / strike {Number(row.original.strikeLevel).toFixed(3)}
         </div>
       </div>
     ),

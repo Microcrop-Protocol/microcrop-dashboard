@@ -601,7 +601,7 @@ export function LivestockOnboardingWizard() {
               <div className="rounded-lg bg-muted/50 p-4 border grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-muted-foreground">Calculated TLU</div>
-                  <div className="text-2xl font-bold">{tlu.toFixed(2)}</div>
+                  <div className="text-2xl font-bold">{Number(tlu).toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">Tropical Livestock Units</div>
                 </div>
                 <div>
@@ -689,7 +689,7 @@ export function LivestockOnboardingWizard() {
                       <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Tropical Livestock Units (TLU)</span>
-                          <span className="font-medium">{quote.tluCount.toFixed(2)} TLU</span>
+                          <span className="font-medium">{Number(quote.tluCount).toFixed(2)} TLU</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Premium Rate (per TLU)</span>

@@ -30,7 +30,10 @@ const columns: ColumnDef<Herd>[] = [
   { 
     accessorKey: "tluCount", 
     header: "TLU",
-    cell: ({ row }) => (row.getValue("tluCount") as number)?.toFixed(2) ?? "-"
+    cell: ({ row }) => {
+      const v = row.getValue("tluCount");
+      return v != null ? Number(v).toFixed(2) : "-";
+    }
   },
   { 
     accessorKey: "estimatedValue", 
