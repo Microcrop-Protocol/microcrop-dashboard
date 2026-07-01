@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
 
 export default function PolicyDetailPage() {
   const { policyId } = useParams();
@@ -100,12 +101,18 @@ export default function PolicyDetailPage() {
             {policyPayouts.length === 0 ? (
               <p className="text-muted-foreground">No payouts yet</p>
             ) : (
-              policyPayouts.map((p) => (
-                <div key={p.id} className="flex justify-between border-b py-2 last:border-0">
-                  <span>KES {p.amount?.toLocaleString() ?? 0}</span>
-                  <StatusBadge variant={getStatusVariant(p.status)}>{p.status}</StatusBadge>
-                </div>
-              ))
+              policyPayouts.map((p) => {
+                const determinationStatus = p.determination?.status ?? p.determinationStatus;
+                return (
+                  <div key={p.id} className="flex items-center justify-between border-b py-2 last:border-0">
+                    <span>KES {p.amount?.toLocaleString() ?? 0}</span>
+                    <div className="flex items-center gap-2">
+                      {determinationStatus && <DeterminationStatusBadge status={determinationStatus} />}
+                      <StatusBadge variant={getStatusVariant(p.status)}>{p.status}</StatusBadge>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </CardContent>
         </Card>

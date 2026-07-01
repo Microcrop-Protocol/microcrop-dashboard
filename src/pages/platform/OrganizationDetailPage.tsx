@@ -98,6 +98,15 @@ export default function OrganizationDetailPage() {
     enabled: !!orgId,
   });
 
+  // Per-org reserve & solvency (v3). Only meaningful once the org's wallet is
+  // provisioned — the reserve is enforced on-chain against that wallet.
+  const { data: reserve, isLoading: reserveLoading, isError: reserveError } = useQuery({
+    queryKey: ["orgReserve", orgId],
+    queryFn: () => api.getOrgReserve(orgId!),
+    enabled: !!orgId && !!org?.walletAddress,
+    retry: 1,
+  });
+
   const { data: policiesData } = useQuery({
     queryKey: ["orgPolicies", orgId],
     queryFn: () => api.getPolicies(orgId!),
@@ -274,22 +283,52 @@ export default function OrganizationDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>
-              The current reserve ratio and live solvency for a specific org aren't exposed to platform admins yet —
-              the org sees them on its own Reserve page. Use the control below to set the ratio.
-            </span>
-          </div>
-          {org.walletAddress ? (
+          {!org.walletAddress ? (
+            <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                Provision the org's wallet first — the reserve and its solvency are enforced on-chain against that wallet.
+              </span>
+            </div>
+          ) : reserveLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading reserve status…
+            </div>
+          ) : reserveError || !reserve?.walletAddress ? (
+            <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{reserve?.message ?? "Reserve status is not available for this organization yet."}</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Coverage of the required reserve against outstanding policies.
+                </p>
+                <StatusBadge variant={reserve.solvent ? "active" : "failed"}>
+                  {reserve.solvent ? "Solvent" : "Underfunded"}
+                </StatusBadge>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <StatCard title="Reserve balance" value={`$${reserve.reserveUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={Wallet} />
+                <StatCard title="Required reserve" value={`$${reserve.requiredUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={Percent} />
+                <StatCard title="Headroom" value={`$${reserve.headroomUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={TrendingDown} />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Coverage ratio:{" "}
+                <span className="font-medium text-foreground">
+                  {reserve.requiredUsdc > 0
+                    ? `${((reserve.reserveUsdc / reserve.requiredUsdc) * 100).toFixed(0)}%`
+                    : "n/a (no outstanding coverage)"}
+                </span>
+              </p>
+            </>
+          )}
+          {org.walletAddress && (
             <Button variant="outline" onClick={() => setReserveDialogOpen(true)}>
               <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
               Set Reserve Ratio
             </Button>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Provision the org's wallet first — the reserve ratio is enforced on-chain against that wallet.
-            </p>
           )}
         </CardContent>
       </Card>

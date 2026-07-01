@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
 import type { Farmer, Plot } from "@/types";
 
 export default function NewPolicyPage() {
@@ -84,6 +85,8 @@ export default function NewPolicyPage() {
           Step {step} of 2: {step === 1 ? "Configure Policy" : "Confirm & Pay"}
         </p>
       </div>
+
+      <KybGatingBanner feature="Creating policies" />
 
       {step === 1 ? (
         <Card>

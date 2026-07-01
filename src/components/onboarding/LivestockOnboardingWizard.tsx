@@ -61,6 +61,8 @@ export function LivestockOnboardingWizard() {
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'polling' | 'completed' | 'failed'>('idle');
   const [paymentPhone, setPaymentPhone] = useState('');
+  // Multi-country: narrow the insurance-unit list by country (units carry an ISO country).
+  const [unitCountry, setUnitCountry] = useState<string>('all');
 
   // Sync paymentPhone when farmer is registered
   useEffect(() => {
@@ -475,6 +477,14 @@ export function LivestockOnboardingWizard() {
     const tlu = calculateTLU(livestockType, headCount);
     const totalValue = headCount * estimatedValue;
 
+    // Countries available across the active units (for the multi-country filter).
+    const countries = Array.from(
+      new Set((insuranceUnits ?? []).map((u) => u.country).filter(Boolean)),
+    ).sort();
+    const visibleUnits = (insuranceUnits ?? []).filter(
+      (u) => unitCountry === 'all' || u.country === unitCountry,
+    );
+
     return (
       <Card>
         <CardHeader>
@@ -492,23 +502,53 @@ export function LivestockOnboardingWizard() {
                 </FormItem>
               )} />
 
+              {countries.length > 1 && (
+                <FormItem>
+                  <FormLabel>Country</FormLabel>
+                  <Select
+                    value={unitCountry}
+                    onValueChange={(v) => {
+                      setUnitCountry(v);
+                      // Clear the unit if it no longer matches the chosen country.
+                      const current = insuranceUnits?.find((u) => u.id === herdForm.getValues('insuranceUnitId'));
+                      if (current && v !== 'all' && current.country !== v) {
+                        herdForm.setValue('insuranceUnitId', '');
+                      }
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All countries" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="all">All countries</SelectItem>
+                      {countries.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>Filter coverage regions by country.</FormDescription>
+                </FormItem>
+              )}
+
               <FormField control={herdForm.control} name="insuranceUnitId" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Coverage Region (Insurance Unit) <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select region" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {insuranceUnits?.map((unit) => (
+                      {visibleUnits.map((unit) => (
                         <SelectItem key={unit.id} value={unit.id}>
                           {unit.county} {unit.subCounty ? ` - ${unit.subCounty}` : ''} ({unit.unitCode})
                         </SelectItem>
                       ))}
-                      {!insuranceUnits?.length && (
-                        <SelectItem value="" disabled>No active insurance units found</SelectItem>
+                      {!visibleUnits.length && (
+                        <SelectItem value="none" disabled>No active insurance units found</SelectItem>
                       )}
                     </SelectContent>
                   </Select>

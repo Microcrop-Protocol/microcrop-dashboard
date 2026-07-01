@@ -47,7 +47,6 @@ const PayoutsAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/
 const DamageAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/DamageAnalyticsPage"));
 const PlatformActivityPage = lazyRetry(() => import("@/pages/platform/PlatformActivityPage"));
 const KYBReviewPage = lazyRetry(() => import("@/pages/platform/OrgKybReviewPage"));
-const KYBApplicationDetailPage = lazyRetry(() => import("@/pages/platform/KYBApplicationDetailPage"));
 const InvitationsPage = lazyRetry(() => import("@/pages/platform/InvitationsPage"));
 const TreasuryPage = lazyRetry(() => import("@/pages/platform/TreasuryPage"));
 const PostsListPage = lazyRetry(() => import("@/pages/platform/blog/PostsListPage"));
@@ -76,6 +75,7 @@ const OrgActivityPage = lazyRetry(() => import("@/pages/org/OrgActivityPage"));
 const FieldOnboardingPage = lazyRetry(() => import("@/pages/org/FieldOnboardingPage"));
 const LivestockOnboardingPage = lazyRetry(() => import("@/pages/org/LivestockOnboardingPage"));
 const HerdsPage = lazyRetry(() => import("@/pages/org/HerdsPage"));
+const ForageAlertsPage = lazyRetry(() => import("@/pages/org/ForageAlertsPage"));
 const DevelopersPage = lazyRetry(() => import("@/pages/org/DevelopersPage"));
 
 const DocsPage = lazyRetry(() => import("@/pages/docs/DocsPage"));
@@ -192,7 +192,6 @@ const App = () => (
                 <Route path="analytics/damage" element={<DamageAnalyticsPage />} />
                 <Route path="activity" element={<PlatformActivityPage />} />
                 <Route path="kyb-review" element={<KYBReviewPage />} />
-                <Route path="kyb-review/:applicationId" element={<KYBApplicationDetailPage />} />
                 <Route path="invitations" element={<InvitationsPage />} />
                 <Route path="treasury" element={<TreasuryPage />} />
                 <Route path="blog" element={<PostsListPage />} />
@@ -231,6 +230,7 @@ const App = () => (
                 <Route path="onboard" element={<FieldOnboardingPage />} />
                 <Route path="livestock-onboard" element={<LivestockOnboardingPage />} />
                 <Route path="herds" element={<HerdsPage />} />
+                <Route path="forage-alerts" element={<ForageAlertsPage />} />
                 <Route
                   path="developers"
                   element={

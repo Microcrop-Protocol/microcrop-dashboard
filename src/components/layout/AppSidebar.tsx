@@ -27,6 +27,7 @@ import {
   ClipboardPlus,
   Newspaper,
   Code2,
+  Sprout,
 } from "lucide-react";
 import {
   Collapsible,
@@ -75,6 +76,7 @@ const orgNavItems: NavItem[] = [
   { title: "Payouts", href: "/org/payouts", icon: DollarSign },
   { title: "Plots", href: "/org/plots", icon: MapPin },
   { title: "Herds", href: "/org/herds", icon: MapPin },
+  { title: "Forage Alerts", href: "/org/forage-alerts", icon: Sprout },
   { title: "Damage", href: "/org/damage", icon: AlertTriangle },
   { title: "Financials", href: "/org/financials", icon: BarChart3 },
   { title: "Reserve", href: "/org/reserve", icon: PiggyBank },
