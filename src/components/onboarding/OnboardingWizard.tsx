@@ -627,7 +627,7 @@ export function OnboardingWizard() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border p-3 text-center">
-                <div className="text-2xl font-bold">{boundaryResult.plot.areaHectares.toFixed(2)}</div>
+                <div className="text-2xl font-bold">{Number(boundaryResult.plot.areaHectares).toFixed(2)}</div>
                 <div className="text-sm text-muted-foreground">Hectares</div>
               </div>
               <div className="rounded-lg border p-3 text-center">
@@ -635,7 +635,7 @@ export function OnboardingWizard() {
                 <div className="text-sm text-muted-foreground">Vertices</div>
               </div>
               <div className="rounded-lg border p-3 text-center">
-                <div className="text-2xl font-bold">{boundaryResult.metadata.avgAccuracy.toFixed(1)}m</div>
+                <div className="text-2xl font-bold">{Number(boundaryResult.metadata.avgAccuracy).toFixed(1)}m</div>
                 <div className="text-sm text-muted-foreground">Avg Accuracy</div>
               </div>
             </div>
@@ -797,7 +797,7 @@ export function OnboardingWizard() {
               <p className="font-medium">{plot?.name}</p>
               <p className="text-sm text-muted-foreground">
                 {plot?.cropType} &middot; {plot?.acreage} acres
-                {boundaryResult && ` \u00B7 ${boundaryResult.plot.areaHectares.toFixed(2)} ha (measured)`}
+                {boundaryResult && ` \u00B7 ${Number(boundaryResult.plot.areaHectares).toFixed(2)} ha (measured)`}
               </p>
             </div>
             <div className="p-4">
