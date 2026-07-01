@@ -23,18 +23,18 @@ const columns: ColumnDef<DamageAssessment>[] = [
   {
     accessorKey: "weatherDamage",
     header: "Weather Score",
-    cell: ({ row }) => `${(row.getValue("weatherDamage") as number * 100).toFixed(0)}%`,
+    cell: ({ row }) => `${(Number(row.getValue("weatherDamage")) * 100).toFixed(0)}%`,
   },
   {
     accessorKey: "satelliteDamage",
     header: "Satellite Score",
-    cell: ({ row }) => `${(row.getValue("satelliteDamage") as number * 100).toFixed(0)}%`,
+    cell: ({ row }) => `${(Number(row.getValue("satelliteDamage")) * 100).toFixed(0)}%`,
   },
   {
     accessorKey: "combinedDamage",
     header: "Combined Score",
     cell: ({ row }) => {
-      const score = row.getValue("combinedDamage") as number;
+      const score = Number(row.getValue("combinedDamage"));
       const percentage = score * 100;
       return (
         <span className={

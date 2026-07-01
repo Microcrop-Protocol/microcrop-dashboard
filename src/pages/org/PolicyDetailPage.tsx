@@ -61,7 +61,7 @@ export default function PolicyDetailPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Sum Insured</p>
-            <p className="text-2xl font-bold">KES {policy.sumInsured?.toLocaleString() ?? 0}</p>
+            <p className="text-2xl font-bold">KES {policy.sumInsured != null ? Number(policy.sumInsured).toLocaleString() : 0}</p>
           </CardContent>
         </Card>
         <Card>
@@ -89,7 +89,7 @@ export default function PolicyDetailPage() {
             ) : (
               policyDamage.map((d) => (
                 <div key={d.id} className="border-b py-2 last:border-0">
-                  <p>Combined: {(d.combinedDamage * 100).toFixed(0)}%</p>
+                  <p>Combined: {(Number(d.combinedDamage) * 100).toFixed(0)}%</p>
                 </div>
               ))
             )}

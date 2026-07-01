@@ -122,8 +122,8 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
 
     assessments.forEach(assessment => {
       const isSelected = assessment.id === selectedAssessmentId;
-      const color = getDamageColor(assessment.combinedDamage);
-      const label = getDamageLabel(assessment.combinedDamage);
+      const color = getDamageColor(Number(assessment.combinedDamage));
+      const label = getDamageLabel(Number(assessment.combinedDamage));
 
       const el = document.createElement('div');
       el.className = 'damage-marker';
@@ -147,9 +147,9 @@ export function DamageHeatmap({ assessments, onAssessmentSelect, selectedAssessm
           <div style="font-size: 13px; color: #666; line-height: 1.6;">
             <div><strong>Plot:</strong> ${escapeHtml(assessment.plotName)}</div>
             <div><strong>Status:</strong> <span style="color: ${color}; font-weight: 500;">${escapeHtml(label)}</span></div>
-            <div><strong>Combined Damage:</strong> ${(assessment.combinedDamage * 100).toFixed(0)}%</div>
-            <div><strong>Weather Score:</strong> ${(assessment.weatherDamage * 100).toFixed(0)}%</div>
-            <div><strong>Satellite Score:</strong> ${(assessment.satelliteDamage * 100).toFixed(0)}%</div>
+            <div><strong>Combined Damage:</strong> ${(Number(assessment.combinedDamage) * 100).toFixed(0)}%</div>
+            <div><strong>Weather Score:</strong> ${(Number(assessment.weatherDamage) * 100).toFixed(0)}%</div>
+            <div><strong>Satellite Score:</strong> ${(Number(assessment.satelliteDamage) * 100).toFixed(0)}%</div>
             <div><strong>Triggered:</strong> ${assessment.triggered ? '&#10003; Yes' : '&#10007; No'}</div>
           </div>
         </div>
