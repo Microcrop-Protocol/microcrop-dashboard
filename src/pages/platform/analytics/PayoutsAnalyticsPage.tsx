@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { PieChart } from "@/components/charts/PieChart";
+import { SettlementBreakdownCard } from "@/components/payouts/SettlementBreakdownCard";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { GranularitySelect } from "@/components/ui/granularity-select";
 import { DollarSign, Hash, TrendingUp, CheckCircle } from "lucide-react";
@@ -82,6 +83,7 @@ export default function PayoutsAnalyticsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <PieChart data={data?.byStatus ?? []} title="Payouts by Status" height={280} />
+        <SettlementBreakdownCard breakdown={data?.byDeterminationStatus} />
       </div>
     </div>
   );

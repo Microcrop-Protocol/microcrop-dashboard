@@ -452,6 +452,8 @@ export interface PayoutsAnalytics {
     count: number;
   }[];
   byStatus: CategoryDataPoint[];
+  // Settlement determinations grouped by status, e.g. { CONFIRMED: 12, UNDERFUNDED: 3 }.
+  byDeterminationStatus?: Record<string, number>;
 }
 
 export interface DamageAnalytics {
