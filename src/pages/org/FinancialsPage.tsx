@@ -11,12 +11,13 @@ export default function FinancialsPage() {
   });
   const formatCurrency = (v: number) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(v);
 
-  const chartData = [
-    { date: "Jan 1", premiums: 250000, payouts: 80000 },
-    { date: "Jan 8", premiums: 280000, payouts: 120000 },
-    { date: "Jan 15", premiums: 200000, payouts: 50000 },
-    { date: "Jan 22", premiums: 320000, payouts: 150000 },
-  ];
+  // Drive the chart from a real timeseries if the financials response includes
+  // one; otherwise pass an empty array so AreaChart shows its "No data
+  // available" empty state rather than fabricated numbers.
+  const timeseries = (data as unknown as { timeseries?: unknown })?.timeseries;
+  const chartData = Array.isArray(timeseries)
+    ? (timeseries as Record<string, unknown>[])
+    : [];
 
   return (
     <div className="space-y-6">

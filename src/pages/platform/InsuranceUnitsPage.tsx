@@ -11,6 +11,18 @@ import { Search } from "lucide-react";
 import { CreateInsuranceUnitDialog } from "@/components/platform/CreateInsuranceUnitDialog";
 import { notifySuccess, notifyError } from "@/lib/notify";
 
+// NDVI baselines & premium rates are Prisma Decimals that arrive as strings and
+// may be null on sparse rows — render an em dash instead of a literal "NaN".
+const fmtDecimal = (value: unknown, digits: number): string => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : "—";
+};
+
+const fmtRate = (value: unknown): string => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString() : "—";
+};
+
 const columns: ColumnDef<InsuranceUnit>[] = [
   {
     accessorKey: "country",
@@ -36,9 +48,8 @@ const columns: ColumnDef<InsuranceUnit>[] = [
     header: "LRLD Season",
     cell: ({ row }) => (
       <div className="text-sm">
-        {/* NDVI baselines & rates are Prisma Decimals — they arrive as strings over JSON. */}
-        <div>Base: {Number(row.original.ndviBaselineLRLD).toFixed(3)}</div>
-        <div className="text-muted-foreground">Rate: {Number(row.original.premiumRateLRLD).toLocaleString()}</div>
+        <div>Base: {fmtDecimal(row.original.ndviBaselineLRLD, 3)}</div>
+        <div className="text-muted-foreground">Rate: {fmtRate(row.original.premiumRateLRLD)}</div>
       </div>
     ),
   },
@@ -46,8 +57,8 @@ const columns: ColumnDef<InsuranceUnit>[] = [
     header: "SRSD Season",
     cell: ({ row }) => (
       <div className="text-sm">
-        <div>Base: {Number(row.original.ndviBaselineSRSD).toFixed(3)}</div>
-        <div className="text-muted-foreground">Rate: {Number(row.original.premiumRateSRSD).toLocaleString()}</div>
+        <div>Base: {fmtDecimal(row.original.ndviBaselineSRSD, 3)}</div>
+        <div className="text-muted-foreground">Rate: {fmtRate(row.original.premiumRateSRSD)}</div>
       </div>
     ),
   },

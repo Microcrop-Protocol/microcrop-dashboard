@@ -38,7 +38,7 @@ export default function OrgKybReviewPage() {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
 
-  const items = reviews ?? [];
+  const items = Array.isArray(reviews) ? reviews : [];
 
   if (isError) {
     return (
@@ -85,7 +85,7 @@ export default function OrgKybReviewPage() {
                     {org.contactPerson} · {org.contactEmail} · {org.contactPhone}
                   </p>
                 </div>
-                <Badge variant="secondary">{org.kybStatus.replace(/_/g, ' ')}</Badge>
+                <Badge variant="secondary">{(org.kybStatus ?? '').replace(/_/g, ' ')}</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

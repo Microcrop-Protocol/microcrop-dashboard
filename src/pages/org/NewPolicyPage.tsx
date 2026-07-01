@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Loader2 } from "lucide-react";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
-import type { Farmer, Plot } from "@/types";
+import type { Farmer, Plot, CoverageType } from "@/types";
 
 export default function NewPolicyPage() {
   const { user } = useAuthStore();
@@ -55,8 +55,31 @@ export default function NewPolicyPage() {
   const approvedFarmers = farmers.filter((f) => f.kycStatus === 'APPROVED');
   const farmerPlots = plots.filter((p) => p.farmerId === formData.farmerId);
 
-  const premium = formData.sumInsured * 0.05;
-  const fee = premium * 0.05;
+  // Fetch a real premium quote from the pricing endpoint once the policy is
+  // configured. We never present a fabricated figure as the quote.
+  const { data: quote, isFetching: quoteLoading } = useQuery({
+    queryKey: [
+      "policy-quote",
+      formData.farmerId,
+      formData.plotId,
+      formData.sumInsured,
+      formData.coverageType,
+      formData.duration,
+    ],
+    queryFn: () =>
+      api.getPolicyQuote({
+        farmerId: formData.farmerId,
+        plotId: formData.plotId,
+        sumInsured: formData.sumInsured,
+        coverageType: formData.coverageType as CoverageType,
+        durationDays: formData.duration,
+      }),
+    enabled: !!formData.farmerId && !!formData.plotId && formData.sumInsured > 0,
+  });
+
+  const premium = quote?.premium ?? null;
+  const fee = quote?.platformFee ?? null;
+  const total = quote?.totalCost ?? null;
 
   const purchaseMutation = useMutation({
     mutationFn: () =>
@@ -161,18 +184,31 @@ export default function NewPolicyPage() {
             </div>
 
             <div className="rounded-lg bg-muted p-4">
-              <div className="flex justify-between">
-                <span>Premium</span>
-                <span>KES {premium.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Platform Fee</span>
-                <span>KES {fee.toLocaleString()}</span>
-              </div>
-              <div className="mt-2 flex justify-between border-t pt-2 font-bold">
-                <span>Total</span>
-                <span>KES {(premium + fee).toLocaleString()}</span>
-              </div>
+              {quoteLoading ? (
+                <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Calculating quote…
+                </div>
+              ) : premium != null && fee != null ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Premium</span>
+                    <span>KES {premium.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Platform Fee</span>
+                    <span>KES {fee.toLocaleString()}</span>
+                  </div>
+                  <div className="mt-2 flex justify-between border-t pt-2 font-bold">
+                    <span>Total</span>
+                    <span>KES {(total ?? premium + fee).toLocaleString()}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Select a farmer and plot to calculate the premium quote.
+                </p>
+              )}
             </div>
 
             <Button
@@ -189,11 +225,15 @@ export default function NewPolicyPage() {
           <CardHeader><CardTitle>Confirm & Pay</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              Pay KES {(premium + fee).toLocaleString()} via M-Pesa to complete policy activation.
+              {total != null || (premium != null && fee != null)
+                ? `Pay KES ${(total ?? (premium ?? 0) + (fee ?? 0)).toLocaleString()} via M-Pesa to complete policy activation.`
+                : "Complete payment via M-Pesa to activate this policy."}
             </p>
             <div className="rounded-lg border p-4">
-              <p className="font-medium">M-Pesa Paybill: 123456</p>
-              <p className="text-muted-foreground">Account: POLICY-NEW</p>
+              <p className="text-sm text-muted-foreground">
+                An M-Pesa payment prompt will be sent to the farmer's phone to
+                complete premium payment and activate the policy.
+              </p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setStep(1)} disabled={purchaseMutation.isPending}>Back</Button>
