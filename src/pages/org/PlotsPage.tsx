@@ -46,10 +46,10 @@ export default function PlotsPage() {
   const cropDistribution = plots.reduce((acc, plot) => {
     const existing = acc.find(c => c.name === plot.cropType);
     if (existing) {
-      existing.value += plot.acreage;
+      existing.value += Number(plot.acreage);
       existing.count = (existing.count || 0) + 1;
     } else {
-      acc.push({ name: plot.cropType, value: plot.acreage, count: 1 });
+      acc.push({ name: plot.cropType, value: Number(plot.acreage), count: 1 });
     }
     return acc;
   }, [] as { name: string; value: number; count?: number }[]);

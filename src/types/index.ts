@@ -1,3 +1,10 @@
+/**
+ * A numeric value delivered as a STRING over JSON because it maps to a Prisma
+ * `Decimal` column (Prisma serializes Decimal to a string). Always coerce with
+ * Number() before arithmetic, .toFixed(), or .toLocaleString().
+ */
+export type DecimalString = string;
+
 // User & Auth Types
 export type UserRole = 'PLATFORM_ADMIN' | 'ORG_ADMIN' | 'ORG_STAFF';
 
@@ -230,9 +237,9 @@ export interface Plot {
   farmerId: string;
   farmerName: string;
   name: string;
-  latitude: number;
-  longitude: number;
-  acreage: number;
+  latitude: DecimalString;
+  longitude: DecimalString;
+  acreage: DecimalString;
   cropType: string;
   policiesCount: number;
   latestNdvi?: number;
@@ -263,9 +270,9 @@ export interface Policy {
   status: PolicyStatus;
   coverageType: CoverageType;
   cropType: string;
-  sumInsured: number;
-  premium: number;
-  platformFee: number;
+  sumInsured: DecimalString;
+  premium: DecimalString;
+  platformFee: DecimalString;
   startDate: string;
   endDate: string;
   createdAt: string;
@@ -316,10 +323,10 @@ export interface DamageAssessment {
   plotName: string;
   latitude: number;
   longitude: number;
-  weatherDamage: number;
-  satelliteDamage: number;
-  ndviDamage?: number;
-  combinedDamage: number;
+  weatherDamage: DecimalString;
+  satelliteDamage: DecimalString;
+  ndviDamage?: DecimalString;
+  combinedDamage: DecimalString;
   triggered: boolean;
   triggerDate: string;
   createdAt: string;
@@ -474,7 +481,7 @@ export interface Transaction {
   organizationId: string;
   farmerId?: string;
   type: TransactionType;
-  amount: number;
+  amount: DecimalString;
   currency: string;
   status: TransactionStatus;
   policyId?: string;
@@ -545,11 +552,11 @@ export interface NdviReading {
   id: string;
   plotId: string;
   captureDate: string;
-  ndvi: number;
-  ndviMin: number;
-  ndviMax: number;
-  ndviStdDev: number;
-  cloudCover: number;
+  ndvi: DecimalString;
+  ndviMin: DecimalString;
+  ndviMax: DecimalString;
+  ndviStdDev: DecimalString;
+  cloudCover: DecimalString;
   sampleCount: number;
   source: string;
 }
@@ -736,12 +743,12 @@ export interface Herd {
   name: string;
   livestockType: LivestockType;
   headCount: number;
-  estimatedValue: number;
-  tluCount: number;
+  estimatedValue: DecimalString;
+  tluCount: DecimalString;
   insuranceUnitId?: string;
   insuranceUnit?: InsuranceUnit;
-  latitude?: number;
-  longitude?: number;
+  latitude?: DecimalString;
+  longitude?: DecimalString;
   policiesCount?: number;
   createdAt: string;
   updatedAt: string;
@@ -754,13 +761,13 @@ export interface InsuranceUnit {
   unitCode: string;
   country: string;
   bbox?: number[];
-  ndviBaselineLRLD: number;
-  ndviBaselineSRSD: number;
-  strikeLevelLRLD: number;
-  strikeLevelSRSD: number;
-  premiumRateLRLD: number;
-  premiumRateSRSD: number;
-  valuePerTLU: number;
+  ndviBaselineLRLD: DecimalString;
+  ndviBaselineSRSD: DecimalString;
+  strikeLevelLRLD: DecimalString;
+  strikeLevelSRSD: DecimalString;
+  premiumRateLRLD: DecimalString;
+  premiumRateSRSD: DecimalString;
+  valuePerTLU: DecimalString;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -823,12 +830,12 @@ export interface ForageAlert {
   insuranceUnitId: string;
   season: IBLISeason;
   year: number;
-  cumulativeNDVI: number;
-  strikeLevel: number;
-  deficitPercent: number;
+  cumulativeNDVI: DecimalString;
+  strikeLevel: DecimalString;
+  deficitPercent: DecimalString;
   status: ForageAlertStatus;
   policiesAffected: number;
-  totalPayoutUSDC: number;
+  totalPayoutUSDC: DecimalString;
   processedAt: string | null;
   createdAt: string;
   insuranceUnit?: {

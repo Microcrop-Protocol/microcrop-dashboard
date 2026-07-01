@@ -16,7 +16,7 @@ const columns: ColumnDef<Policy>[] = [
   { accessorKey: "plotName", header: "Plot" },
   { accessorKey: "coverageType", header: "Coverage" },
   { accessorKey: "cropType", header: "Crop" },
-  { accessorKey: "sumInsured", header: "Sum Insured", cell: ({ row }) => `KES ${(row.getValue("sumInsured") as number).toLocaleString()}` },
+  { accessorKey: "sumInsured", header: "Sum Insured", cell: ({ row }) => `KES ${Number(row.getValue("sumInsured")).toLocaleString()}` },
   { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("status"))}>{row.getValue("status")}</StatusBadge> },
   { accessorKey: "endDate", header: "Expires", cell: ({ row }) => formatDate(row.getValue("endDate")) },
 ];

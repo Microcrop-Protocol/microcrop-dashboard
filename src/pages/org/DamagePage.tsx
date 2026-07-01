@@ -18,7 +18,7 @@ const columns: ColumnDef<DamageAssessment>[] = [
     accessorKey: "combinedDamage", 
     header: "Damage %", 
     cell: ({ row }) => { 
-      const s = (row.getValue("combinedDamage") as number) * 100; 
+      const s = Number(row.getValue("combinedDamage")) * 100;
       return (
         <span className={s >= 60 ? "text-destructive font-medium" : s >= 30 ? "text-warning font-medium" : "text-primary font-medium"}>
           {s.toFixed(0)}%
@@ -53,13 +53,13 @@ export default function DamagePage() {
 
   // Calculate summary stats
   const avgWeather = assessments.length > 0 
-    ? assessments.reduce((sum, a) => sum + a.weatherDamage, 0) / assessments.length 
+    ? assessments.reduce((sum, a) => sum + Number(a.weatherDamage), 0) / assessments.length
     : 0;
-  const avgSatellite = assessments.length > 0 
-    ? assessments.reduce((sum, a) => sum + a.satelliteDamage, 0) / assessments.length 
+  const avgSatellite = assessments.length > 0
+    ? assessments.reduce((sum, a) => sum + Number(a.satelliteDamage), 0) / assessments.length
     : 0;
-  const avgCombined = assessments.length > 0 
-    ? assessments.reduce((sum, a) => sum + a.combinedDamage, 0) / assessments.length 
+  const avgCombined = assessments.length > 0
+    ? assessments.reduce((sum, a) => sum + Number(a.combinedDamage), 0) / assessments.length
     : 0;
   const triggerRate = assessments.length > 0 
     ? (assessments.filter(a => a.triggered).length / assessments.length) * 100 

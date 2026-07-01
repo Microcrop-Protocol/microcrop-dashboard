@@ -67,7 +67,7 @@ const columns: ColumnDef<ForageAlert>[] = [
   {
     id: "payout",
     header: "Total Payout",
-    cell: ({ row }) => `$${row.original.totalPayoutUSDC.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+    cell: ({ row }) => `$${Number(row.original.totalPayoutUSDC).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
   },
   {
     accessorKey: "status",
@@ -95,7 +95,7 @@ export default function ForageAlertsPage() {
   const alerts = data?.data ?? [];
   const active = alerts.filter((a) => a.status === "TRIGGERED" || a.status === "PROCESSING").length;
   const completed = alerts.filter((a) => a.status === "COMPLETED").length;
-  const totalPayout = alerts.reduce((s, a) => s + (a.totalPayoutUSDC || 0), 0);
+  const totalPayout = alerts.reduce((s, a) => s + (Number(a.totalPayoutUSDC) || 0), 0);
 
   return (
     <div className="space-y-6">

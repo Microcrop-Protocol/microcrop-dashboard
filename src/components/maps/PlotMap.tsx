@@ -121,7 +121,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
       `);
 
       const marker = new mb.Marker(el)
-        .setLngLat([plot.longitude, plot.latitude])
+        .setLngLat([Number(plot.longitude), Number(plot.latitude)])
         .setPopup(popup)
         .addTo(currentMap);
 
@@ -135,11 +135,11 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
     // Fit bounds to show all plots
     if (plots.length > 1) {
       const bounds = new mb.LngLatBounds();
-      plots.forEach(plot => bounds.extend([plot.longitude, plot.latitude]));
+      plots.forEach(plot => bounds.extend([Number(plot.longitude), Number(plot.latitude)]));
       currentMap.fitBounds(bounds, { padding: 50, maxZoom: 12 });
     } else if (plots.length === 1) {
       currentMap.flyTo({
-        center: [plots[0].longitude, plots[0].latitude],
+        center: [Number(plots[0].longitude), Number(plots[0].latitude)],
         zoom: 14,
       });
     }

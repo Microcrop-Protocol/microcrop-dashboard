@@ -178,7 +178,7 @@ export function LivestockOnboardingWizard() {
         herdId: herd.id,
         productType: 'LIVESTOCK',
         // Pass dummy sumInsured and duration as the backend ignores it for livestock and computes from TLU
-        sumInsured: herd.headCount * herd.estimatedValue,
+        sumInsured: herd.headCount * Number(herd.estimatedValue),
         durationDays: 180, 
         coverageType: data.coverageType as CoverageType,
         season: data.season as IBLISeason,

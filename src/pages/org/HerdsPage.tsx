@@ -40,7 +40,7 @@ const columns: ColumnDef<Herd>[] = [
     header: "Value (KES)",
     cell: ({ row }) => {
       const headCount = row.getValue("headCount") as number;
-      const valuePerHead = row.getValue("estimatedValue") as number;
+      const valuePerHead = Number(row.getValue("estimatedValue"));
       return (headCount * valuePerHead).toLocaleString();
     }
   },
@@ -104,7 +104,7 @@ export default function HerdsPage() {
   }, [] as { name: string; value: number; count?: number }[]);
 
   const totalTlu = herds.reduce((sum, h) => sum + Number(h.tluCount), 0);
-  const totalValue = herds.reduce((sum, h) => sum + (h.headCount * h.estimatedValue), 0);
+  const totalValue = herds.reduce((sum, h) => sum + (h.headCount * Number(h.estimatedValue)), 0);
 
   return (
     <div className="space-y-6">
