@@ -27,12 +27,10 @@ const STATUS_MESSAGES: Record<number, string> = {
   504: "The request took too long. Please try again.",
 };
 
-// Specific copy for backend error `code`s worth a tailored message.
-// Extend as backend codes surface (keep keys matching the backend exactly).
-const CODE_MESSAGES: Record<string, string> = {
-  INSUFFICIENT_ORG_RESERVE:
-    "Your reserve balance is too low to cover this. Top up your reserve and try again.",
-};
+// Specific copy for backend error `code`s worth a tailored message. Add entries
+// here only for codes that actually reach a user-facing API response AND whose
+// backend message isn't already clear (keep keys matching the backend exactly).
+const CODE_MESSAGES: Record<string, string> = {};
 
 // Heuristic: is this string already written as end-user copy (vs. a raw
 // technical/stack/DB message we should hide)?
