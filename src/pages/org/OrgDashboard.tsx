@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { explorerAddressUrl } from "@/lib/explorer";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -58,7 +59,7 @@ export default function OrgDashboard() {
         </div>
         {wallet?.walletAddress && (
           <Button variant="outline" asChild>
-            <a href={`https://basescan.org/address/${wallet.walletAddress}`} target="_blank" rel="noopener noreferrer">
+            <a href={explorerAddressUrl(wallet.walletAddress)} target="_blank" rel="noopener noreferrer">
               Wallet: {truncateAddress(wallet.walletAddress)}
               <ExternalLink className="ml-2 h-4 w-4" />
             </a>

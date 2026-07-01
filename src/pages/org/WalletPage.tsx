@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { explorerAddressUrl } from '@/lib/explorer';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Wallet,
@@ -183,7 +184,7 @@ export default function WalletPage() {
                 aria-label="View on Basescan"
               >
                 <a
-                  href={`https://basescan.org/address/${wallet.walletAddress}`}
+                  href={explorerAddressUrl(wallet.walletAddress)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

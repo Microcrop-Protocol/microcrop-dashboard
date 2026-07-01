@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { explorerAddressUrl } from "@/lib/explorer";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -216,7 +217,7 @@ export default function OrganizationDetailPage() {
               </Button>
               <Button variant="outline" asChild>
                 <a
-                  href={`https://basescan.org/address/${org.walletAddress}`}
+                  href={explorerAddressUrl(org.walletAddress)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
