@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -49,16 +49,23 @@ export default function PostsListPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<BlogPost | null>(null);
 
+  // Debounce the search term so we don't hit the API on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['blog-posts', statusFilter, search],
+    queryKey: ['blog-posts', statusFilter, debouncedSearch],
     queryFn: () =>
       api.getBlogPosts({
         page: 1,
         pageSize: 50,
         status: statusFilter === 'all' ? undefined : (statusFilter as PostStatus),
-        search: search.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
       }),
   });
 

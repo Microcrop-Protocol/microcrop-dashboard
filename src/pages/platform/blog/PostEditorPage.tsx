@@ -154,21 +154,47 @@ export default function PostEditorPage() {
     }));
   };
 
+  // If the loaded post had a cover and the user has since cleared it, send an
+  // explicit null so the PATCH clears the field (undefined would be omitted and
+  // the old cover would persist).
+  const coverCleared = isEditing && Boolean(postQuery.data?.coverImagePath) && !form.cover.path;
+
   const buildPayload = () => ({
     title: form.title.trim(),
     slug: form.slug.trim() || undefined,
     excerpt: form.excerpt.trim(),
     body: form.body,
-    coverImagePath: form.cover.path ?? undefined,
-    coverImageAlt: form.cover.alt.trim() || undefined,
-    coverImageWidth: form.cover.width ?? undefined,
-    coverImageHeight: form.cover.height ?? undefined,
+    coverImagePath: form.cover.path ?? (coverCleared ? null : undefined),
+    coverImageAlt: form.cover.alt.trim() || (coverCleared ? null : undefined),
+    coverImageWidth: form.cover.width ?? (coverCleared ? null : undefined),
+    coverImageHeight: form.cover.height ?? (coverCleared ? null : undefined),
     metaTitle: form.metaTitle.trim() || undefined,
     metaDescription: form.metaDescription.trim() || undefined,
-    ogImagePath: form.cover.path ?? undefined,
+    ogImagePath: form.cover.path ?? (coverCleared ? null : undefined),
     categoryId: form.categoryId,
     tagSlugs: form.tagSlugs,
   });
+
+  // Create endpoints don't accept null for optional fields; coerce nulls away.
+  // (For a new post nothing is ever "cleared", so these are always undefined.)
+  const buildCreatePayload = () => {
+    const p = buildPayload();
+    return {
+      title: p.title,
+      slug: p.slug,
+      excerpt: p.excerpt,
+      body: p.body,
+      coverImagePath: p.coverImagePath ?? undefined,
+      coverImageAlt: p.coverImageAlt ?? undefined,
+      coverImageWidth: p.coverImageWidth ?? undefined,
+      coverImageHeight: p.coverImageHeight ?? undefined,
+      metaTitle: p.metaTitle,
+      metaDescription: p.metaDescription,
+      ogImagePath: p.ogImagePath ?? undefined,
+      categoryId: p.categoryId,
+      tagSlugs: p.tagSlugs,
+    };
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -176,21 +202,7 @@ export default function PostEditorPage() {
       if (isEditing && id) {
         return api.updateBlogPost(id, payload);
       }
-      return api.createBlogPost({
-        title: payload.title,
-        slug: payload.slug,
-        excerpt: payload.excerpt,
-        body: payload.body,
-        coverImagePath: payload.coverImagePath,
-        coverImageAlt: payload.coverImageAlt,
-        coverImageWidth: payload.coverImageWidth,
-        coverImageHeight: payload.coverImageHeight,
-        metaTitle: payload.metaTitle,
-        metaDescription: payload.metaDescription,
-        ogImagePath: payload.ogImagePath,
-        categoryId: payload.categoryId,
-        tagSlugs: payload.tagSlugs,
-      });
+      return api.createBlogPost(buildCreatePayload());
     },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['blog-posts'] });
@@ -206,7 +218,7 @@ export default function PostEditorPage() {
   const publishMutation = useMutation({
     mutationFn: async (when?: string) => {
       // Save first to capture the latest content, then publish.
-      const saved = await (isEditing && id ? api.updateBlogPost(id, buildPayload()) : api.createBlogPost(buildPayload()));
+      const saved = await (isEditing && id ? api.updateBlogPost(id, buildPayload()) : api.createBlogPost(buildCreatePayload()));
       return api.publishBlogPost(saved.id, when);
     },
     onSuccess: (saved) => {
@@ -258,8 +270,15 @@ export default function PostEditorPage() {
 
   const onPickInlineImage = () => fileInputRef.current?.click();
 
+  // Any in-flight write disables the save/publish actions to prevent duplicate
+  // submissions (a fast double-click on Publish for a new post creates dupes).
+  const mutating = saveMutation.isPending || publishMutation.isPending;
+  const bodyEmpty = form.body.trim().length === 0;
   const canSubmit =
-    form.title.trim().length > 0 && form.excerpt.trim().length > 0 && !saveMutation.isPending;
+    form.title.trim().length > 0 &&
+    form.excerpt.trim().length > 0 &&
+    !bodyEmpty &&
+    !mutating;
   const excerptCount = form.excerpt.length;
   const excerptOver = excerptCount > EXCERPT_MAX;
 
@@ -325,6 +344,7 @@ export default function PostEditorPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 onClick={() => guardSlugThen(() => publishMutation.mutate(undefined))}
+                disabled={mutating}
               >
                 <Send className="mr-2 h-4 w-4" />
                 Publish now
@@ -334,6 +354,7 @@ export default function PostEditorPage() {
                   setScheduleAt(defaultScheduleAt());
                   setScheduleOpen(true);
                 }}
+                disabled={mutating}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 Schedule…
@@ -438,9 +459,15 @@ export default function PostEditorPage() {
                   }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Markdown supported. Pasting from Google Docs will paste plain text.
-              </p>
+              {bodyEmpty ? (
+                <p className="text-xs text-destructive">
+                  Body is required before you can save or publish.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Markdown supported. Pasting from Google Docs will paste plain text.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
