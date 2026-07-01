@@ -77,25 +77,10 @@ export default function InsuranceUnitsPage() {
   });
 
   const createMutation = useMutation({
-    // The dialog submits bbox as a raw JSON string; the API expects number[].
-    mutationFn: (data: Omit<Parameters<typeof api.createInsuranceUnit>[0], "bbox"> & { bbox?: string }) => {
-      // parse bbox if provided as string
-      let parsedBbox: number[] | undefined;
-      if (typeof data.bbox === 'string' && data.bbox.trim().length > 0) {
-        try {
-          parsedBbox = JSON.parse(data.bbox);
-          if (!Array.isArray(parsedBbox) || parsedBbox.length !== 4) {
-            throw new Error("Must be an array of 4 numbers");
-          }
-        } catch {
-          throw new Error("Invalid bbox JSON format. Must be [minLon, minLat, maxLon, maxLat]");
-        }
-      }
-
-      return api.createInsuranceUnit({
-        ...data,
-        bbox: parsedBbox,
-      });
+    // The dialog assembles bbox from four labeled coordinate inputs into the
+    // [minLon, minLat, maxLon, maxLat] array the API expects (or omits it).
+    mutationFn: (data: Parameters<typeof api.createInsuranceUnit>[0]) => {
+      return api.createInsuranceUnit(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["insurance-units"] });

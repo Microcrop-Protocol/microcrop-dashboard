@@ -10,8 +10,6 @@ import type {
   User,
   Organization,
   OrganizationType,
-  ApplicationStatus,
-  OrganizationApplication,
   OrgAdminInvitation,
   OnboardingStep,
   ReserveStatus,
@@ -196,66 +194,6 @@ export const api = {
       county: data.county,
     });
     return result.organization;
-  },
-
-  // ============================================
-  // KYB / APPLICATIONS
-  // ============================================
-
-  submitOrgApplication: async (data: {
-    name: string;
-    registrationNumber: string;
-    type: OrganizationType;
-    contactFirstName: string;
-    contactLastName: string;
-    contactEmail: string;
-    contactPhone: string;
-    county?: string;
-    estimatedFarmers?: number;
-    website?: string;
-    description?: string;
-    documents: { type: 'BUSINESS_REGISTRATION' | 'TAX_CERTIFICATE'; fileName: string; fileSize: number; file?: File }[];
-  }) => {
-    const formData = new FormData();
-    formData.append('name', data.name);
-    formData.append('registrationNumber', data.registrationNumber);
-    formData.append('type', data.type);
-    formData.append('contactFirstName', data.contactFirstName);
-    formData.append('contactLastName', data.contactLastName);
-    formData.append('contactEmail', data.contactEmail);
-    formData.append('contactPhone', data.contactPhone);
-
-    if (data.county) formData.append('county', data.county);
-    if (data.estimatedFarmers) formData.append('estimatedFarmers', data.estimatedFarmers.toString());
-    if (data.website) formData.append('website', data.website);
-    if (data.description) formData.append('description', data.description);
-
-    data.documents.forEach((doc) => {
-      if (doc.file) {
-        const fieldName = doc.type === 'BUSINESS_REGISTRATION'
-          ? 'businessRegistrationCert'
-          : 'taxPinCert';
-        formData.append(fieldName, doc.file);
-      }
-    });
-
-    return apiClient.submitOrgApplication(formData);
-  },
-
-  getOrgApplications: async (status?: ApplicationStatus) => {
-    const result = await apiClient.getOrgApplications({ status });
-    return { data: result.data, total: result.pagination?.total || result.data.length };
-  },
-
-  getOrgApplication: async (id: string) => {
-    return apiClient.getOrgApplication(id);
-  },
-
-  verifyKYB: async (applicationId: string, verification: { status: 'APPROVED' | 'REJECTED'; reviewNotes?: string }) => {
-    return apiClient.verifyKybApplication(applicationId, {
-      status: verification.status === 'APPROVED' ? 'VERIFIED' : 'REJECTED',
-      reviewNotes: verification.reviewNotes,
-    });
   },
 
   // ============================================
@@ -1016,5 +954,22 @@ export const api = {
   getActiveInsuranceUnits: async (country?: string) => {
     const result = await apiClient.getActiveInsuranceUnits(country);
     return { data: toArray<import('@/types').InsuranceUnit>(result), pagination: result.pagination };
+  },
+
+  // ============================================
+  // FORAGE ALERTS (Org — livestock/IBLI feed)
+  // ============================================
+
+  getForageAlerts: async (params?: Parameters<typeof apiClient.getForageAlerts>[0]) => {
+    const result = await apiClient.getForageAlerts(params);
+    return { data: toArray<import('@/types').ForageAlert>(result), pagination: result.pagination };
+  },
+
+  // ============================================
+  // PLATFORM — PER-ORG RESERVE READ (solvency)
+  // ============================================
+
+  getOrgReserve: async (orgId: string): Promise<ReserveStatus & { message?: string }> => {
+    return apiClient.getOrgReserve(orgId);
   },
 };

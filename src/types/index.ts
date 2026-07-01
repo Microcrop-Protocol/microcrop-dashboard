@@ -297,6 +297,12 @@ export interface Payout {
   transactionHash?: string;
   processedAt?: string;
   createdAt: string;
+  // Optional on-chain settlement determination for this payout. Not yet returned
+  // by the dashboard payouts endpoint (see DeterminationStatusBadge) — present only
+  // when a determination stream is wired through. UNDERFUNDED means the org reserve
+  // could not fully fund the payout.
+  determination?: Determination;
+  determinationStatus?: DeterminationStatus;
 }
 
 // Damage Assessment Types
@@ -804,6 +810,30 @@ export interface Determination {
   failureReason?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// Forage-failure alert (livestock/IBLI). Shape matches
+// GET /api/dashboard/org/forage-alerts (dashboard.org.service.js).
+export type ForageAlertStatus = 'TRIGGERED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export interface ForageAlert {
+  id: string;
+  insuranceUnitId: string;
+  season: IBLISeason;
+  year: number;
+  cumulativeNDVI: number;
+  strikeLevel: number;
+  deficitPercent: number;
+  status: ForageAlertStatus;
+  policiesAffected: number;
+  totalPayoutUSDC: number;
+  processedAt: string | null;
+  createdAt: string;
+  insuranceUnit?: {
+    county: string;
+    unitCode: string;
+    country?: string;
+  };
 }
 
 // Outbound webhook delivery (partner integration). Shape matches

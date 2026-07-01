@@ -49,7 +49,7 @@ const statusBadgeVariants = cva(
   }
 );
 
-interface StatusBadgeProps
+export interface StatusBadgeProps
   extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof statusBadgeVariants> {
   children: React.ReactNode;

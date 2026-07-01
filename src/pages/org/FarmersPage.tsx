@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/utils";
 import { Upload, Download, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
 
 const columns: ColumnDef<Farmer>[] = [
   { accessorKey: "firstName", header: "First Name" },
@@ -84,6 +85,7 @@ export default function FarmersPage() {
           </Button>
         </div>
       </div>
+      <KybGatingBanner feature="Registering and importing farmers" />
       <DataTable columns={columns} data={data?.data ?? []} isLoading={isLoading} searchKey="firstName" searchPlaceholder="Search farmers..." onRowClick={(row) => navigate(`/org/farmers/${row.id}`)} />
     </div>
   );

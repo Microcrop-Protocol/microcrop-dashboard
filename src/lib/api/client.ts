@@ -1613,6 +1613,37 @@ class ApiClient {
     if (country) params.set('country', country);
     return this.requestWithPagination<import('@/types').InsuranceUnit[]>(`/insurance-units?${params.toString()}`);
   }
+
+  // ============================================
+  // FORAGE ALERTS (livestock / IBLI forage-failure feed)
+  // ============================================
+
+  async getForageAlerts(params?: {
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<import('@/types').ForageAlert[]>(
+      `/dashboard/org/forage-alerts${query ? `?${query}` : ''}`
+    );
+  }
+
+  // ============================================
+  // PLATFORM — PER-ORG RESERVE READ (solvency)
+  // ============================================
+
+  async getOrgReserve(orgId: string) {
+    return this.request<ReserveStatus & { message?: string }>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/reserve`
+    );
+  }
 }
 
 // Create singleton instance

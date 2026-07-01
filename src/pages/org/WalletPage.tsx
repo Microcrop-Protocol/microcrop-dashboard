@@ -14,6 +14,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FundWalletDialog } from '@/components/pool/FundWalletDialog';
+import { KybGatingBanner } from '@/components/kyb/KybGatingBanner';
 import type { FundWalletFormData } from '@/lib/validations/pool';
 
 export default function WalletPage() {
@@ -124,6 +125,8 @@ export default function WalletPage() {
           }
         />
       </div>
+
+      <KybGatingBanner feature="Funding your wallet" />
 
       {/* Balance Cards */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">

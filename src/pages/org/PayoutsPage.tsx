@@ -10,6 +10,7 @@ import { Payout } from "@/types";
 import { DollarSign, Hash, TrendingUp, CheckCircle, RefreshCw, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
 
 export default function PayoutsPage() {
   const { user } = useAuthStore();
@@ -40,6 +41,14 @@ export default function PayoutsPage() {
     { accessorKey: "farmerPhone", header: "Phone" },
     { accessorKey: "amount", header: "Amount", cell: ({ row }) => `KES ${(row.getValue("amount") as number).toLocaleString()}` },
     { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("status"))}>{row.getValue("status")}</StatusBadge> },
+    {
+      id: "determination",
+      header: "Settlement",
+      cell: ({ row }) => {
+        const status = row.original.determination?.status ?? row.original.determinationStatus;
+        return status ? <DeterminationStatusBadge status={status} /> : <span className="text-muted-foreground">—</span>;
+      },
+    },
     { accessorKey: "createdAt", header: "Date", cell: ({ row }) => formatDate(row.getValue("createdAt")) },
     {
       id: "actions",

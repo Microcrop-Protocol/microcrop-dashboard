@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { KybGatingBanner } from '@/components/kyb/KybGatingBanner';
 import { ShieldCheck, ShieldAlert, ArrowDownToLine, ArrowUpFromLine, DollarSign, Target, TrendingUp, Loader2 } from 'lucide-react';
 
 const usd = (n: number) => `$${(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -104,6 +105,8 @@ export default function ReservePage() {
           {r.solvent ? 'Solvent' : 'Underfunded'}
         </Badge>
       </div>
+
+      <KybGatingBanner feature="Funding your reserve" />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard title="Reserve balance" value={usd(r.reserveUsdc)} icon={DollarSign} />
