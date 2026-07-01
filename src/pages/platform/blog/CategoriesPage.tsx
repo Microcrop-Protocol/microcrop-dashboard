@@ -34,6 +34,8 @@ export default function CategoriesPage() {
     mutationFn: (id: string) => api.deleteBlogCategory(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['blog-categories'] });
+      // Posts embed their category, so refresh them too or they show the stale one.
+      qc.invalidateQueries({ queryKey: ['blog-posts'] });
       notifySuccess('Category deleted', 'Posts that used it are now uncategorized.');
       setConfirmDelete(null);
     },

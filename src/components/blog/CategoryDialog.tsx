@@ -58,6 +58,8 @@ export function CategoryDialog({ open, onOpenChange, category, onSaved }: Catego
     },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['blog-categories'] });
+      // Posts embed their category (name/slug), so refresh them after a rename too.
+      qc.invalidateQueries({ queryKey: ['blog-posts'] });
       notifySuccess(category ? 'Category updated' : 'Category created', saved.name);
       onSaved?.(saved);
       onOpenChange(false);

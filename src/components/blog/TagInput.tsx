@@ -7,7 +7,9 @@ import { api } from '@/lib/api';
 import { slugify } from '@/lib/slugify';
 
 interface TagInputProps {
-  value: string[]; // tag slugs
+  // Existing tags loaded from a post are slugs; newly added tags carry their
+  // human-entered display name. The backend slugifies either form to resolve/create.
+  value: string[];
   onChange: (next: string[]) => void;
 }
 
@@ -25,29 +27,37 @@ export function TagInput({ value, onChange }: TagInputProps) {
     return map;
   }, [tags]);
 
+  // Slugs already present, so we can de-dupe regardless of whether an entry is
+  // stored as a slug (loaded post) or a display name (freshly typed).
+  const selectedSlugs = useMemo(() => new Set(value.map((v) => slugify(v))), [value]);
+
   const suggestions = useMemo(() => {
     const trimmed = draft.trim().toLowerCase();
     if (!trimmed) return [];
     return tags
-      .filter((t) => !value.includes(t.slug))
+      .filter((t) => !selectedSlugs.has(t.slug))
       .filter((t) => t.name.toLowerCase().includes(trimmed) || t.slug.includes(trimmed))
       .slice(0, 6);
-  }, [draft, tags, value]);
+  }, [draft, tags, selectedSlugs]);
 
   const add = (raw: string) => {
     const name = raw.trim();
-    if (!name) return;
-    const slug = slugify(name);
-    if (!slug || value.includes(slug)) {
+    if (!name) {
       setDraft('');
       return;
     }
-    onChange([...value, slug]);
+    const slug = slugify(name);
+    if (!slug || selectedSlugs.has(slug)) {
+      setDraft('');
+      return;
+    }
+    // Keep the human-entered display name for new tags; the backend derives the slug.
+    onChange([...value, name]);
     setDraft('');
   };
 
-  const remove = (slug: string) => {
-    onChange(value.filter((s) => s !== slug));
+  const remove = (entry: string) => {
+    onChange(value.filter((s) => s !== entry));
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -62,17 +72,17 @@ export function TagInput({ value, onChange }: TagInputProps) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5 rounded-md border bg-background px-2 py-1.5 min-h-[42px]">
-        {value.map((slug) => (
+        {value.map((entry) => (
           <span
-            key={slug}
+            key={entry}
             className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium"
           >
-            {slugToName.get(slug) ?? slug}
+            {slugToName.get(entry) ?? entry}
             <button
               type="button"
               className="text-muted-foreground hover:text-foreground"
-              onClick={() => remove(slug)}
-              aria-label={`Remove ${slug}`}
+              onClick={() => remove(entry)}
+              aria-label={`Remove ${slugToName.get(entry) ?? entry}`}
             >
               <X className="h-3 w-3" />
             </button>
