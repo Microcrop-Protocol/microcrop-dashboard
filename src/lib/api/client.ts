@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -614,6 +614,65 @@ class ApiClient {
     }>('/organizations/me/wallet/fund', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // ============================================
+  // ORGANIZATION WEBHOOKS (partner integration)
+  // ============================================
+
+  async getWebhookConfig() {
+    return this.request<WebhookConfig>('/organizations/me/webhook');
+  }
+
+  async setWebhookConfig(url: string) {
+    return this.request<WebhookConfig>('/organizations/me/webhook', {
+      method: 'PUT',
+      body: JSON.stringify({ url }),
+    });
+  }
+
+  async rotateWebhookSecret() {
+    return this.request<{ secret: string }>('/organizations/me/webhook/rotate-secret', {
+      method: 'POST',
+    });
+  }
+
+  async getWebhookDeliveries(params?: { status?: WebhookDeliveryStatus; page?: number; limit?: number }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.request<{ deliveries: WebhookDelivery[]; total: number; page: number; limit: number }>(
+      `/organizations/me/webhook/deliveries${query ? `?${query}` : ''}`
+    );
+  }
+
+  async retryWebhookDelivery(id: string) {
+    return this.request<{ id: string; event: string; status: WebhookDeliveryStatus; attempts: number }>(
+      `/organizations/me/webhook/deliveries/${encodeURIComponent(id)}/retry`,
+      { method: 'POST' }
+    );
+  }
+
+  // ============================================
+  // ORGANIZATION API KEY (rotate-only)
+  // ============================================
+
+  async getApiKey() {
+    return this.request<ApiKeyStatus>('/organizations/me/api-key');
+  }
+
+  async rotateApiKey() {
+    return this.request<ApiKeyRotateResult>('/organizations/me/api-key/rotate', {
+      method: 'POST',
+    });
+  }
+
+  async revokeApiKey() {
+    return this.request<ApiKeyStatus>('/organizations/me/api-key/revoke', {
+      method: 'POST',
     });
   }
 

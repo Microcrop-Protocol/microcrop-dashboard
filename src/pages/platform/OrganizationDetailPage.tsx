@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -5,9 +6,19 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { PieChart } from "@/components/charts/PieChart";
 import { BarChart } from "@/components/charts/BarChart";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink, Percent, Loader2, Info } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Policy, Payout, OnboardingStep } from "@/types";
@@ -25,6 +36,9 @@ export default function OrganizationDetailPage() {
   const { orgId } = useParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
+  const [ratioPct, setRatioPct] = useState("");
 
   const { data: org, isLoading: orgLoading } = useQuery({
     queryKey: ["organization", orgId],
@@ -54,6 +68,27 @@ export default function OrganizationDetailPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to provision wallet", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Per-org treasury (v3): set the org's on-chain reserve ratio (solvency rule).
+  // ratioBps is basis points (0–10000); we take a percentage and convert.
+  const parsedPct = Number(ratioPct);
+  const ratioBps = Number.isFinite(parsedPct) ? Math.round(parsedPct * 100) : NaN;
+  const ratioValid = Number.isInteger(ratioBps) && ratioBps >= 0 && ratioBps <= 10000;
+
+  const setReserveRatioMutation = useMutation({
+    mutationFn: () => api.platformSetReserveRatio(orgId!, ratioBps),
+    onSuccess: (result) => {
+      toast({
+        title: "Reserve ratio updated",
+        description: `Set to ${(result.ratioBps / 100).toFixed(2)}% · tx ${result.txHash.slice(0, 10)}…`,
+      });
+      setReserveDialogOpen(false);
+      setRatioPct("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to set reserve ratio", description: error.message, variant: "destructive" });
     },
   });
 
@@ -166,16 +201,22 @@ export default function OrganizationDetailPage() {
               {provisionWalletMutation.isPending ? "Provisioning…" : "Provision Wallet"}
             </Button>
           ) : (
-            <Button variant="outline" asChild>
-              <a
-                href={`https://basescan.org/address/${org.walletAddress}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View Wallet
-                <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
-              </a>
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setReserveDialogOpen(true)}>
+                <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
+                Set Reserve Ratio
+              </Button>
+              <Button variant="outline" asChild>
+                <a
+                  href={`https://basescan.org/address/${org.walletAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View Wallet
+                  <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
+                </a>
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -217,6 +258,39 @@ export default function OrganizationDetailPage() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Reserve & Solvency (per-org treasury v3) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Percent className="h-4 w-4" aria-hidden="true" />
+            Reserve & Solvency
+          </CardTitle>
+          <CardDescription>
+            The reserve ratio is MicroCrop's solvency lever over this org's capital — it sets how much reserve the
+            org must hold against outstanding coverage. Setting it never moves funds.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              The current reserve ratio and live solvency for a specific org aren't exposed to platform admins yet —
+              the org sees them on its own Reserve page. Use the control below to set the ratio.
+            </span>
+          </div>
+          {org.walletAddress ? (
+            <Button variant="outline" onClick={() => setReserveDialogOpen(true)}>
+              <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
+              Set Reserve Ratio
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Provision the org's wallet first — the reserve ratio is enforced on-chain against that wallet.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -282,6 +356,50 @@ export default function OrganizationDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Set reserve ratio dialog */}
+      <Dialog open={reserveDialogOpen} onOpenChange={setReserveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set reserve ratio</DialogTitle>
+            <DialogDescription>
+              Enter the required reserve as a percentage of outstanding coverage for {org.name}. This is written
+              on-chain and takes effect immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reserve-ratio">Reserve ratio (%)</Label>
+            <div className="relative">
+              <Input
+                id="reserve-ratio"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="e.g. 20"
+                value={ratioPct}
+                onChange={(e) => setRatioPct(e.target.value)}
+                className={ratioPct !== "" && !ratioValid ? "border-destructive" : undefined}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {ratioValid ? `= ${ratioBps} basis points` : "Must be between 0 and 100 (max 2 decimals)."}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReserveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => setReserveRatioMutation.mutate()}
+              disabled={!ratioValid || setReserveRatioMutation.isPending}
+            >
+              {setReserveRatioMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Set ratio
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
