@@ -5,7 +5,7 @@ import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import {
@@ -20,13 +20,12 @@ import { CategoryDialog } from '@/components/blog/CategoryDialog';
 import type { BlogCategory } from '@/types';
 
 export default function CategoriesPage() {
-  const { toast } = useToast();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<BlogCategory | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<BlogCategory | null>(null);
 
-  const { data: categories = [], isLoading } = useQuery({
+  const { data: categories = [], isLoading, isError } = useQuery({
     queryKey: ['blog-categories'],
     queryFn: () => api.getBlogCategories(),
   });
@@ -35,18 +34,10 @@ export default function CategoriesPage() {
     mutationFn: (id: string) => api.deleteBlogCategory(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['blog-categories'] });
-      toast({
-        title: 'Category deleted',
-        description: 'Posts that used it are now uncategorized.',
-      });
+      notifySuccess('Category deleted', 'Posts that used it are now uncategorized.');
       setConfirmDelete(null);
     },
-    onError: (err) =>
-      toast({
-        title: 'Delete failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't delete the category."),
   });
 
   const columns: ColumnDef<BlogCategory>[] = [
@@ -126,12 +117,18 @@ export default function CategoriesPage() {
         </Button>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={categories}
-        isLoading={isLoading}
-        emptyMessage="No categories yet."
-      />
+      {isError ? (
+        <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+          We couldn't load categories. Please try again.
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={categories}
+          isLoading={isLoading}
+          emptyMessage="No categories yet."
+        />
+      )}
 
       <CategoryDialog
         open={creating}

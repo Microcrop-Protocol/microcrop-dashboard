@@ -11,7 +11,7 @@ import { Farmer } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { Upload, Download, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
 
 const columns: ColumnDef<Farmer>[] = [
@@ -41,7 +41,6 @@ const columns: ColumnDef<Farmer>[] = [
 export default function FarmersPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { toast } = useToast();
   const orgId = user?.organizationId || "";
   const [exporting, setExporting] = useState(false);
 
@@ -61,8 +60,9 @@ export default function FarmersPage() {
       a.download = `farmers-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      notifySuccess("Farmers exported", "Your download should begin shortly.");
     } catch (error) {
-      toast({ title: "Export failed", description: error instanceof Error ? error.message : "Failed to export farmers", variant: "destructive" });
+      notifyError(error, "Couldn't export farmers. Please try again.");
     } finally {
       setExporting(false);
     }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { KybGatingBanner } from '@/components/kyb/KybGatingBanner';
 import { ShieldCheck, ShieldAlert, ArrowDownToLine, ArrowUpFromLine, DollarSign, Target, TrendingUp, Loader2 } from 'lucide-react';
 
@@ -32,28 +33,25 @@ export default function ReservePage() {
   const depositMutation = useMutation({
     mutationFn: (amountUsdc: number) => api.depositReserve({ amountUsdc }),
     onSuccess: (r) => {
-      toast({ title: 'Reserve funded', description: `Deposited ${usd(r.amountUsdc)} of reserve capital.` });
+      notifySuccess('Reserve funded', `Deposited ${usd(r.amountUsdc)} of reserve capital.`);
       setDepositAmt('');
       invalidate();
     },
-    onError: (e: Error) => toast({ title: 'Deposit failed', description: e.message, variant: 'destructive' }),
+    onError: (e) => notifyError(e, "Couldn't fund your reserve. Please try again."),
   });
 
   const withdrawMutation = useMutation({
     mutationFn: (amountUsdc: number) => api.withdrawReserve({ amountUsdc }),
     onSuccess: (r) => {
-      toast({ title: 'Surplus withdrawn', description: `Withdrew ${usd(r.amountUsdc)} of surplus reserve.` });
+      notifySuccess('Surplus withdrawn', `Withdrew ${usd(r.amountUsdc)} of surplus reserve.`);
       setWithdrawAmt('');
       invalidate();
     },
-    onError: (e: Error) =>
-      toast({
-        title: 'Withdrawal blocked',
-        description: e.message.includes('Reserve') || e.message.includes('reserve')
-          ? 'That would breach your required reserve. You can only withdraw surplus above the required amount.'
-          : e.message,
-        variant: 'destructive',
-      }),
+    onError: (e) =>
+      notifyError(
+        e,
+        'That would breach your required reserve. You can only withdraw surplus above the required amount.',
+      ),
   });
 
   if (isLoading) {

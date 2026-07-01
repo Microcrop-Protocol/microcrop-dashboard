@@ -9,7 +9,7 @@ import {
   Banknote,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,6 @@ import { KybGatingBanner } from '@/components/kyb/KybGatingBanner';
 import type { FundWalletFormData } from '@/lib/validations/pool';
 
 export default function WalletPage() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
 
@@ -35,22 +34,18 @@ export default function WalletPage() {
         amountKES: data.amountKES,
       }),
     onSuccess: () => {
-      toast({
-        title: 'M-Pesa Request Sent',
-        description: 'Check your phone for the M-Pesa prompt. Balance will update shortly.',
-      });
+      notifySuccess(
+        'M-Pesa request sent',
+        'Check your phone for the M-Pesa prompt. Your balance will update shortly.',
+      );
       // Poll wallet balance for updates
       const interval = setInterval(() => {
         queryClient.invalidateQueries({ queryKey: ['orgWallet'] });
       }, 5000);
       setTimeout(() => clearInterval(interval), 120000);
     },
-    onError: (error: Error) => {
-      toast({
-        title: 'Funding Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+    onError: (error) => {
+      notifyError(error, "Couldn't start the M-Pesa payment. Please try again.");
     },
   });
 

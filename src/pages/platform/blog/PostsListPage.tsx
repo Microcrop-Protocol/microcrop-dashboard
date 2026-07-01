@@ -38,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { PostStatusBadge } from '@/components/blog/PostStatusBadge';
 import type { BlogPost, PostStatus } from '@/types';
 
@@ -46,13 +46,12 @@ const SITE_ORIGIN = 'https://microcrop.app';
 
 export default function PostsListPage() {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<BlogPost | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['blog-posts', statusFilter, search],
     queryFn: () =>
       api.getBlogPosts({
@@ -69,43 +68,28 @@ export default function PostsListPage() {
     mutationFn: (id: string) => api.publishBlogPost(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['blog-posts'] });
-      toast({ title: 'Post published' });
+      notifySuccess('Post published');
     },
-    onError: (err) =>
-      toast({
-        title: 'Publish failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't publish the post."),
   });
 
   const unpublishMutation = useMutation({
     mutationFn: (id: string) => api.unpublishBlogPost(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['blog-posts'] });
-      toast({ title: 'Post unpublished' });
+      notifySuccess('Post unpublished');
     },
-    onError: (err) =>
-      toast({
-        title: 'Unpublish failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't unpublish the post."),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteBlogPost(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['blog-posts'] });
-      toast({ title: 'Post deleted' });
+      notifySuccess('Post deleted');
       setConfirmDelete(null);
     },
-    onError: (err) =>
-      toast({
-        title: 'Delete failed',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      }),
+    onError: (err) => notifyError(err, "Couldn't delete the post."),
   });
 
   const columns: ColumnDef<BlogPost>[] = [
@@ -283,13 +267,19 @@ export default function PostsListPage() {
         </Select>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={posts}
-        isLoading={isLoading}
-        onRowClick={(row) => navigate(`/platform/blog/${row.id}/edit`)}
-        emptyMessage="No posts yet. Click 'New post' to create one."
-      />
+      {isError ? (
+        <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+          We couldn't load posts. Please try again.
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={posts}
+          isLoading={isLoading}
+          onRowClick={(row) => navigate(`/platform/blog/${row.id}/edit`)}
+          emptyMessage="No posts yet. Click 'New post' to create one."
+        />
+      )}
 
       <Dialog open={Boolean(confirmDelete)} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <DialogContent>

@@ -5,17 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { resolveFileUrl } from '@/lib/utils';
 import { FileText, Loader2, ShieldCheck, ShieldAlert, ExternalLink } from 'lucide-react';
 
 export default function OrgKybReviewPage() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
 
-  const { data: reviews, isLoading } = useQuery({
+  const { data: reviews, isLoading, isError } = useQuery({
     queryKey: ['kyb-reviews'],
     queryFn: () => api.getKybReviews(),
   });
@@ -24,15 +23,15 @@ export default function OrgKybReviewPage() {
     mutationFn: ({ orgId, decision, notes }: { orgId: string; decision: 'APPROVED' | 'REJECTED'; notes?: string }) =>
       api.reviewOrgKyb(orgId, decision, notes),
     onSuccess: (_r, vars) => {
-      toast({
-        title: vars.decision === 'APPROVED' ? 'Organization verified' : 'KYB rejected',
-        description: vars.decision === 'APPROVED' ? 'The org can now go live.' : 'The org has been asked to resubmit.',
-      });
+      notifySuccess(
+        vars.decision === 'APPROVED' ? 'Organization verified' : 'KYB rejected',
+        vars.decision === 'APPROVED' ? 'The org can now go live.' : 'The org has been asked to resubmit.',
+      );
       setRejecting(null);
       setNotes('');
       queryClient.invalidateQueries({ queryKey: ['kyb-reviews'] });
     },
-    onError: (e: Error) => toast({ title: 'Action failed', description: e.message, variant: 'destructive' }),
+    onError: (e) => notifyError(e, "Couldn't record the KYB decision."),
   });
 
   if (isLoading) {
@@ -40,6 +39,22 @@ export default function OrgKybReviewPage() {
   }
 
   const items = reviews ?? [];
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold">KYB Review</h1>
+          <p className="text-sm text-muted-foreground">Organizations awaiting KYB verification.</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            We couldn't load KYB reviews. Please try again.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

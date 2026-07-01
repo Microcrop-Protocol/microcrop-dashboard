@@ -9,12 +9,11 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Payout } from "@/types";
 import { DollarSign, Hash, TrendingUp, CheckCircle, RefreshCw, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
 
 export default function PayoutsPage() {
   const { user } = useAuthStore();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const orgId = user?.organizationId || "";
 
@@ -27,11 +26,11 @@ export default function PayoutsPage() {
   const retryMutation = useMutation({
     mutationFn: (payoutId: string) => api.retryPayout(payoutId),
     onSuccess: () => {
-      toast({ title: "Payout retried", description: "The payout has been resubmitted." });
+      notifySuccess("Payout retried", "The payout has been resubmitted.");
       queryClient.invalidateQueries({ queryKey: ["payouts", orgId] });
     },
-    onError: (error: Error) => {
-      toast({ title: "Retry failed", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      notifyError(error, "Couldn't retry the payout. Please try again.");
     },
   });
 

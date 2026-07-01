@@ -17,7 +17,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Farmer, Plot, PolicyQuote, Policy, GpsTrackResponse, CoverageType } from '@/types';
@@ -42,20 +42,7 @@ const STEPS = [
 
 export function OnboardingWizard() {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const sanitizeError = (error: Error) => {
-    const msg = error.message;
-    if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to fetch')) {
-      return 'Network error. Please check your connection and try again.';
-    }
-    if (msg.includes('401') || msg.includes('unauthorized')) {
-      return 'Session expired. Please log in again.';
-    }
-    if (msg.length > 200) return 'An unexpected error occurred. Please try again.';
-    return msg;
-  };
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -122,10 +109,10 @@ export function OnboardingWizard() {
     onSuccess: (result) => {
       setFarmer(result);
       setCurrentStep(1);
-      toast({ title: 'Farmer registered', description: `${result.firstName} ${result.lastName} has been registered.` });
+      notifySuccess('Farmer registered', `${result.firstName} ${result.lastName} has been registered.`);
     },
-    onError: (error: Error) => {
-      toast({ title: 'Registration failed', description: sanitizeError(error), variant: 'destructive' });
+    onError: (error) => {
+      notifyError(error, "Couldn't register the farmer.");
     },
   });
 
@@ -134,10 +121,10 @@ export function OnboardingWizard() {
     onSuccess: () => {
       if (farmer) setFarmer({ ...farmer, kycStatus: 'APPROVED' });
       setCurrentStep(2);
-      toast({ title: 'Identity verified', description: 'KYC field verification completed successfully.' });
+      notifySuccess('Identity verified', 'KYC field verification completed successfully.');
     },
-    onError: (error: Error) => {
-      toast({ title: 'Verification failed', description: sanitizeError(error), variant: 'destructive' });
+    onError: (error) => {
+      notifyError(error, "Couldn't verify the farmer's identity.");
     },
   });
 
@@ -156,10 +143,10 @@ export function OnboardingWizard() {
     onSuccess: (result) => {
       setPlot(result);
       setCurrentStep(3);
-      toast({ title: 'Plot created', description: `"${result.name}" has been registered.` });
+      notifySuccess('Plot created', `"${result.name}" has been registered.`);
     },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to create plot', description: sanitizeError(error), variant: 'destructive' });
+    onError: (error) => {
+      notifyError(error, "Couldn't create the plot.");
     },
   });
 
@@ -177,8 +164,8 @@ export function OnboardingWizard() {
     onSuccess: (result) => {
       setQuote(result);
     },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to get quote', description: sanitizeError(error), variant: 'destructive' });
+    onError: (error) => {
+      notifyError(error, "Couldn't get a premium quote.");
     },
   });
 
@@ -197,10 +184,10 @@ export function OnboardingWizard() {
     onSuccess: (result) => {
       setPolicy(result);
       setCurrentStep(7);
-      toast({ title: 'Policy created', description: `Policy ${result.policyNumber} is ready for payment.` });
+      notifySuccess('Policy created', `Policy ${result.policyNumber} is ready for payment.`);
     },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to create policy', description: sanitizeError(error), variant: 'destructive' });
+    onError: (error) => {
+      notifyError(error, "Couldn't create the policy.");
     },
   });
 
@@ -212,10 +199,10 @@ export function OnboardingWizard() {
     onSuccess: (result) => {
       setPaymentRef(result.reference);
       setPaymentStatus('polling');
-      toast({ title: 'Payment request sent', description: "Check the farmer's phone for the M-Pesa prompt." });
+      notifySuccess('Payment request sent', "Check the farmer's phone for the M-Pesa prompt.");
     },
-    onError: (error: Error) => {
-      toast({ title: 'Payment initiation failed', description: sanitizeError(error), variant: 'destructive' });
+    onError: (error) => {
+      notifyError(error, "Couldn't send the payment request.");
     },
   });
 
@@ -233,11 +220,7 @@ export function OnboardingWizard() {
       if (cancelled || attempts >= maxAttempts) {
         if (!cancelled && attempts >= maxAttempts) {
           setPaymentStatus('failed');
-          toast({
-            title: 'Payment timeout',
-            description: "Payment confirmation timed out. Check the farmer's M-Pesa messages.",
-            variant: 'destructive',
-          });
+          notifyError(null, "Payment confirmation timed out. Check the farmer's M-Pesa messages.");
         }
         return;
       }
@@ -250,15 +233,11 @@ export function OnboardingWizard() {
           queryClient.invalidateQueries({ queryKey: ['farmers'] });
           queryClient.invalidateQueries({ queryKey: ['policies'] });
           queryClient.invalidateQueries({ queryKey: ['plots'] });
-          toast({ title: 'Payment successful', description: 'The policy is now active.' });
+          notifySuccess('Payment successful', 'The policy is now active.');
           return;
         } else if (status.status === 'FAILED') {
           setPaymentStatus('failed');
-          toast({
-            title: 'Payment failed',
-            description: status.message || 'The payment was not completed.',
-            variant: 'destructive',
-          });
+          notifyError(null, status.message || 'The payment was not completed.');
           return;
         }
       } catch {
@@ -271,7 +250,7 @@ export function OnboardingWizard() {
     poll();
 
     return () => { cancelled = true; };
-  }, [paymentStatus, paymentRef, queryClient, toast]);
+  }, [paymentStatus, paymentRef, queryClient]);
 
   // ── Unsaved changes warning ────────────────────────────
 
@@ -287,21 +266,21 @@ export function OnboardingWizard() {
 
   const fillCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      toast({ title: 'Geolocation unavailable', description: 'Your browser does not support geolocation.', variant: 'destructive' });
+      notifyError(null, 'Your browser does not support geolocation.');
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         plotForm.setValue('latitude', Number(pos.coords.latitude.toFixed(6)), { shouldValidate: true });
         plotForm.setValue('longitude', Number(pos.coords.longitude.toFixed(6)), { shouldValidate: true });
-        toast({ title: 'Location captured', description: 'GPS coordinates have been set.' });
+        notifySuccess('Location captured', 'GPS coordinates have been set.');
       },
       (err) => {
-        toast({ title: 'Location error', description: err.message, variant: 'destructive' });
+        notifyError(err, "Couldn't get your current location.");
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
-  }, [plotForm, toast]);
+  }, [plotForm]);
 
   const handleBoundaryComplete = useCallback((result: GpsTrackResponse) => {
     setBoundaryResult(result);

@@ -15,13 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import { formatDate } from "@/lib/utils";
 import { Key, Copy, Check, RefreshCw, Ban, Loader2, AlertTriangle } from "lucide-react";
 import type { ApiKeyRotateResult } from "@/types";
 
 export function ApiKeysCard() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
@@ -45,23 +44,23 @@ export function ApiKeysCard() {
       setNewKeys(result);
       queryClient.invalidateQueries({ queryKey: ["api-key"] });
     },
-    onError: (e: Error) => toast({ title: "Failed to rotate key", description: e.message, variant: "destructive" }),
+    onError: (e) => notifyError(e, "Couldn't rotate the API key."),
   });
 
   const revokeMutation = useMutation({
     mutationFn: () => api.revokeApiKey(),
     onSuccess: (result) => {
-      toast({ title: "API key revoked", description: "This key can no longer authenticate requests." });
+      notifySuccess("API key revoked", "This key can no longer authenticate requests.");
       setRevokeConfirmOpen(false);
       queryClient.setQueryData(["api-key"], result);
     },
-    onError: (e: Error) => toast({ title: "Failed to revoke key", description: e.message, variant: "destructive" }),
+    onError: (e) => notifyError(e, "Couldn't revoke the API key."),
   });
 
   const copy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
-    toast({ title: `${field} copied` });
+    notifySuccess(`${field} copied`);
     setTimeout(() => setCopiedField(null), 2000);
   };
 

@@ -15,13 +15,12 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
+import { notifyError } from '@/lib/notify';
 import { forgotPasswordSchema, type ForgotPasswordFormData } from '@/lib/validations/auth';
 
 export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { toast } = useToast();
 
   const form = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -35,12 +34,8 @@ export default function ForgotPasswordPage() {
     try {
       await api.forgotPassword(values.email);
       setIsSubmitted(true);
-    } catch {
-      toast({
-        title: 'Something went wrong',
-        description: 'Please try again later.',
-        variant: 'destructive',
-      });
+    } catch (error) {
+      notifyError(error, "Couldn't send the reset email. Please try again later.");
     } finally {
       setIsLoading(false);
     }

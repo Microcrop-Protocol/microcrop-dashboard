@@ -9,7 +9,7 @@ import { formatDate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { CreateInsuranceUnitDialog } from "@/components/platform/CreateInsuranceUnitDialog";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 
 const columns: ColumnDef<InsuranceUnit>[] = [
   {
@@ -69,10 +69,9 @@ const columns: ColumnDef<InsuranceUnit>[] = [
 
 export default function InsuranceUnitsPage() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["insurance-units"],
     queryFn: () => api.getInsuranceUnits(),
   });
@@ -85,10 +84,10 @@ export default function InsuranceUnitsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["insurance-units"] });
-      toast({ title: "Insurance Unit Created", description: "Successfully created the new coverage region." });
+      notifySuccess("Insurance unit created", "Successfully created the new coverage region.");
     },
-    onError: (err: Error) => {
-      toast({ title: "Creation Failed", description: err.message, variant: "destructive" });
+    onError: (err) => {
+      notifyError(err, "Couldn't create the insurance unit.");
     }
   });
 
@@ -144,11 +143,17 @@ export default function InsuranceUnitsPage() {
       </div>
 
       {/* Table */}
-      <DataTable
-        columns={columns}
-        data={filteredData}
-        isLoading={isLoading}
-      />
+      {isError ? (
+        <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+          We couldn't load insurance units. Please try again.
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filteredData}
+          isLoading={isLoading}
+        />
+      )}
     </div>
   );
 }

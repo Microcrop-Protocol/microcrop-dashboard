@@ -4,7 +4,7 @@ import { Image as ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
 import { resolveFileUrl } from '@/lib/utils';
 
@@ -22,7 +22,6 @@ interface CoverImageUploaderProps {
 }
 
 export function CoverImageUploader({ value, onChange }: CoverImageUploaderProps) {
-  const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
   // Local blob: URL shown while the upload is in flight (or after, until reload).
   const [localPreview, setLocalPreview] = useState<string | null>(null);
@@ -70,16 +69,12 @@ export function CoverImageUploader({ value, onChange }: CoverImageUploaderProps)
       } catch (err) {
         releaseObjectUrl();
         setLocalPreview(null);
-        toast({
-          title: 'Upload failed',
-          description: err instanceof Error ? err.message : 'Could not upload image',
-          variant: 'destructive',
-        });
+        notifyError(err, "Couldn't upload the image.");
       } finally {
         setUploading(false);
       }
     },
-    [onChange, toast, value.alt],
+    [onChange, value.alt],
   );
 
   const onDrop = useCallback(

@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { acceptInvitationSchema, type AcceptInvitationFormData } from '@/lib/validations/kyb';
 import type { OrgAdminInvitation } from '@/types';
 
@@ -25,7 +25,6 @@ export default function AcceptInvitationPage() {
   const [searchParams] = useSearchParams();
   const token = pathToken || searchParams.get('token') || undefined;
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const [isValidating, setIsValidating] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,16 +75,9 @@ export default function AcceptInvitationPage() {
     try {
       await api.acceptInvitation(token, data.password);
       setIsSuccess(true);
-      toast({
-        title: 'Account Created!',
-        description: 'Your account has been set up successfully. You can now log in.',
-      });
+      notifySuccess('Account created!', 'Your account has been set up successfully. You can now log in.');
     } catch (err) {
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to accept invitation',
-        variant: 'destructive',
-      });
+      notifyError(err, "Couldn't accept the invitation. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Download, Users, FileText, DollarSign, ArrowRightLeft, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 
 const exportConfigs = [
   { title: "Farmers", description: "Export all farmer data including KYC status", icon: Users, key: "farmers" as const },
@@ -22,7 +22,6 @@ const exportFns = {
 };
 
 export default function ExportPage() {
-  const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), to: new Date() });
   const [downloading, setDownloading] = useState<string | null>(null);
 
@@ -40,8 +39,9 @@ export default function ExportPage() {
       a.download = `${key}-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      notifySuccess(`${title} exported`, "Your download should begin shortly.");
     } catch (error) {
-      toast({ title: `${title} export failed`, description: error instanceof Error ? error.message : "Export failed", variant: "destructive" });
+      notifyError(error, `Couldn't export ${title.toLowerCase()}. Please try again.`);
     } finally {
       setDownloading(null);
     }

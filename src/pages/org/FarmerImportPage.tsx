@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Upload, Loader2, FileSpreadsheet, X, Download, AlertCircle, AlertTriangle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { notifySuccess, notifyError } from "@/lib/notify";
 import {
   parseCsv,
   normalizeFarmerHeader,
@@ -181,7 +181,6 @@ function ImportReportPanel({ report, onDismiss }: ImportReportPanelProps) {
 }
 
 export default function FarmerImportPage() {
-  const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [farmersFile, setFarmersFile] = useState<File | null>(null);
@@ -200,11 +199,11 @@ export default function FarmerImportPage() {
       const report = buildResultReport(result, "farmers");
       setFarmersReport(report);
       if (report?.tone === "error") {
-        toast({ title: report.title, description: report.summary, variant: "destructive" });
+        notifyError(undefined, report.summary);
       } else if (report) {
-        toast({ title: report.title, description: report.summary });
+        notifySuccess(report.title, report.summary);
       } else {
-        toast({ title: "Farmers imported", description: `Successfully imported ${imported} farmers.` });
+        notifySuccess("Farmers imported", `Successfully imported ${imported} farmers.`);
       }
       if (imported > 0) {
         setFarmersJson("");
@@ -213,10 +212,9 @@ export default function FarmerImportPage() {
         navigate("/org/farmers");
       }
     },
-    onError: (error: Error) => {
-      const report = buildErrorReport(error, "farmers");
-      setFarmersReport(report);
-      toast({ title: report.title, description: report.summary, variant: "destructive" });
+    onError: (error) => {
+      setFarmersReport(buildErrorReport(error, "farmers"));
+      notifyError(error, "Couldn't import your farmers. Please check the file and try again.");
     },
   });
 
@@ -227,32 +225,31 @@ export default function FarmerImportPage() {
       const report = buildResultReport(result, "plots");
       setPlotsReport(report);
       if (report?.tone === "error") {
-        toast({ title: report.title, description: report.summary, variant: "destructive" });
+        notifyError(undefined, report.summary);
       } else if (report) {
-        toast({ title: report.title, description: report.summary });
+        notifySuccess(report.title, report.summary);
       } else {
-        toast({ title: "Plots imported", description: `Successfully imported ${imported} plots.` });
+        notifySuccess("Plots imported", `Successfully imported ${imported} plots.`);
       }
       if (imported > 0) {
         setPlotsJson("");
         setPlotsFile(null);
       }
     },
-    onError: (error: Error) => {
-      const report = buildErrorReport(error, "plots");
-      setPlotsReport(report);
-      toast({ title: report.title, description: report.summary, variant: "destructive" });
+    onError: (error) => {
+      setPlotsReport(buildErrorReport(error, "plots"));
+      notifyError(error, "Couldn't import your plots. Please check the file and try again.");
     },
   });
 
   const showFarmersClientError = (title: string, message: string) => {
     setFarmersReport({ tone: "error", title, summary: message, issues: [] });
-    toast({ title, description: message, variant: "destructive" });
+    notifyError(undefined, message);
   };
 
   const showPlotsClientError = (title: string, message: string) => {
     setPlotsReport({ tone: "error", title, summary: message, issues: [] });
-    toast({ title, description: message, variant: "destructive" });
+    notifyError(undefined, message);
   };
 
   const handleCsvImportFarmers = async () => {
