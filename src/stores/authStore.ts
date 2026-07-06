@@ -5,6 +5,8 @@ import { apiClient } from '@/lib/api/client';
 
 // Refresh token 5 minutes before expiry
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+// Floor for the silent-refresh delay so an unexpectedly short-lived token can't hot-loop.
+const MIN_REFRESH_DELAY_MS = 10 * 1000;
 
 // Absolute last-resort lifetime used ONLY when a token carries no decodable
 // `exp` claim and the server provided no expiry. Real expiry is always derived
@@ -88,7 +90,8 @@ function clearRefreshTimer(): void {
 /**
  * (Re)arm the silent-refresh timer to fire TOKEN_REFRESH_BUFFER_MS before the
  * current token's real expiry. If the token is already inside the buffer window
- * it fires immediately (delay clamped to 0).
+ * the delay is floored at MIN_REFRESH_DELAY_MS (not 0) so an abnormally
+ * short-lived token can't drive a hot refresh loop.
  */
 function scheduleSilentRefresh(getState: () => AuthState): void {
   clearRefreshTimer();
@@ -97,7 +100,7 @@ function scheduleSilentRefresh(getState: () => AuthState): void {
   const tokens = getState().tokens;
   if (!tokens?.refreshToken || !tokens.expiresAt) return;
 
-  const delay = Math.max(0, tokens.expiresAt - TOKEN_REFRESH_BUFFER_MS - Date.now());
+  const delay = Math.max(MIN_REFRESH_DELAY_MS, tokens.expiresAt - TOKEN_REFRESH_BUFFER_MS - Date.now());
   refreshTimer = setTimeout(() => {
     void getState().refreshAccessToken();
   }, delay);
