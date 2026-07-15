@@ -15,7 +15,9 @@ export function resolveFileUrl(url: string): string {
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
     return url;
   }
-  const apiBase = import.meta.env.VITE_API_URL || '';
+  const rawBase = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+  // Tolerate a scheme-less VITE_API_URL (see api/client.ts) so file URLs resolve absolutely.
+  const apiBase = rawBase && !/^https?:\/\//i.test(rawBase) ? `https://${rawBase}` : rawBase;
   return `${apiBase}${url}`;
 }
 
