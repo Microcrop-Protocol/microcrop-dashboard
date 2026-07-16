@@ -13,6 +13,13 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { formatDistanceToNow, isValid } from "date-fns";
+import { formatCurrency } from "@/lib/market";
+import {
+  useDemoMode,
+  useActivityStream,
+  type DemoEvent,
+  type MarketCode,
+} from "@/lib/demo";
 
 function formatActivityTime(dateValue: string | Date | undefined | null): string {
   if (!dateValue) return "Recently";
@@ -91,6 +98,108 @@ export function ActivityFeed({ activities, className, maxItems }: ActivityFeedPr
               <p className="text-sm leading-tight">{activity.message}</p>
               <p className="text-xs text-muted-foreground">
                 {formatActivityTime(activity.createdAt)}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LiveActivityFeed — additive, demo-mode-only streaming variant.
+//
+// When demo mode is OFF it renders the plain <ActivityFeed/> with the exact
+// props passed in (real data, no animation). When ON it ignores the static
+// `activities` and streams simulated KE + GH events from `useActivityStream`,
+// each new item animating in at the top of the list.
+// ---------------------------------------------------------------------------
+
+const MARKET_FLAG: Record<MarketCode, string> = {
+  KE: "🇰🇪",
+  GH: "🇬🇭",
+};
+
+const demoTypeToActivityType: Record<DemoEvent["type"], ActivityType> = {
+  policy: "POLICY_CREATED",
+  determination: "FARMER_KYC_UPDATED",
+  payout: "PAYOUT_COMPLETED",
+};
+
+const demoTypeIcon: Record<DemoEvent["type"], React.ElementType> = {
+  policy: FileText,
+  determination: FileText,
+  payout: DollarSign,
+};
+
+function demoEventTitle(event: DemoEvent): string {
+  switch (event.type) {
+    case "policy":
+      return "New policy issued";
+    case "determination":
+      return event.peril
+        ? `${event.peril[0].toUpperCase()}${event.peril.slice(1)} index determination`
+        : "Index determination";
+    case "payout":
+      return event.peril
+        ? `${event.peril[0].toUpperCase()}${event.peril.slice(1)} payout sent`
+        : "Payout sent";
+  }
+}
+
+export function LiveActivityFeed({ activities, className, maxItems }: ActivityFeedProps) {
+  const { enabled } = useDemoMode();
+  if (!enabled) {
+    return <ActivityFeed activities={activities} className={className} maxItems={maxItems} />;
+  }
+  return <LiveActivityFeedInner className={className} maxItems={maxItems} />;
+}
+
+function LiveActivityFeedInner({ className, maxItems }: Omit<ActivityFeedProps, "activities">) {
+  const events = useActivityStream({ max: maxItems ?? 6 });
+
+  if (events.length === 0) {
+    return (
+      <div className={cn("flex items-center justify-center py-8 text-muted-foreground", className)}>
+        Awaiting live activity…
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("space-y-4", className)}>
+      {events.map((event) => {
+        const Icon = demoTypeIcon[event.type] || AlertCircle;
+        const colorClass =
+          activityColors[demoTypeToActivityType[event.type]] || "text-muted-foreground bg-muted";
+
+        return (
+          <div key={event.id} className="flex animate-slide-up items-start gap-3">
+            <div className={cn("rounded-full p-2", colorClass)}>
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-sm leading-tight">
+                <span className="font-medium">{demoEventTitle(event)}</span>
+                <span className="text-muted-foreground"> · {event.farmerMasked}</span>
+              </p>
+              <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                <span aria-hidden="true">{MARKET_FLAG[event.market]}</span>
+                <span>{event.region}</span>
+                <span aria-hidden="true">·</span>
+                <span className="capitalize">{event.crop}</span>
+                {event.amount > 0 && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="font-medium tabular-nums text-foreground/80">
+                      {formatCurrency(event.amount, event.currency)}
+                    </span>
+                  </>
+                )}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {formatActivityTime(new Date(event.ts))}
               </p>
             </div>
           </div>

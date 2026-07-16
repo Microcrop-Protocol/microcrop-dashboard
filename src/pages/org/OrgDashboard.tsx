@@ -4,8 +4,9 @@ import { explorerAddressUrl } from "@/lib/explorer";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency, useMarket } from "@/lib/market";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { LiveStatCard } from "@/components/dashboard/StatCard";
+import { LiveActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { PayoutPulse } from "@/components/demo/PayoutEventToast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, DollarSign, Wallet, TrendingUp, ExternalLink, ShieldAlert, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export default function OrgDashboard() {
 
   return (
     <div className="space-y-6">
+      <PayoutPulse />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -100,17 +102,18 @@ export default function OrgDashboard() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard title="Total Farmers" value={stats?.totalFarmers?.toLocaleString() ?? 0} icon={Users} />
-        <StatCard title="Active Policies" value={stats?.activePolicies?.toLocaleString() ?? 0} icon={FileText} />
-        <StatCard
+        <LiveStatCard kpiKey="farmers" title="Total Farmers" value={stats?.totalFarmers?.toLocaleString() ?? 0} icon={Users} />
+        <LiveStatCard kpiKey="activePolicies" title="Active Policies" value={stats?.activePolicies?.toLocaleString() ?? 0} icon={FileText} />
+        <LiveStatCard
+          kpiKey="lossRatio"
           title="Loss Ratio"
           value={`${(stats?.lossRatio ?? 0).toFixed(1)}%`}
           subtitle="Current period"
           icon={TrendingUp}
         />
-        <StatCard title="Premiums" value={formatCompact(stats?.totalPremiums ?? 0)} icon={Wallet} />
-        <StatCard title="Payouts" value={formatCompact(stats?.totalPayouts ?? 0)} icon={DollarSign} />
-        <StatCard title="Fees" value={formatCompact(stats?.totalFees ?? 0)} icon={TrendingUp} />
+        <LiveStatCard kpiKey="premiums" title="Premiums" value={formatCompact(stats?.totalPremiums ?? 0)} icon={Wallet} />
+        <LiveStatCard kpiKey="payouts" pulseOnPayout title="Payouts" value={formatCompact(stats?.totalPayouts ?? 0)} icon={DollarSign} />
+        <LiveStatCard kpiKey="fees" title="Fees" value={formatCompact(stats?.totalFees ?? 0)} icon={TrendingUp} />
       </div>
 
       <Card>
@@ -118,7 +121,7 @@ export default function OrgDashboard() {
           <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActivityFeed activities={activities?.data ?? []} maxItems={5} />
+          <LiveActivityFeed activities={activities?.data ?? []} maxItems={5} />
         </CardContent>
       </Card>
     </div>
