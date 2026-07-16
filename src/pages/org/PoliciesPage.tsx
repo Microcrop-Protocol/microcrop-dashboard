@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
+import { useMemo } from "react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { formatCurrency, useMarket, type Market } from "@/lib/market";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -10,13 +12,13 @@ import { Policy } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { Plus } from "lucide-react";
 
-const columns: ColumnDef<Policy>[] = [
+const makeColumns = (market: Market): ColumnDef<Policy>[] => [
   { accessorKey: "policyNumber", header: "Policy #" },
   { accessorKey: "farmerName", header: "Farmer" },
   { accessorKey: "plotName", header: "Plot" },
   { accessorKey: "coverageType", header: "Coverage" },
   { accessorKey: "cropType", header: "Crop" },
-  { accessorKey: "sumInsured", header: "Sum Insured", cell: ({ row }) => `KES ${Number(row.getValue("sumInsured")).toLocaleString()}` },
+  { accessorKey: "sumInsured", header: "Sum Insured", cell: ({ row }) => formatCurrency(row.getValue("sumInsured"), market) },
   { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("status"))}>{row.getValue("status")}</StatusBadge> },
   { accessorKey: "endDate", header: "Expires", cell: ({ row }) => formatDate(row.getValue("endDate")) },
 ];
@@ -24,7 +26,9 @@ const columns: ColumnDef<Policy>[] = [
 export default function PoliciesPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { market } = useMarket();
   const orgId = user?.organizationId || "";
+  const columns = useMemo(() => makeColumns(market), [market]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["policies", orgId],

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { formatCurrency, useMarket } from "@/lib/market";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import type { Farmer, Plot, CoverageType } from "@/types";
 
 export default function NewPolicyPage() {
   const { user } = useAuthStore();
+  const { market } = useMarket();
   const navigate = useNavigate();
   const orgId = user?.organizationId || "";
 
@@ -148,7 +150,7 @@ export default function NewPolicyPage() {
             </div>
 
             <div>
-              <Label>Sum Insured (KES)</Label>
+              <Label>Sum Insured ({market.currency})</Label>
               <Input
                 type="number"
                 value={formData.sumInsured}
@@ -193,15 +195,15 @@ export default function NewPolicyPage() {
                 <>
                   <div className="flex justify-between">
                     <span>Premium</span>
-                    <span>KES {premium.toLocaleString()}</span>
+                    <span>{formatCurrency(premium, market)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Platform Fee</span>
-                    <span>KES {fee.toLocaleString()}</span>
+                    <span>{formatCurrency(fee, market)}</span>
                   </div>
                   <div className="mt-2 flex justify-between border-t pt-2 font-bold">
                     <span>Total</span>
-                    <span>KES {(total ?? premium + fee).toLocaleString()}</span>
+                    <span>{formatCurrency(total ?? premium + fee, market)}</span>
                   </div>
                 </>
               ) : (
@@ -226,13 +228,12 @@ export default function NewPolicyPage() {
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
               {total != null || (premium != null && fee != null)
-                ? `Pay KES ${(total ?? (premium ?? 0) + (fee ?? 0)).toLocaleString()} via M-Pesa to complete policy activation.`
-                : "Complete payment via M-Pesa to activate this policy."}
+                ? `Pay ${formatCurrency(total ?? (premium ?? 0) + (fee ?? 0), market)} via ${market.mobileMoney} to complete policy activation.`
+                : `Complete payment via ${market.mobileMoney} to activate this policy.`}
             </p>
             <div className="rounded-lg border p-4">
               <p className="text-sm text-muted-foreground">
-                An M-Pesa payment prompt will be sent to the farmer's phone to
-                complete premium payment and activate the policy.
+                {`An ${market.mobileMoney} payment prompt will be sent to the farmer's phone to complete premium payment and activate the policy.`}
               </p>
             </div>
             <div className="flex gap-2">

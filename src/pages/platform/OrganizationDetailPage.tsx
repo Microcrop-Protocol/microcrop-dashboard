@@ -22,6 +22,7 @@ import {
 import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink, Percent, Loader2, Info } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { notifySuccess, notifyError } from "@/lib/notify";
+import { formatCurrencyForOrg, type MarketOrgLike } from "@/lib/market";
 import type { Policy, Payout, OnboardingStep } from "@/types";
 
 // Keys MUST match the backend OnboardingStep enum; labels are human-friendly.
@@ -134,14 +135,14 @@ export default function OrganizationDetailPage() {
   const recentPolicies = policies.slice(0, 5);
   const recentPayouts = payouts.slice(0, 5);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  // Platform admin views a specific org — format money in that org's market
+  // currency rather than the admin's default.
+  // The multi-country backend returns countryCode/country/currency on the org at
+  // runtime; the `Organization` TS type doesn't declare them yet, so treat it as
+  // the tolerant MarketOrgLike shape for currency resolution.
+  const orgMarket = org as MarketOrgLike | undefined;
+  const formatCurrency = (value: number) =>
+    formatCurrencyForOrg(value, orgMarket, { notation: "compact", maximumFractionDigits: 1 });
 
   const currentStepIndex = onboardingSteps.findIndex(s => s.key === org?.onboardingStep);
 
@@ -383,7 +384,7 @@ export default function OrganizationDetailPage() {
                       <p className="text-sm text-muted-foreground">{payout.farmerName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">KES {Number(payout.amount ?? 0).toLocaleString()}</p>
+                      <p className="font-medium">{formatCurrencyForOrg(payout.amount, orgMarket)}</p>
                       <StatusBadge variant={getStatusVariant(payout.status)}>
                         {payout.status}
                       </StatusBadge>

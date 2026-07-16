@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
+import { formatCurrency as formatMarketCurrency, useMarket } from "@/lib/market";
 
 export default function PlatformDashboard() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -31,17 +32,13 @@ export default function PlatformDashboard() {
     queryFn: () => api.getActivities(),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  const { market } = useMarket();
+
+  const formatCurrency = (value: number) =>
+    formatMarketCurrency(value, market, { notation: "compact", maximumFractionDigits: 1 });
 
   const formatNumber = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
+    return new Intl.NumberFormat(market.locale, {
       notation: "compact",
       maximumFractionDigits: 1,
     }).format(value);

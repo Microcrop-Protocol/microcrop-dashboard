@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,10 +21,11 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Farmer, Herd, LivestockPolicyQuote, Policy, IBLISeason, CoverageType } from '@/types';
 import {
-  pastoralistRegistrationSchema, herdRegistrationSchema, livestockPolicyConfigSchema,
+  createPastoralistRegistrationSchema, herdRegistrationSchema, livestockPolicyConfigSchema,
   LIVESTOCK_TYPES, calculateTLU,
   type PastoralistRegistrationData, type HerdRegistrationData, type LivestockPolicyConfigData,
 } from '@/lib/validations/livestock-onboarding';
+import { useMarket, dialCodeFor, normalizePhone, formatCurrency } from '@/lib/market';
 
 const STEPS = [
   { id: 'register', title: 'Register', icon: UserPlus },
@@ -38,6 +39,7 @@ const STEPS = [
 export function LivestockOnboardingWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { market } = useMarket();
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -68,10 +70,11 @@ export function LivestockOnboardingWizard() {
 
   // ── Forms ──────────────────────────────────────────────
 
+  const farmerSchema = useMemo(() => createPastoralistRegistrationSchema(market), [market]);
   const farmerForm = useForm<PastoralistRegistrationData>({
-    resolver: zodResolver(pastoralistRegistrationSchema),
+    resolver: zodResolver(farmerSchema),
     defaultValues: {
-      phoneNumber: '+254',
+      phoneNumber: dialCodeFor(market),
       nationalId: '',
       firstName: '',
       lastName: '',
@@ -109,6 +112,7 @@ export function LivestockOnboardingWizard() {
   const registerMutation = useMutation({
     mutationFn: (data: PastoralistRegistrationData) => api.registerFarmer({
       ...data,
+      phoneNumber: normalizePhone(data.phoneNumber, market),
       subCounty: data.subCounty || undefined,
       ward: data.ward || undefined,
       village: data.village || undefined,
@@ -211,7 +215,7 @@ export function LivestockOnboardingWizard() {
     onSuccess: (result) => {
       setPaymentRef(result.reference);
       setPaymentStatus('polling');
-      notifySuccess('Payment request sent', "Check the pastoralist's phone for the M-Pesa prompt.");
+      notifySuccess('Payment request sent', `Check the pastoralist's phone for the ${market.mobileMoney} prompt.`);
     },
     onError: (error) => {
       notifyError(error, "Couldn't send the payment request.");
@@ -232,7 +236,7 @@ export function LivestockOnboardingWizard() {
       if (cancelled || attempts >= maxAttempts) {
         if (!cancelled && attempts >= maxAttempts) {
           setPaymentStatus('failed');
-          notifyError(null, "Payment confirmation timed out. Check the pastoralist's M-Pesa messages.");
+          notifyError(null, `Payment confirmation timed out. Check the pastoralist's ${market.mobileMoney} messages.`);
         }
         return;
       }
@@ -356,8 +360,8 @@ export function LivestockOnboardingWizard() {
             <FormField control={farmerForm.control} name="phoneNumber" render={({ field }) => (
               <FormItem>
                 <FormLabel>Phone Number <span className="text-destructive">*</span></FormLabel>
-                <FormControl><Input placeholder="+254712345678" autoComplete="off" {...field} /></FormControl>
-                <FormDescription>Include country code (e.g. +254)</FormDescription>
+                <FormControl><Input placeholder={`${dialCodeFor(market)}712345678`} autoComplete="off" {...field} /></FormControl>
+                <FormDescription>Include country code (e.g. {dialCodeFor(market)})</FormDescription>
                 <FormMessage />
               </FormItem>
             )} />
@@ -569,7 +573,7 @@ export function LivestockOnboardingWizard() {
 
               <FormField control={herdForm.control} name="estimatedValue" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Estimated Value (Per Head) in KES <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel>Estimated Value (Per Head) in {market.currency} <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input type="number" min={100} {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
                   </FormControl>
@@ -585,7 +589,7 @@ export function LivestockOnboardingWizard() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Total Herd Value</div>
-                  <div className="text-2xl font-bold">KES {totalValue.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{formatCurrency(totalValue, market, { maximumFractionDigits: 0 })}</div>
                 </div>
               </div>
 
@@ -672,20 +676,20 @@ export function LivestockOnboardingWizard() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Premium Rate (per TLU)</span>
-                          <span className="font-medium">KES {quote.premiumPerTLU.toLocaleString()}</span>
+                          <span className="font-medium">{formatCurrency(quote.premiumPerTLU, market, { maximumFractionDigits: 0 })}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Base Premium</span>
-                          <span className="font-medium">KES {quote.premium.toLocaleString()}</span>
+                          <span className="font-medium">{formatCurrency(quote.premium, market, { maximumFractionDigits: 0 })}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Platform Fee</span>
-                          <span className="font-medium">KES {quote.platformFee.toLocaleString()}</span>
+                          <span className="font-medium">{formatCurrency(quote.platformFee, market, { maximumFractionDigits: 0 })}</span>
                         </div>
                         <div className="my-2 h-px bg-border" />
                         <div className="flex justify-between text-base font-bold">
                           <span>Total Amount Due</span>
-                          <span className="text-primary">KES {quote.totalCost.toLocaleString()}</span>
+                          <span className="text-primary">{formatCurrency(quote.totalCost, market, { maximumFractionDigits: 0 })}</span>
                         </div>
                       </div>
                     </div>
@@ -785,14 +789,14 @@ export function LivestockOnboardingWizard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>M-Pesa Payment</CardTitle>
-          <CardDescription>Send an M-Pesa STK prompt to the pastoralist</CardDescription>
+          <CardTitle>{market.mobileMoney} Payment</CardTitle>
+          <CardDescription>Send a {market.mobileMoney} STK prompt to the pastoralist</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="rounded-lg border p-4 flex items-center justify-between">
             <div>
               <div className="text-sm text-muted-foreground">Amount to Pay</div>
-              <div className="text-2xl font-bold">KES {policy.premium + policy.platformFee}</div>
+              <div className="text-2xl font-bold">{formatCurrency(policy.premium + policy.platformFee, market, { maximumFractionDigits: 0 })}</div>
             </div>
             <Smartphone className="h-8 w-8 text-muted-foreground opacity-50" />
           </div>
@@ -800,11 +804,11 @@ export function LivestockOnboardingWizard() {
           {paymentStatus === 'idle' || paymentStatus === 'failed' ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">M-Pesa Phone Number</label>
-                <Input 
-                  value={paymentPhone} 
-                  onChange={(e) => setPaymentPhone(e.target.value)} 
-                  placeholder="+254700000000"
+                <label className="text-sm font-medium">{market.mobileMoney} Phone Number</label>
+                <Input
+                  value={paymentPhone}
+                  onChange={(e) => setPaymentPhone(e.target.value)}
+                  placeholder={`${dialCodeFor(market)}700000000`}
                 />
                 <p className="text-xs text-muted-foreground">The prompt will be sent to this number.</p>
               </div>
@@ -825,7 +829,7 @@ export function LivestockOnboardingWizard() {
               <div>
                 <h3 className="font-medium">Waiting for Payment</h3>
                 <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
-                  An M-Pesa prompt has been sent to the phone. Waiting for the pastoralist to enter their PIN...
+                  A {market.mobileMoney} prompt has been sent to the phone. Waiting for the pastoralist to enter their PIN...
                 </p>
               </div>
             </div>

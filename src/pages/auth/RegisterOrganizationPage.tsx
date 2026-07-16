@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,22 +17,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import { notifySuccess, notifyError } from '@/lib/notify';
-import { orgSignupSchema, orgTypeLabels, type OrgSignupFormData } from '@/lib/validations/kyb';
-
-// Backend expects +254XXXXXXXXX; accept 07.../01... and normalise.
-function normalizePhone(phone?: string): string | undefined {
-  if (!phone) return undefined;
-  const p = phone.trim();
-  if (!p) return undefined;
-  if (p.startsWith('+254')) return p;
-  if (p.startsWith('0')) return `+254${p.slice(1)}`;
-  return p;
-}
+import { createOrgSignupSchema, orgTypeLabels, type OrgSignupFormData } from '@/lib/validations/kyb';
+import { MARKETS, DEFAULT_MARKET, dialCodeFor, normalizePhone, type Market } from '@/lib/market';
 
 export default function RegisterOrganizationPage() {
   const [isLoading, setIsLoading] = useState(false);
+  // The signing-up org has no session yet, so its market is chosen here (defaults
+  // to Kenya). This drives phone validation, normalization and the dial-code hint.
+  const [countryCode, setCountryCode] = useState<string>(DEFAULT_MARKET.code);
+  const market: Market = MARKETS[countryCode] ?? DEFAULT_MARKET;
   const { login } = useAuthStore();
   const navigate = useNavigate();
+
+  const schema = useMemo(() => createOrgSignupSchema(market), [market]);
 
   const {
     register,
@@ -41,7 +38,7 @@ export default function RegisterOrganizationPage() {
     watch,
     formState: { errors },
   } = useForm<OrgSignupFormData>({
-    resolver: zodResolver(orgSignupSchema),
+    resolver: zodResolver(schema),
   });
   const type = watch('type');
 
@@ -57,7 +54,7 @@ export default function RegisterOrganizationPage() {
         lastName: data.lastName,
         email: data.email,
         password: data.password,
-        phone: normalizePhone(data.phone),
+        phone: data.phone ? normalizePhone(data.phone, market) : undefined,
       });
       login(user, tokens);
       notifySuccess(
@@ -115,8 +112,19 @@ export default function RegisterOrganizationPage() {
                 </Select>
                 {errors.type && <p className="mt-1 text-sm text-destructive">{errors.type.message}</p>}
               </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="county">County <span className="text-muted-foreground">(optional)</span></Label>
+              <div>
+                <Label htmlFor="country">Country</Label>
+                <Select value={countryCode} onValueChange={setCountryCode}>
+                  <SelectTrigger id="country"><SelectValue placeholder="Select country" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.values(MARKETS).map((m) => (
+                      <SelectItem key={m.code} value={m.code}>{m.country}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="county">County/Region <span className="text-muted-foreground">(optional)</span></Label>
                 <Input id="county" {...register('county')} placeholder="Nakuru" />
               </div>
             </CardContent>
@@ -145,7 +153,7 @@ export default function RegisterOrganizationPage() {
               </div>
               <div>
                 <Label htmlFor="phone">Phone <span className="text-muted-foreground">(optional)</span></Label>
-                <Input id="phone" {...register('phone')} placeholder="0712345678" />
+                <Input id="phone" {...register('phone')} placeholder={`${dialCodeFor(market)}712345678`} />
                 {errors.phone && <p className="mt-1 text-sm text-destructive">{errors.phone.message}</p>}
               </div>
               <div>

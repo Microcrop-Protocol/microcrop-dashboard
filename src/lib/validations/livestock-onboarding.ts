@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidPhone, dialCodeFor, type MarketInput } from '@/lib/market';
 
 // ── Livestock Types ──────────────────────────────────────
 
@@ -23,27 +24,34 @@ export function calculateTLU(livestockType: LivestockTypeValue, headCount: numbe
 
 /**
  * Pastoralist registration — same as farmer but labelled differently.
- * Phone accepts multiple African country codes for scalability.
+ * Phone validation is market-aware (accepts +254, +233, … via the foundation's
+ * phone helpers). Pass the resolved market/dial code to localize.
  */
-export const pastoralistRegistrationSchema = z.object({
-  phoneNumber: z.string()
-    .regex(/^\+\d{1,3}\d{6,12}$/, 'Must be a valid phone number with country code (e.g. +254712345678)'),
-  nationalId: z.string()
-    .min(5, 'ID must be at least 5 characters')
-    .max(30, 'ID must not exceed 30 characters'),
-  firstName: z.string()
-    .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name must not exceed 50 characters')
-    .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
-  lastName: z.string()
-    .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name must not exceed 50 characters')
-    .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
-  county: z.string().min(2, 'County is required'),
-  subCounty: z.string().min(2, 'Sub-county is required'),
-  ward: z.string().optional(),
-  village: z.string().optional(),
-});
+export function createPastoralistRegistrationSchema(market?: MarketInput) {
+  return z.object({
+    phoneNumber: z.string()
+      .refine((v) => isValidPhone(v, market),
+        `Enter a valid phone number with country code (e.g. ${dialCodeFor(market)}712345678)`),
+    nationalId: z.string()
+      .min(5, 'ID must be at least 5 characters')
+      .max(30, 'ID must not exceed 30 characters'),
+    firstName: z.string()
+      .min(2, 'First name must be at least 2 characters')
+      .max(50, 'First name must not exceed 50 characters')
+      .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
+    lastName: z.string()
+      .min(2, 'Last name must be at least 2 characters')
+      .max(50, 'Last name must not exceed 50 characters')
+      .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
+    county: z.string().min(2, 'County is required'),
+    subCounty: z.string().min(2, 'Sub-county is required'),
+    ward: z.string().optional(),
+    village: z.string().optional(),
+  });
+}
+
+/** Default (Kenya) instance — preserves prior behavior for callers without a market. */
+export const pastoralistRegistrationSchema = createPastoralistRegistrationSchema();
 
 export type PastoralistRegistrationData = z.infer<typeof pastoralistRegistrationSchema>;
 

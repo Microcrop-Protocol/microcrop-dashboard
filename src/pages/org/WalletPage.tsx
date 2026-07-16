@@ -10,6 +10,7 @@ import {
   Banknote,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useMarket } from '@/lib/market';
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,6 +21,7 @@ import type { FundWalletFormData } from '@/lib/validations/pool';
 
 export default function WalletPage() {
   const queryClient = useQueryClient();
+  const { market } = useMarket();
   const [copied, setCopied] = useState(false);
 
   const { data: wallet, isLoading } = useQuery({
@@ -36,8 +38,8 @@ export default function WalletPage() {
       }),
     onSuccess: () => {
       notifySuccess(
-        'M-Pesa request sent',
-        'Check your phone for the M-Pesa prompt. Your balance will update shortly.',
+        `${market.mobileMoney} request sent`,
+        `Check your phone for the ${market.mobileMoney} prompt. Your balance will update shortly.`,
       );
       // Poll wallet balance for updates
       const interval = setInterval(() => {
@@ -46,7 +48,7 @@ export default function WalletPage() {
       setTimeout(() => clearInterval(interval), 120000);
     },
     onError: (error) => {
-      notifyError(error, "Couldn't start the M-Pesa payment. Please try again.");
+      notifyError(error, `Couldn't start the ${market.mobileMoney} payment. Please try again.`);
     },
   });
 
@@ -116,7 +118,7 @@ export default function WalletPage() {
           trigger={
             <Button>
               <Banknote className="mr-2 h-4 w-4" aria-hidden="true" />
-              Fund via M-Pesa
+              Fund via {market.mobileMoney}
             </Button>
           }
         />
@@ -226,7 +228,7 @@ export default function WalletPage() {
             Fund Your Wallet
           </CardTitle>
           <CardDescription>
-            Add USDC to your wallet using M-Pesa mobile money
+            Add USDC to your wallet using {market.mobileMoney} mobile money
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -235,13 +237,13 @@ export default function WalletPage() {
               <div className="rounded-lg bg-muted/50 p-4">
                 <p className="font-medium">1. Initiate Payment</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Enter your Safaricom phone number and amount in KES
+                  Enter your {market.mobileMoney} phone number and amount in {market.currency}
                 </p>
               </div>
               <div className="rounded-lg bg-muted/50 p-4">
                 <p className="font-medium">2. Confirm on Phone</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  You'll receive an M-Pesa STK push to confirm the payment
+                  You'll receive an {market.mobileMoney} STK push to confirm the payment
                 </p>
               </div>
               <div className="rounded-lg bg-muted/50 p-4">
@@ -257,7 +259,7 @@ export default function WalletPage() {
               trigger={
                 <Button className="w-full sm:w-auto">
                   <Banknote className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Fund via M-Pesa
+                  Fund via {market.mobileMoney}
                 </Button>
               }
             />

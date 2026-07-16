@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronLeft, ChevronRight, Loader2, Building2, User, FileText, Check } from 'lucide-react';
@@ -23,12 +23,13 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KYBDocumentUpload } from './KYBDocumentUpload';
 import {
-  organizationRegistrationSchema,
+  createOrganizationRegistrationSchema,
   type OrganizationRegistrationFormData,
   organizationTypeLabels,
 } from '@/lib/validations/kyb';
 import type { KYBDocumentType } from '@/types';
 import { cn } from '@/lib/utils';
+import { useMarket, dialCodeFor } from '@/lib/market';
 
 interface UploadedDocument {
   file: File;
@@ -57,9 +58,11 @@ export function OrganizationRegistrationForm({
 }: OrganizationRegistrationFormProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const { market } = useMarket();
+  const schema = useMemo(() => createOrganizationRegistrationSchema(market), [market]);
 
   const form = useForm<OrganizationRegistrationFormData>({
-    resolver: zodResolver(organizationRegistrationSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: '',
       registrationNumber: '',
@@ -294,10 +297,10 @@ export function OrganizationRegistrationForm({
                     <FormItem>
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
-                        <Input type="tel" placeholder="+254712345678\u2026" autoComplete="tel" {...field} />
+                        <Input type="tel" placeholder={`${dialCodeFor(market)}712345678\u2026`} autoComplete="tel" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Kenyan phone number format (+254... or 07...)
+                        Phone number in international format (e.g. {dialCodeFor(market)}712345678)
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
