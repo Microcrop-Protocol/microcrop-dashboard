@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,10 +22,11 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Farmer, Plot, PolicyQuote, Policy, GpsTrackResponse, CoverageType } from '@/types';
 import {
-  farmerRegistrationSchema, plotCreationSchema, policyConfigSchema,
+  createFarmerRegistrationSchema, plotCreationSchema, policyConfigSchema,
   CROP_TYPES,
   type FarmerRegistrationData, type PlotCreationData, type PolicyConfigData,
 } from '@/lib/validations/onboarding';
+import { useMarket, dialCodeFor, normalizePhone } from '@/lib/market';
 import { BoundaryWalkStep } from './BoundaryWalkStep';
 import { BoundaryReviewMap } from './BoundaryReviewMap';
 
@@ -43,6 +44,7 @@ const STEPS = [
 export function OnboardingWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { market } = useMarket();
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -64,10 +66,11 @@ export function OnboardingWizard() {
 
   // ── Forms ──────────────────────────────────────────────
 
+  const farmerSchema = useMemo(() => createFarmerRegistrationSchema(market), [market]);
   const farmerForm = useForm<FarmerRegistrationData>({
-    resolver: zodResolver(farmerRegistrationSchema),
+    resolver: zodResolver(farmerSchema),
     defaultValues: {
-      phoneNumber: '+254',
+      phoneNumber: dialCodeFor(market),
       nationalId: '',
       firstName: '',
       lastName: '',
@@ -105,7 +108,8 @@ export function OnboardingWizard() {
   // ── Mutations ──────────────────────────────────────────
 
   const registerMutation = useMutation({
-    mutationFn: (data: FarmerRegistrationData) => api.registerFarmer(data),
+    mutationFn: (data: FarmerRegistrationData) =>
+      api.registerFarmer({ ...data, phoneNumber: normalizePhone(data.phoneNumber, market) }),
     onSuccess: (result) => {
       setFarmer(result);
       setCurrentStep(1);
@@ -199,7 +203,7 @@ export function OnboardingWizard() {
     onSuccess: (result) => {
       setPaymentRef(result.reference);
       setPaymentStatus('polling');
-      notifySuccess('Payment request sent', "Check the farmer's phone for the M-Pesa prompt.");
+      notifySuccess('Payment request sent', `Check the farmer's phone for the ${market.mobileMoney} prompt.`);
     },
     onError: (error) => {
       notifyError(error, "Couldn't send the payment request.");
@@ -220,7 +224,7 @@ export function OnboardingWizard() {
       if (cancelled || attempts >= maxAttempts) {
         if (!cancelled && attempts >= maxAttempts) {
           setPaymentStatus('failed');
-          notifyError(null, "Payment confirmation timed out. Check the farmer's M-Pesa messages.");
+          notifyError(null, `Payment confirmation timed out. Check the farmer's ${market.mobileMoney} messages.`);
         }
         return;
       }
@@ -369,8 +373,8 @@ export function OnboardingWizard() {
             <FormField control={farmerForm.control} name="phoneNumber" render={({ field }) => (
               <FormItem>
                 <FormLabel>Phone Number <span className="text-destructive">*</span></FormLabel>
-                <FormControl><Input placeholder="+254712345678" autoComplete="off" {...field} /></FormControl>
-                <FormDescription>Kenyan phone number in +254 format</FormDescription>
+                <FormControl><Input placeholder={`${dialCodeFor(market)}712345678`} autoComplete="off" {...field} /></FormControl>
+                <FormDescription>Phone number in {dialCodeFor(market)} format</FormDescription>
                 <FormMessage />
               </FormItem>
             )} />
@@ -814,11 +818,11 @@ export function OnboardingWizard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>M-Pesa Payment</CardTitle>
+          <CardTitle>{market.mobileMoney} Payment</CardTitle>
           <CardDescription>
             {paymentStatus === 'completed'
               ? 'Payment confirmed! The policy is now active.'
-              : "Send an M-Pesa payment request to the farmer's phone"}
+              : `Send a ${market.mobileMoney} payment request to the farmer's phone`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -831,10 +835,10 @@ export function OnboardingWizard() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Phone Number</span>
-                  <Input 
-                    value={paymentPhone} 
-                    onChange={(e) => setPaymentPhone(e.target.value)} 
-                    placeholder="+254700000000"
+                  <Input
+                    value={paymentPhone}
+                    onChange={(e) => setPaymentPhone(e.target.value)}
+                    placeholder={`${dialCodeFor(market)}700000000`}
                     className="max-w-[200px]"
                   />
                 </div>
@@ -852,7 +856,7 @@ export function OnboardingWizard() {
               >
                 {paymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 <Smartphone className="mr-2 h-4 w-4" />
-                Send M-Pesa Request
+                Send {market.mobileMoney} Request
               </Button>
             </>
           )}
@@ -863,7 +867,7 @@ export function OnboardingWizard() {
               <div>
                 <p className="font-medium">Waiting for payment confirmation...</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  The farmer should see an M-Pesa prompt on their phone. Ask them to enter their PIN to confirm.
+                  The farmer should see a {market.mobileMoney} prompt on their phone. Ask them to enter their PIN to confirm.
                 </p>
               </div>
             </div>

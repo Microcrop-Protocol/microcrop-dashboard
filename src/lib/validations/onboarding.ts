@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidPhone, dialCodeFor, type MarketInput } from '@/lib/market';
 
 export const CROP_TYPES = [
   { value: 'MAIZE', label: 'Maize' },
@@ -17,25 +18,36 @@ export const CROP_TYPES = [
   { value: 'POTATOES', label: 'Potatoes' },
 ] as const;
 
-export const farmerRegistrationSchema = z.object({
-  phoneNumber: z.string()
-    .regex(/^\+\d{1,3}\d{6,12}$/, 'Must be a valid phone number with country code (e.g. +254712345678)'),
-  nationalId: z.string()
-    .min(6, 'National ID must be at least 6 characters')
-    .max(20, 'National ID must not exceed 20 characters'),
-  firstName: z.string()
-    .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name must not exceed 50 characters')
-    .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
-  lastName: z.string()
-    .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name must not exceed 50 characters')
-    .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
-  county: z.string().min(2, 'County is required'),
-  subCounty: z.string().min(2, 'Sub-county is required'),
-  ward: z.string().optional(),
-  village: z.string().optional(),
-});
+/**
+ * Farmer registration schema factory. Phone validation is market-aware so a
+ * Kenyan org validates +254 exactly as before while a Ghanaian org validates
+ * +233. Pass the resolved market (or its dial code / org) to localize.
+ */
+export function createFarmerRegistrationSchema(market?: MarketInput) {
+  return z.object({
+    phoneNumber: z.string()
+      .refine((v) => isValidPhone(v, market),
+        `Enter a valid phone number with country code (e.g. ${dialCodeFor(market)}712345678)`),
+    nationalId: z.string()
+      .min(6, 'National ID must be at least 6 characters')
+      .max(20, 'National ID must not exceed 20 characters'),
+    firstName: z.string()
+      .min(2, 'First name must be at least 2 characters')
+      .max(50, 'First name must not exceed 50 characters')
+      .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
+    lastName: z.string()
+      .min(2, 'Last name must be at least 2 characters')
+      .max(50, 'Last name must not exceed 50 characters')
+      .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
+    county: z.string().min(2, 'County is required'),
+    subCounty: z.string().min(2, 'Sub-county is required'),
+    ward: z.string().optional(),
+    village: z.string().optional(),
+  });
+}
+
+/** Default (Kenya) instance — preserves prior behavior for callers without a market. */
+export const farmerRegistrationSchema = createFarmerRegistrationSchema();
 
 export type FarmerRegistrationData = z.infer<typeof farmerRegistrationSchema>;
 

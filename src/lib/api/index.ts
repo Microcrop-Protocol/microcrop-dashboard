@@ -6,6 +6,7 @@
  */
 
 import { apiClient } from './client';
+import { normalizePhone } from '@/lib/market';
 import type {
   User,
   Organization,
@@ -393,14 +394,13 @@ export const api = {
   },
 
   fundWallet: async (data: { phoneNumber: string; amountKES: number }): Promise<WalletFundResult> => {
-    // Convert local phone format (07...) to international (+254...)
-    // while guarding against non-string runtime values.
+    // Normalize the phone to international form via the shared, market-aware helper (handles
+    // +254/+233/…). Already-international numbers pass through; the backend re-normalizes against
+    // the org's country as the source of truth.
     const rawPhone = typeof data.phoneNumber === 'string'
       ? data.phoneNumber.trim()
       : String(data.phoneNumber ?? '').trim();
-    const phoneNumber = rawPhone.startsWith('0')
-      ? `+254${rawPhone.slice(1)}`
-      : rawPhone;
+    const phoneNumber = normalizePhone(rawPhone);
     return apiClient.fundWallet({ ...data, phoneNumber });
   },
 

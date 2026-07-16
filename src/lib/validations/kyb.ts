@@ -1,72 +1,91 @@
 import { z } from 'zod';
+import { isValidPhone, dialCodeFor, type MarketInput } from '@/lib/market';
 
-// Kenyan phone number format: +254XXXXXXXXX or 07XXXXXXXX or 01XXXXXXXX
-const kenyanPhoneRegex = /^(\+254|0)[17]\d{8}$/;
+/**
+ * Organization registration schema factory. Phone validation is market-aware:
+ * a Kenyan org validates +254 / 07… / 01… exactly as before, a Ghanaian org
+ * validates +233. Pass the resolved market (or its dial code / org) to localize.
+ */
+export function createOrganizationRegistrationSchema(market?: MarketInput) {
+  return z.object({
+    // Organization details
+    name: z
+      .string()
+      .min(2, 'Organization name must be at least 2 characters')
+      .max(100, 'Organization name must be less than 100 characters'),
+    registrationNumber: z
+      .string()
+      .min(1, 'Registration number is required')
+      .max(50, 'Registration number must be less than 50 characters'),
+    type: z.enum(['COOPERATIVE', 'NGO', 'MFI', 'INSURANCE_COMPANY', 'GOVERNMENT', 'OTHER'], {
+      required_error: 'Please select an organization type',
+    }),
 
-export const organizationRegistrationSchema = z.object({
-  // Organization details
-  name: z
-    .string()
-    .min(2, 'Organization name must be at least 2 characters')
-    .max(100, 'Organization name must be less than 100 characters'),
-  registrationNumber: z
-    .string()
-    .min(1, 'Registration number is required')
-    .max(50, 'Registration number must be less than 50 characters'),
-  type: z.enum(['COOPERATIVE', 'NGO', 'MFI', 'INSURANCE_COMPANY', 'GOVERNMENT', 'OTHER'], {
-    required_error: 'Please select an organization type',
-  }),
+    // Contact person details
+    contactFirstName: z
+      .string()
+      .min(2, 'First name must be at least 2 characters')
+      .max(50, 'First name must be less than 50 characters'),
+    contactLastName: z
+      .string()
+      .min(2, 'Last name must be at least 2 characters')
+      .max(50, 'Last name must be less than 50 characters'),
+    contactEmail: z
+      .string()
+      .email('Please enter a valid email address'),
+    contactPhone: z
+      .string()
+      .refine((v) => isValidPhone(v, market),
+        `Enter a valid phone number (e.g. ${dialCodeFor(market)}712345678)`),
+  });
+}
 
-  // Contact person details
-  contactFirstName: z
-    .string()
-    .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name must be less than 50 characters'),
-  contactLastName: z
-    .string()
-    .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name must be less than 50 characters'),
-  contactEmail: z
-    .string()
-    .email('Please enter a valid email address'),
-  contactPhone: z
-    .string()
-    .regex(kenyanPhoneRegex, 'Please enter a valid Kenyan phone number (+254... or 07... or 01...)'),
-});
+/** Default (Kenya) instance — preserves prior behavior for callers without a market. */
+export const organizationRegistrationSchema = createOrganizationRegistrationSchema();
 
 export type OrganizationRegistrationFormData = z.infer<typeof organizationRegistrationSchema>;
 
 // Self-service org signup: organization + first admin user (with password).
 // KYB documents are NOT collected here — they're submitted later, in the dashboard.
-export const orgSignupSchema = z
-  .object({
-    organizationName: z.string().min(2, 'Organization name must be at least 2 characters').max(100),
-    registrationNumber: z.string().min(1, 'Registration number is required').max(50),
-    type: z.enum(['COOPERATIVE', 'NGO', 'MFI', 'INSURANCE_COMPANY', 'GOVERNMENT', 'OTHER'], {
-      required_error: 'Please select an organization type',
-    }),
-    county: z.string().max(100).optional(),
-    firstName: z.string().min(2, 'First name must be at least 2 characters').max(50),
-    lastName: z.string().min(2, 'Last name must be at least 2 characters').max(50),
-    email: z.string().email('Please enter a valid email address'),
-    phone: z
-      .string()
-      .regex(kenyanPhoneRegex, 'Enter a valid Kenyan phone number (+254… or 07… or 01…)')
-      .optional()
-      .or(z.literal('')),
-    password: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(
-        /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/,
-        'Include an uppercase letter, a number, and a special character'
-      ),
-    confirmPassword: z.string(),
-  })
-  .refine((d) => d.password === d.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+/**
+ * Self-service signup schema factory. Phone validation is market-aware; the
+ * default (Kenya) instance preserves prior +254 / 07… behavior.
+ */
+export function createOrgSignupSchema(market?: MarketInput) {
+  return z
+    .object({
+      organizationName: z.string().min(2, 'Organization name must be at least 2 characters').max(100),
+      registrationNumber: z.string().min(1, 'Registration number is required').max(50),
+      type: z.enum(['COOPERATIVE', 'NGO', 'MFI', 'INSURANCE_COMPANY', 'GOVERNMENT', 'OTHER'], {
+        required_error: 'Please select an organization type',
+      }),
+      county: z.string().max(100).optional(),
+      firstName: z.string().min(2, 'First name must be at least 2 characters').max(50),
+      lastName: z.string().min(2, 'Last name must be at least 2 characters').max(50),
+      email: z.string().email('Please enter a valid email address'),
+      phone: z
+        .string()
+        .refine((v) => isValidPhone(v, market),
+          `Enter a valid phone number (e.g. ${dialCodeFor(market)}712345678)`)
+        .optional()
+        .or(z.literal('')),
+      password: z
+        .string()
+        .min(8, 'Password must be at least 8 characters')
+        .regex(
+          /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/,
+          'Include an uppercase letter, a number, and a special character'
+        ),
+      confirmPassword: z.string(),
+    })
+    .refine((d) => d.password === d.confirmPassword, {
+      message: 'Passwords do not match',
+      path: ['confirmPassword'],
+    });
+}
+
+/** Default (Kenya) instance — preserves prior behavior for callers without a market. */
+export const orgSignupSchema = createOrgSignupSchema();
 
 export type OrgSignupFormData = z.infer<typeof orgSignupSchema>;
 

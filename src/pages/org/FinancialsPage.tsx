@@ -3,13 +3,15 @@ import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { Wallet, DollarSign, TrendingDown, Percent } from "lucide-react";
+import { useMarket, formatCurrency as fmtCurrency } from "@/lib/market";
 
 export default function FinancialsPage() {
+  const { market } = useMarket();
   const { data } = useQuery({
     queryKey: ["financials"],
     queryFn: () => api.getFinancialSummary(),
   });
-  const formatCurrency = (v: number) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(v);
+  const formatCurrency = (v: number) => fmtCurrency(v, market, { notation: "compact", maximumFractionDigits: 1 });
 
   // Drive the chart from a real timeseries if the financials response includes
   // one; otherwise pass an empty array so AreaChart shows its "No data

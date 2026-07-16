@@ -106,7 +106,7 @@ export default function StaffPage() {
               </div>
               <div className="space-y-2">
                 <Label>Phone (Optional)</Label>
-                <Input value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="+254712345678" />
+                <Input value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="Phone number" />
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>

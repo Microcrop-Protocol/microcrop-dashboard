@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { formatCurrency, useMarket, type Market } from "@/lib/market";
 import { DataTable } from "@/components/ui/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColumnDef } from "@tanstack/react-table";
@@ -10,7 +11,7 @@ import { PieChart } from "@/components/charts/PieChart";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-const columns: ColumnDef<Herd>[] = [
+const makeColumns = (market: Market): ColumnDef<Herd>[] => [
   { accessorKey: "name", header: "Herd Name" },
   { accessorKey: "farmerName", header: "Pastoralist" },
   { 
@@ -35,13 +36,13 @@ const columns: ColumnDef<Herd>[] = [
       return v != null ? Number(v).toFixed(2) : "-";
     }
   },
-  { 
-    accessorKey: "estimatedValue", 
-    header: "Value (KES)",
+  {
+    accessorKey: "estimatedValue",
+    header: `Value (${market.currency})`,
     cell: ({ row }) => {
       const headCount = row.getValue("headCount") as number;
       const valuePerHead = Number(row.getValue("estimatedValue"));
-      return (headCount * valuePerHead).toLocaleString();
+      return formatCurrency(headCount * valuePerHead, market);
     }
   },
   { 
@@ -57,7 +58,9 @@ const columns: ColumnDef<Herd>[] = [
 
 export default function HerdsPage() {
   const { user } = useAuthStore();
+  const { market } = useMarket();
   const orgId = user?.organizationId || "";
+  const columns = useMemo(() => makeColumns(market), [market]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["herds", orgId],
@@ -145,7 +148,7 @@ export default function HerdsPage() {
             <CardTitle className="text-sm font-medium">Estimated Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES {totalValue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalValue, market)}</div>
           </CardContent>
         </Card>
       </div>

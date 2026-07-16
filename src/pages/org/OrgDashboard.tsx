@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { explorerAddressUrl } from "@/lib/explorer";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { formatCurrency, useMarket } from "@/lib/market";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 export default function OrgDashboard() {
   const { user } = useAuthStore();
+  const { market } = useMarket();
   const orgId = user?.organizationId || "";
 
   const { data: stats } = useQuery({
@@ -34,14 +36,8 @@ export default function OrgDashboard() {
     queryFn: () => api.getMyKyb(),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  const formatCompact = (value: number) =>
+    formatCurrency(value, market, { notation: "compact", maximumFractionDigits: 1 });
 
   const truncateAddress = (address: unknown) => {
     const value = typeof address === "string" ? address : String(address ?? "");
@@ -112,9 +108,9 @@ export default function OrgDashboard() {
           subtitle="Current period"
           icon={TrendingUp}
         />
-        <StatCard title="Premiums" value={formatCurrency(stats?.totalPremiums ?? 0)} icon={Wallet} />
-        <StatCard title="Payouts" value={formatCurrency(stats?.totalPayouts ?? 0)} icon={DollarSign} />
-        <StatCard title="Fees" value={formatCurrency(stats?.totalFees ?? 0)} icon={TrendingUp} />
+        <StatCard title="Premiums" value={formatCompact(stats?.totalPremiums ?? 0)} icon={Wallet} />
+        <StatCard title="Payouts" value={formatCompact(stats?.totalPayouts ?? 0)} icon={DollarSign} />
+        <StatCard title="Fees" value={formatCompact(stats?.totalFees ?? 0)} icon={TrendingUp} />
       </div>
 
       <Card>

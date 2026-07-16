@@ -10,6 +10,7 @@ import { DollarSign, Hash, TrendingUp, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { Granularity } from "@/types";
+import { formatCurrency as formatMarketCurrency, useMarket } from "@/lib/market";
 
 export default function PayoutsAnalyticsPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -17,20 +18,15 @@ export default function PayoutsAnalyticsPage() {
     to: new Date(),
   });
   const [granularity, setGranularity] = useState<Granularity>("daily");
+  const { market } = useMarket();
 
   const { data } = useQuery({
     queryKey: ["payoutsAnalytics", dateRange, granularity],
     queryFn: () => api.getPayoutsAnalytics(),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    formatMarketCurrency(value, market, { notation: "compact", maximumFractionDigits: 1 });
 
   return (
     <div className="space-y-6">
@@ -74,7 +70,7 @@ export default function PayoutsAnalyticsPage() {
         data={data?.timeSeries ?? []}
         xKey="date"
         yKeys={[
-          { key: "amount", name: "Amount (KES)", color: "hsl(var(--chart-1))" },
+          { key: "amount", name: `Amount (${market.currency})`, color: "hsl(var(--chart-1))" },
         ]}
         title="Payouts Over Time"
         formatYAxis={(v) => formatCurrency(v)}

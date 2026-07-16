@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { dialCodeFor, useMarket } from '@/lib/market';
 import type { User } from '@/types';
 
 const BIO_MAX = 500;
@@ -17,6 +18,7 @@ const BIO_MAX = 500;
 export default function ProfilePage() {
   const me = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
+  const { market } = useMarket();
 
   const [firstName, setFirstName] = useState(me?.firstName ?? '');
   const [lastName, setLastName] = useState(me?.lastName ?? '');
@@ -209,7 +211,7 @@ export default function ProfilePage() {
                 id="phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+254 …"
+                placeholder={`${dialCodeFor(market)} …`}
               />
             </div>
           </div>

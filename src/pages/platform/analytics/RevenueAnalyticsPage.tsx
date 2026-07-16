@@ -9,6 +9,7 @@ import { DollarSign, TrendingUp, Wallet, ArrowDownUp } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { Granularity } from "@/types";
+import { formatCurrency as formatMarketCurrency, useMarket } from "@/lib/market";
 
 export default function RevenueAnalyticsPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -16,20 +17,15 @@ export default function RevenueAnalyticsPage() {
     to: new Date(),
   });
   const [granularity, setGranularity] = useState<Granularity>("daily");
+  const { market } = useMarket();
 
   const { data } = useQuery({
     queryKey: ["revenueAnalytics", dateRange, granularity],
     queryFn: () => api.getRevenueAnalytics(),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    formatMarketCurrency(value, market, { notation: "compact", maximumFractionDigits: 1 });
 
   return (
     <div className="space-y-6">

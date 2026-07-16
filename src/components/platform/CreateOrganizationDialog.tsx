@@ -202,7 +202,7 @@ export function CreateOrganizationDialog({
                   <FormItem>
                     <FormLabel>Phone Number</FormLabel>
                     <FormControl>
-                      <Input type="tel" placeholder="+254712345678" {...field} />
+                      <Input type="tel" placeholder="Phone number" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -21,6 +21,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { toMarket } from "@/lib/market";
 
 // Optional numeric coordinate — empty input becomes undefined so the whole
 // bounding box stays optional.
@@ -146,6 +147,10 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
 
   // Parse a coordinate input, mapping empty -> undefined (keeps bbox optional).
   const parseCoord = (value: string) => (value === "" ? undefined : parseFloat(value));
+
+  // Currency for the premium/value labels follows the unit's country (ISO 2)
+  // rather than a hardcoded KES, so a KE unit still shows KES and a GH unit GHS.
+  const unitCurrency = toMarket(form.watch("country")).currency;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -344,7 +349,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                   name="premiumRateLRLD"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Premium Rate (KES/TLU)</FormLabel>
+                      <FormLabel>Premium Rate ({unitCurrency}/TLU)</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                       </FormControl>
@@ -387,7 +392,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                   name="premiumRateSRSD"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Premium Rate (KES/TLU)</FormLabel>
+                      <FormLabel>Premium Rate ({unitCurrency}/TLU)</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                       </FormControl>
@@ -403,7 +408,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
               name="valuePerTLU"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Value Per TLU (KES)</FormLabel>
+                  <FormLabel>Value Per TLU ({unitCurrency})</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                   </FormControl>

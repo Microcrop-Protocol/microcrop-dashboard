@@ -2,6 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { formatCurrency, useMarket } from "@/lib/market";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
@@ -12,6 +13,7 @@ import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStat
 export default function PolicyDetailPage() {
   const { policyId } = useParams();
   const { user } = useAuthStore();
+  const { market } = useMarket();
   const orgId = user?.organizationId || "";
 
   const { data: policy, isLoading: policyLoading } = useQuery({
@@ -61,7 +63,7 @@ export default function PolicyDetailPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Sum Insured</p>
-            <p className="text-2xl font-bold">KES {policy.sumInsured != null ? Number(policy.sumInsured).toLocaleString() : 0}</p>
+            <p className="text-2xl font-bold">{formatCurrency(policy.sumInsured, market)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -105,7 +107,7 @@ export default function PolicyDetailPage() {
                 const determinationStatus = p.determination?.status ?? p.determinationStatus;
                 return (
                   <div key={p.id} className="flex items-center justify-between border-b py-2 last:border-0">
-                    <span>KES {p.amount?.toLocaleString() ?? 0}</span>
+                    <span>{formatCurrency(p.amount, market)}</span>
                     <div className="flex items-center gap-2">
                       {determinationStatus && <DeterminationStatusBadge status={determinationStatus} />}
                       <StatusBadge variant={getStatusVariant(p.status)}>{p.status}</StatusBadge>

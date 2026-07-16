@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { formatCurrency, useMarket } from "@/lib/market";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
@@ -14,6 +15,7 @@ import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStat
 
 export default function PayoutsPage() {
   const { user } = useAuthStore();
+  const { market } = useMarket();
   const queryClient = useQueryClient();
   const orgId = user?.organizationId || "";
 
@@ -38,7 +40,7 @@ export default function PayoutsPage() {
     { accessorKey: "policyNumber", header: "Policy" },
     { accessorKey: "farmerName", header: "Farmer" },
     { accessorKey: "farmerPhone", header: "Phone" },
-    { accessorKey: "amount", header: "Amount", cell: ({ row }) => `KES ${(row.getValue("amount") as number).toLocaleString()}` },
+    { accessorKey: "amount", header: "Amount", cell: ({ row }) => formatCurrency(row.getValue("amount") as number, market) },
     { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("status"))}>{row.getValue("status")}</StatusBadge> },
     {
       id: "determination",
@@ -74,8 +76,8 @@ export default function PayoutsPage() {
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold">Payouts</h1><p className="text-muted-foreground">Track and manage farmer payouts</p></div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Amount" value={`KES ${total.toLocaleString()}`} icon={DollarSign} />
-        <StatCard title="Avg Payout" value={`KES ${payouts.length ? Math.round(total / payouts.length).toLocaleString() : 0}`} icon={TrendingUp} />
+        <StatCard title="Total Amount" value={formatCurrency(total, market)} icon={DollarSign} />
+        <StatCard title="Avg Payout" value={formatCurrency(payouts.length ? Math.round(total / payouts.length) : 0, market)} icon={TrendingUp} />
         <StatCard title="Total Payouts" value={payouts.length} icon={Hash} />
         <StatCard title="Success Rate" value={`${payouts.length ? ((successCount / payouts.length) * 100).toFixed(0) : 0}%`} icon={CheckCircle} />
       </div>

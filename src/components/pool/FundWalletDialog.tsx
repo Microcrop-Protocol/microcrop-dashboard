@@ -23,6 +23,7 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { fundWalletSchema, type FundWalletFormData } from '@/lib/validations/pool';
+import { useMarket } from '@/lib/market';
 import type { WalletFundResult } from '@/types';
 
 interface FundWalletDialogProps {
@@ -38,6 +39,7 @@ export function FundWalletDialog({
 }: FundWalletDialogProps) {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<WalletFundResult | null>(null);
+  const { market } = useMarket();
 
   const form = useForm<FundWalletFormData>({
     resolver: zodResolver(fundWalletSchema),
@@ -73,7 +75,7 @@ export function FundWalletDialog({
         {trigger || (
           <Button variant="outline">
             <Smartphone className="mr-2 h-4 w-4" aria-hidden="true" />
-            Fund via M-Pesa
+            Fund via {market.mobileMoney}
           </Button>
         )}
       </DialogTrigger>
@@ -83,7 +85,7 @@ export function FundWalletDialog({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-success" aria-hidden="true" />
-                M-Pesa Request Sent
+                {market.mobileMoney} Request Sent
               </DialogTitle>
               <DialogDescription>
                 {result.instructions}
@@ -104,7 +106,7 @@ export function FundWalletDialog({
               </div>
             </div>
             <div className="rounded-lg bg-info/10 p-3 text-sm text-muted-foreground">
-              USDC will appear in your wallet balance once the M-Pesa payment is confirmed. This usually takes 1-2 minutes.
+              USDC will appear in your wallet balance once the {market.mobileMoney} payment is confirmed. This usually takes 1-2 minutes.
             </div>
             <DialogFooter>
               <Button onClick={() => handleClose(false)} className="w-full">
@@ -115,9 +117,9 @@ export function FundWalletDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Fund Wallet via M-Pesa</DialogTitle>
+              <DialogTitle>Fund Wallet via {market.mobileMoney}</DialogTitle>
               <DialogDescription>
-                Enter your Safaricom number and amount. An STK push will be sent to your phone.
+                Enter your {market.mobileMoney} number and amount. An STK push will be sent to your phone.
               </DialogDescription>
             </DialogHeader>
 
@@ -137,7 +139,7 @@ export function FundWalletDialog({
                         />
                       </FormControl>
                       <FormDescription>
-                        Safaricom M-Pesa number
+                        {market.mobileMoney} number
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -149,7 +151,7 @@ export function FundWalletDialog({
                   name="amountKES"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount (KES)</FormLabel>
+                      <FormLabel>Amount ({market.currency})</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -167,7 +169,7 @@ export function FundWalletDialog({
                 />
 
                 <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
-                  You will receive an M-Pesa STK push on your phone. Enter your M-Pesa PIN to confirm the payment.
+                  You will receive an {market.mobileMoney} STK push on your phone. Enter your {market.mobileMoney} PIN to confirm the payment.
                 </div>
 
                 <DialogFooter>
@@ -181,7 +183,7 @@ export function FundWalletDialog({
                   </Button>
                   <Button type="submit" disabled={isLoading}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Send M-Pesa Request
+                    Send {market.mobileMoney} Request
                   </Button>
                 </DialogFooter>
               </form>
