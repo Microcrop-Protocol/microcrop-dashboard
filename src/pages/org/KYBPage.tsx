@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { KYBDocumentUpload } from '@/components/kyb/KYBDocumentUpload';
 import { notifySuccess, notifyError } from '@/lib/notify';
+import { documentTypeLabels } from '@/lib/validations/kyb';
 import { ShieldCheck, ShieldAlert, Clock, Loader2, FileText } from 'lucide-react';
-import type { KYBDocumentType } from '@/types';
+import type { KYBDocumentType, KybChecklistItem } from '@/types';
 
 interface UploadedDocument {
   file: File;
@@ -15,11 +18,23 @@ interface UploadedDocument {
   preview?: string;
 }
 
-// Dashboard KYB doc type -> backend multipart field name.
+// Dashboard KYB doc type -> backend multipart field name (mirrors the backend's
+// KYB_UPLOAD_FIELD_MAP — keep the two in sync).
 const FIELD_FOR: Partial<Record<KYBDocumentType, string>> = {
   BUSINESS_REGISTRATION: 'businessRegistrationCert',
   TAX_CERTIFICATE: 'taxPinCert',
+  DIRECTOR_ID: 'directorId',
+  PROOF_OF_ADDRESS: 'proofOfAddress',
+  BANK_STATEMENT: 'bankStatement',
+  IRA_LICENSE: 'iraLicenseCert',
+  NIC_LICENSE: 'nicLicenseCert',
+  CERTIFICATE_OF_INCORPORATION: 'certificateOfIncorporation',
+  GHANA_TIN: 'ghanaTin',
+  OTHER: 'otherDocument',
 };
+
+// Fallback for a backend that doesn't serve the per-market checklist yet.
+const DEFAULT_REQUIRED: KYBDocumentType[] = ['BUSINESS_REGISTRATION', 'TAX_CERTIFICATE'];
 
 const STATUS_META: Record<
   string,
@@ -35,11 +50,26 @@ const STATUS_META: Record<
 export default function KYBPage() {
   const queryClient = useQueryClient();
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [licenseExpiry, setLicenseExpiry] = useState('');
+  const [licensePrefilled, setLicensePrefilled] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['my-kyb'],
     queryFn: () => api.getMyKyb(),
   });
+
+  // Prefill the license fields from what's already on file (resubmits).
+  useEffect(() => {
+    if (licensePrefilled || !data?.verification) return;
+    if (data.verification.regulatorLicenseNumber) {
+      setLicenseNumber(data.verification.regulatorLicenseNumber);
+    }
+    if (data.verification.licenseExpiresAt) {
+      setLicenseExpiry(data.verification.licenseExpiresAt.slice(0, 10));
+    }
+    setLicensePrefilled(true);
+  }, [data, licensePrefilled]);
 
   const submitMutation = useMutation({
     mutationFn: async (docs: UploadedDocument[]) => {
@@ -47,6 +77,10 @@ export default function KYBPage() {
       for (const d of docs) {
         const field = FIELD_FOR[d.type];
         if (field) fd.append(field, d.file);
+      }
+      if (data?.checklist?.regulatorLicenseRequired) {
+        fd.append('regulatorLicenseNumber', licenseNumber.trim());
+        if (licenseExpiry) fd.append('licenseExpiresAt', new Date(licenseExpiry).toISOString());
       }
       return api.submitMyKyb(fd);
     },
@@ -70,6 +104,31 @@ export default function KYBPage() {
   const pending = status === 'PENDING_REVIEW';
   const submittedDocs = data?.verification?.documents ?? [];
   const canSubmit = !verified && !pending;
+
+  // Per-market requirements from the backend checklist; fall back to the legacy
+  // Kenya pair if the checklist is absent.
+  const submittedTypes = new Set(submittedDocs.map((d) => d.documentType));
+  const requiredItems: KybChecklistItem[] =
+    data?.checklist?.requiredDocuments ??
+    DEFAULT_REQUIRED.map((t) => ({
+      documentType: t,
+      label: documentTypeLabels[t] ?? t,
+      required: true,
+      satisfied: submittedTypes.has(t),
+    }));
+  const labels = Object.fromEntries(requiredItems.map((i) => [i.documentType, i.label]));
+  const satisfiedTypes = requiredItems.filter((i) => i.satisfied).map((i) => i.documentType);
+
+  const licenseRequired = data?.checklist?.regulatorLicenseRequired ?? false;
+  const regulator = data?.checklist?.regulator ?? 'regulator';
+
+  const uploadedNow = new Set(documents.map((d) => d.type));
+  const missingDocs = requiredItems.filter(
+    (i) => !i.satisfied && !uploadedNow.has(i.documentType)
+  );
+  const licenseMissing = licenseRequired && (!licenseNumber.trim() || !licenseExpiry);
+  const screeningInProgress =
+    Boolean(data?.verification?.sumsubReviewStatus) && !data?.verification?.sumsubReviewAnswer;
 
   return (
     <div className="space-y-6">
@@ -99,7 +158,14 @@ export default function KYBPage() {
         <Card>
           <CardContent className="flex items-start gap-3 py-4">
             <Clock className="mt-0.5 h-5 w-5 text-muted-foreground" />
-            <p className="text-sm">Your documents are under review. We'll email you once a decision is made.</p>
+            <div className="text-sm">
+              <p>Your documents are under review. We'll email you once a decision is made.</p>
+              {screeningInProgress && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Automated compliance screening is in progress.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -137,21 +203,64 @@ export default function KYBPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{submittedDocs.length > 0 ? 'Resubmit documents' : 'Submit your documents'}</CardTitle>
-            <CardDescription>Business registration certificate and tax PIN certificate are required.</CardDescription>
+            <CardDescription>
+              Required: {requiredItems.map((i) => i.label).join(', ')}.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <KYBDocumentUpload
               documents={documents}
               onDocumentsChange={setDocuments}
-              requiredTypes={['BUSINESS_REGISTRATION', 'TAX_CERTIFICATE']}
+              requiredTypes={requiredItems.map((i) => i.documentType)}
+              satisfiedTypes={satisfiedTypes}
+              labels={labels}
             />
+
+            {licenseRequired && (
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <h4 className="text-sm font-medium">{regulator} operating license</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Your insurance regulator license number and its expiry date are required.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="license-number">License number</Label>
+                    <Input
+                      id="license-number"
+                      placeholder={`${regulator} license number`}
+                      value={licenseNumber}
+                      onChange={(e) => setLicenseNumber(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="license-expiry">Expiry date</Label>
+                    <Input
+                      id="license-expiry"
+                      type="date"
+                      value={licenseExpiry}
+                      onChange={(e) => setLicenseExpiry(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Button
               onClick={() => submitMutation.mutate(documents)}
-              disabled={submitMutation.isPending || documents.length < 2}
+              disabled={submitMutation.isPending || missingDocs.length > 0 || licenseMissing}
             >
               {submitMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Submit for review
             </Button>
+            {(missingDocs.length > 0 || licenseMissing) && (
+              <p className="text-xs text-muted-foreground">
+                {missingDocs.length > 0 &&
+                  `Still needed: ${missingDocs.map((i) => i.label).join(', ')}. `}
+                {licenseMissing && `Enter your ${regulator} license number and expiry date.`}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
