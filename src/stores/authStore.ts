@@ -40,12 +40,16 @@ function decodeJwtExpiry(accessToken?: string | null): number | null {
 
 /**
  * Derive the real expiry for a set of tokens: prefer the JWT `exp` claim, then
- * a valid server-provided expiry, and only as a last resort a fixed lifetime.
+ * a server-provided expiry, and only as a last resort a fixed lifetime.
+ *
+ * A server expiry in the PAST is honored, not replaced: isTokenExpired() must
+ * report an expired token as expired. The immediate refresh this triggers can't
+ * hot-loop — scheduleTokenRefresh floors the delay at MIN_REFRESH_DELAY_MS.
  */
 function resolveExpiresAt(accessToken: string, serverExpiresAt?: number): number {
   const jwtExp = decodeJwtExpiry(accessToken);
   if (jwtExp) return jwtExp;
-  if (typeof serverExpiresAt === 'number' && serverExpiresAt > Date.now()) {
+  if (typeof serverExpiresAt === 'number' && Number.isFinite(serverExpiresAt) && serverExpiresAt > 0) {
     return serverExpiresAt;
   }
   return Date.now() + FALLBACK_LIFETIME_MS;
