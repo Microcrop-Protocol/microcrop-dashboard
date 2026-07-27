@@ -80,7 +80,31 @@ export type KYBDocumentType =
   | 'DIRECTOR_ID'
   | 'PROOF_OF_ADDRESS'
   | 'BANK_STATEMENT'
+  // Kenya-specific
+  | 'IRA_LICENSE'
+  // Ghana-specific
+  | 'CERTIFICATE_OF_INCORPORATION'
+  | 'NIC_LICENSE'
+  | 'GHANA_TIN'
   | 'OTHER';
+
+// Per-market KYB checklist served by GET /organizations/me/kyb (backend
+// buildKybChecklist). Drives which upload slots and license fields the form renders.
+export interface KybChecklistItem {
+  documentType: KYBDocumentType;
+  label: string;
+  required: boolean;
+  satisfied: boolean;
+}
+export interface KybChecklist {
+  countryCode: string;
+  regulator: string; // 'IRA' (KE) / 'NIC' (GH)
+  regulatorLicenseRequired: boolean;
+  regulatorLicenseDocType: KYBDocumentType | null;
+  livestockEnabled?: boolean;
+  requiredDocuments: KybChecklistItem[];
+  optionalDocuments: KybChecklistItem[];
+}
 // KYBVerification.status enum (distinct from the org-level KYBStatus).
 export type VerificationStatus =
   | 'PENDING'
@@ -106,10 +130,22 @@ export interface OrgKybVerification {
   verifierNotes?: string | null;
   verifiedAt?: string | null;
   documents: OrgKybDocument[];
+  // Insurance-regulator operating license (required for KE/IRA and GH/NIC markets).
+  regulator?: string | null;
+  regulatorLicenseNumber?: string | null;
+  licenseExpiresAt?: string | null;
+  // Sumsub KYB/AML screening (advisory; RED blocks platform-admin approval).
+  sumsubApplicantId?: string | null;
+  sumsubReviewStatus?: string | null;
+  sumsubReviewAnswer?: 'GREEN' | 'RED' | null;
+  sumsubReviewPayload?: { reviewResult?: { rejectLabels?: string[] } } | null;
+  sumsubReviewedAt?: string | null;
 }
 export interface OrgKyb {
   kybStatus: KYBStatus;
   onboardingStep: string;
+  countryCode?: string;
+  checklist?: KybChecklist;
   verification: OrgKybVerification | null;
 }
 export interface OrgKybReview {

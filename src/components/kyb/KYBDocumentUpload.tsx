@@ -17,6 +17,10 @@ interface KYBDocumentUploadProps {
   documents: UploadedDocument[];
   onDocumentsChange: (documents: UploadedDocument[]) => void;
   requiredTypes?: KYBDocumentType[];
+  /** Doc types already on file from a previous submission — shown as satisfied; uploading replaces them. */
+  satisfiedTypes?: KYBDocumentType[];
+  /** Per-market labels from the backend checklist; falls back to documentTypeLabels. */
+  labels?: Partial<Record<KYBDocumentType, string>>;
   maxFileSize?: number;
   disabled?: boolean;
 }
@@ -39,6 +43,8 @@ export function KYBDocumentUpload({
   documents,
   onDocumentsChange,
   requiredTypes = ['BUSINESS_REGISTRATION', 'TAX_CERTIFICATE'],
+  satisfiedTypes = [],
+  labels = {},
   maxFileSize = 5 * 1024 * 1024,
   disabled = false,
 }: KYBDocumentUploadProps) {
@@ -103,6 +109,7 @@ export function KYBDocumentUpload({
       {requiredTypes.map(type => {
         const doc = getDocumentForType(type);
         const isUploading = activeType === type;
+        const onFile = satisfiedTypes.includes(type);
 
         return (
           <Card
@@ -110,15 +117,17 @@ export function KYBDocumentUpload({
             className={cn(
               'transition-colors',
               isUploading && 'ring-2 ring-primary',
-              doc && 'border-success/50 bg-success/5'
+              (doc || onFile) && 'border-success/50 bg-success/5'
             )}
           >
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <h4 className="font-medium">{documentTypeLabels[type]}</h4>
+                  <h4 className="font-medium">{labels[type] ?? documentTypeLabels[type] ?? type}</h4>
                   <p className="text-sm text-muted-foreground">
-                    PDF, JPEG, or PNG up to {formatFileSize(maxFileSize)}
+                    {onFile && !doc
+                      ? 'Already on file — upload again to replace it'
+                      : `PDF, JPEG, or PNG up to ${formatFileSize(maxFileSize)}`}
                   </p>
                 </div>
 
@@ -200,9 +209,10 @@ export function KYBDocumentUpload({
         </div>
       )}
 
-      {/* Summary */}
+      {/* Summary: a required doc counts when uploaded now or already on file. */}
       <div className="text-sm text-muted-foreground">
-        {documents.length} of {requiredTypes.length} required documents uploaded
+        {requiredTypes.filter(t => getDocumentForType(t) || satisfiedTypes.includes(t)).length} of{' '}
+        {requiredTypes.length} required documents provided
       </div>
     </div>
   );

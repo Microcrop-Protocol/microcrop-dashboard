@@ -119,13 +119,18 @@ export const acceptInvitationSchema = z.object({
 
 export type AcceptInvitationFormData = z.infer<typeof acceptInvitationSchema>;
 
-// Document type labels
+// Document type labels (fallback — the per-market checklist from GET /me/kyb
+// carries authoritative labels; these cover checklist-less responses).
 export const documentTypeLabels: Record<string, string> = {
   BUSINESS_REGISTRATION: 'Business Registration Certificate',
   TAX_CERTIFICATE: 'Tax PIN Certificate',
   DIRECTOR_ID: 'Director ID',
   PROOF_OF_ADDRESS: 'Proof of Address',
   BANK_STATEMENT: 'Bank Statement',
+  IRA_LICENSE: 'IRA Operating License (Insurance Regulatory Authority)',
+  CERTIFICATE_OF_INCORPORATION: 'Certificate of Incorporation',
+  NIC_LICENSE: 'NIC Operating License (National Insurance Commission)',
+  GHANA_TIN: 'Ghana TIN',
   OTHER: 'Other Document',
 };
 

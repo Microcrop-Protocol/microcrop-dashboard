@@ -30,7 +30,14 @@ const STATUS_MESSAGES: Record<number, string> = {
 // Specific copy for backend error `code`s worth a tailored message. Add entries
 // here only for codes that actually reach a user-facing API response AND whose
 // backend message isn't already clear (keep keys matching the backend exactly).
-const CODE_MESSAGES: Record<string, string> = {};
+const CODE_MESSAGES: Record<string, string> = {
+  SCREENING_RED:
+    "Compliance screening flagged this organization (RED). Resolve the screening result before approving.",
+  REGULATOR_LICENSE_REQUIRED:
+    "The insurance regulator operating license is required. Add the license number and upload the certificate.",
+  REGULATOR_LICENSE_EXPIRY_REQUIRED: "Please provide the operating license's expiry date.",
+  REGULATOR_LICENSE_EXPIRED: "The operating license on file has expired. Submit a current license.",
+};
 
 // Heuristic: is this string already written as end-user copy (vs. a raw
 // technical/stack/DB message we should hide)?
