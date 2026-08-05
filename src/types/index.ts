@@ -6,7 +6,27 @@
 export type DecimalString = string;
 
 // User & Auth Types
-export type UserRole = 'PLATFORM_ADMIN' | 'ORG_ADMIN' | 'ORG_STAFF';
+export type OrgRole =
+  | 'ORG_ADMIN'
+  | 'ORG_STAFF'
+  | 'ORG_FIELD_AGENT'
+  | 'ORG_FINANCE'
+  | 'ORG_UNDERWRITER'
+  | 'ORG_VIEWER';
+
+export type UserRole = 'PLATFORM_ADMIN' | OrgRole;
+
+/** Mirrors ROLE_LABELS in the backend (microcrop-backend/src/utils/constants.js). */
+export const ORG_ROLE_LABELS: Record<OrgRole, string> = {
+  ORG_ADMIN: 'Administrator',
+  ORG_STAFF: 'Staff (legacy)',
+  ORG_FIELD_AGENT: 'Field Agent',
+  ORG_FINANCE: 'Finance Officer',
+  ORG_UNDERWRITER: 'Underwriter',
+  ORG_VIEWER: 'Viewer',
+};
+
+export const ORG_ROLES = Object.keys(ORG_ROLE_LABELS) as OrgRole[];
 
 export interface User {
   id: string;

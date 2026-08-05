@@ -1,10 +1,11 @@
 import { useAuthStore } from "@/stores/authStore";
 import { Navigate, useLocation } from "react-router-dom";
 import { isRoleAllowedOnSubdomain, getCorrectSubdomain } from "@/lib/subdomain";
+import type { UserRole } from '@/types';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('PLATFORM_ADMIN' | 'ORG_ADMIN' | 'ORG_STAFF')[];
+  allowedRoles?: UserRole[];
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {

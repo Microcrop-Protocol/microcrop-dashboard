@@ -7,6 +7,7 @@
 
 import { apiClient } from './client';
 import type {
+  OrgRole,
   User,
   Organization,
   OrganizationType,
@@ -517,12 +518,12 @@ export const api = {
     firstName: string;
     lastName: string;
     phone?: string;
-    role: 'ORG_ADMIN' | 'ORG_STAFF';
+    role: OrgRole;
   }) => {
     return apiClient.inviteStaff(data);
   },
 
-  updateStaffRole: async (userId: string, role: 'ORG_ADMIN' | 'ORG_STAFF') => {
+  updateStaffRole: async (userId: string, role: OrgRole) => {
     return apiClient.updateStaffRole(userId, role);
   },
 

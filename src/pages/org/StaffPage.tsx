@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColumnDef } from "@tanstack/react-table";
-import { User } from "@/types";
+import { User, OrgRole, ORG_ROLES, ORG_ROLE_LABELS } from "@/types";
 import { UserPlus, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { notifySuccess, notifyError } from "@/lib/notify";
@@ -32,7 +32,18 @@ const columns: ColumnDef<User>[] = [
   { accessorKey: "firstName", header: "First Name" },
   { accessorKey: "lastName", header: "Last Name" },
   { accessorKey: "email", header: "Email" },
-  { accessorKey: "role", header: "Role", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("role"))}>{(row.getValue("role") as string).replace(/_/g, " ")}</StatusBadge> },
+  {
+    accessorKey: "role",
+    header: "Role",
+    cell: ({ row }) => {
+      const role = row.getValue("role") as OrgRole;
+      return (
+        <StatusBadge variant={getStatusVariant(role)}>
+          {ORG_ROLE_LABELS[role] ?? role.replace(/_/g, " ")}
+        </StatusBadge>
+      );
+    },
+  },
   { accessorKey: "isActive", header: "Status", cell: ({ row }) => <StatusBadge variant={row.getValue("isActive") ? "active" : "expired"}>{row.getValue("isActive") ? "Active" : "Inactive"}</StatusBadge> },
   { accessorKey: "lastLoginAt", header: "Last Login", cell: ({ row }) => formatDate(row.getValue("lastLoginAt")) },
 ];
@@ -40,7 +51,7 @@ const columns: ColumnDef<User>[] = [
 export default function StaffPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_STAFF" as "ORG_ADMIN" | "ORG_STAFF" });
+  const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_FIELD_AGENT" as OrgRole });
 
   const { data: staff, isLoading } = useQuery({
     queryKey: ["staff"],
@@ -66,7 +77,7 @@ export default function StaffPage() {
       notifySuccess("Invitation sent", `We've sent an invitation to ${form.email}.`);
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       setOpen(false);
-      setForm({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_STAFF" });
+      setForm({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_FIELD_AGENT" });
     },
     onError: (error) => {
       notifyError(error, "Couldn't send the invitation. Please try again.");
@@ -110,11 +121,14 @@ export default function StaffPage() {
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select value={form.role} onValueChange={(v) => setForm(p => ({ ...p, role: v as "ORG_ADMIN" | "ORG_STAFF" }))}>
+                <Select value={form.role} onValueChange={(v) => setForm(p => ({ ...p, role: v as OrgRole }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ORG_STAFF">Staff</SelectItem>
-                    <SelectItem value="ORG_ADMIN">Admin</SelectItem>
+                    {ORG_ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {ORG_ROLE_LABELS[r]}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
