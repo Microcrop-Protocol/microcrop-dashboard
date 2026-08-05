@@ -921,3 +921,57 @@ export interface ApiKeyRotateResult {
   apiKey: string;
   apiSecret: string;
 }
+
+// ============================================
+// WEATHER STATIONS (WeatherXM Pro)
+// ============================================
+
+export interface WeatherStation {
+  id: string;
+  name: string | null;
+  cellId: string | null;
+  lat: number | null;
+  lon: number | null;
+  elevation: number | null;
+  /** WeatherXM's own quality-of-data score for yesterday, 0..1. */
+  qod: number;
+  /** qod >= the backend's threshold. A station can exist and not be usable. */
+  usable: boolean;
+  dataSince: string | null;
+  distanceKm?: number | null;
+}
+
+export interface WeatherBounds {
+  name?: string;
+  minLat: number;
+  minLon: number;
+  maxLat: number;
+  maxLon: number;
+}
+
+export interface WeatherMarket {
+  code: string;
+  name: string;
+  bounds: WeatherBounds;
+}
+
+export interface WeatherStationCoverage {
+  bounds: WeatherBounds;
+  market: string | null;
+  summary: { total: number; usable: number; unusable: number; usablePct: number };
+  usableThreshold: number;
+  stations: WeatherStation[];
+}
+
+export interface PlotCoverage {
+  plot: { id: string; name: string; lat: number; lon: number };
+  assignedStationId: string | null;
+  assignedStationStillUsable: boolean | null;
+  covered: boolean;
+  stationsInRange: number;
+  usableInRange: number;
+  nearest: WeatherStation | null;
+  nearestUsable: WeatherStation | null;
+  radiusKm: number;
+  stations: WeatherStation[];
+}

@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, WeatherMarket, WeatherStationCoverage, PlotCoverage } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -428,6 +428,27 @@ class ApiClient {
 
   async platformGetOnboardingStatus(orgId: string) {
     return this.request<{ step: OnboardingStep; completedSteps: OnboardingStep[] }>(`/platform/organizations/${encodeURIComponent(orgId)}/onboarding-status`);
+  }
+
+  // ============================================
+  // WEATHER STATIONS (WeatherXM Pro, proxied by the backend so the key stays server-side)
+  // ============================================
+
+  async weatherStationMarkets() {
+    return this.request<WeatherMarket[]>('/dashboard/platform/weather-stations/markets');
+  }
+
+  async weatherStationsInMarket(country: string) {
+    return this.request<WeatherStationCoverage>(
+      `/dashboard/platform/weather-stations?country=${encodeURIComponent(country)}`,
+    );
+  }
+
+  async plotWeatherCoverage(plotId: string, radiusKm?: number) {
+    const query = radiusKm ? `?radiusKm=${radiusKm}` : '';
+    return this.request<PlotCoverage>(
+      `/dashboard/org/plots/${encodeURIComponent(plotId)}/weather-stations${query}`,
+    );
   }
 
   // ============================================
