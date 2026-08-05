@@ -15,6 +15,26 @@ function escapeHtml(str: string): string {
   return el.innerHTML;
 }
 
+/**
+ * Crop health bands, mirroring NDVI_THRESHOLDS in the backend
+ * (microcrop-backend/src/utils/constants.js). Keep the two in step: a map that disagrees
+ * with the determination logic is worse than a map with no colour at all.
+ */
+const NDVI_BANDS = [
+  { min: 0.7, label: 'Excellent', color: '#15803d' },
+  { min: 0.5, label: 'Good', color: '#22c55e' },
+  { min: 0.3, label: 'Moderate', color: '#eab308' },
+  { min: 0.2, label: 'Poor', color: '#f97316' },
+  { min: -Infinity, label: 'Critical', color: '#dc2626' },
+] as const;
+
+const NO_DATA = { label: 'No reading', color: '#94a3b8' } as const;
+
+function healthFor(ndvi: number | null | undefined) {
+  if (typeof ndvi !== 'number') return NO_DATA;
+  return NDVI_BANDS.find((b) => ndvi >= b.min) ?? NO_DATA;
+}
+
 export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -93,16 +113,21 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
     plots.forEach(plot => {
       const isSelected = plot.id === selectedPlotId;
 
+      // Colour carries crop health; size and ring carry selection. Selection must not
+      // recolour the marker, or the selected plot would misreport its condition.
+      const health = healthFor(plot.latestNdvi);
+
       const el = document.createElement('div');
       el.className = 'plot-marker';
+      el.title = `${plot.name} — ${health.label}`;
       el.style.cssText = `
         width: ${isSelected ? '24px' : '16px'};
         height: ${isSelected ? '24px' : '16px'};
-        background-color: ${isSelected ? '#16a34a' : '#22c55e'};
-        border: 2px solid white;
+        background-color: ${health.color};
+        border: ${isSelected ? '3px' : '2px'} solid white;
         border-radius: 50%;
         cursor: pointer;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3)${isSelected ? ', 0 0 0 2px #0f172a' : ''};
         transition: opacity 0.2s ease;
       `;
 
@@ -113,7 +138,7 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
             <div><strong>Farmer:</strong> ${escapeHtml(plot.farmerName)}</div>
             <div><strong>Crop:</strong> ${escapeHtml(plot.cropType)}</div>
             <div><strong>Acreage:</strong> ${plot.acreage} acres</div>
-            ${plot.latestNdvi != null ? `<div><strong>NDVI:</strong> ${plot.latestNdvi.toFixed(2)}</div>` : ''}
+            ${plot.latestNdvi != null ? `<div><strong>NDVI:</strong> ${plot.latestNdvi.toFixed(2)} <span style="color:${health.color};font-weight:600">${health.label}</span></div>` : `<div style="color:${NO_DATA.color}"><strong>NDVI:</strong> no reading</div>`}
             ${plot.latestTemperature != null ? `<div><strong>Temp:</strong> ${plot.latestTemperature.toFixed(1)}&deg;C</div>` : ''}
             ${plot.latestRainfall != null ? `<div><strong>Rainfall:</strong> ${plot.latestRainfall.toFixed(1)}mm</div>` : ''}
           </div>
@@ -161,10 +186,31 @@ export function PlotMap({ plots, onPlotSelect, selectedPlotId }: PlotMapProps) {
   }
 
   return (
-    <div
-      ref={mapContainer}
-      className="h-full w-full rounded-lg overflow-hidden"
-      style={{ minHeight: '400px' }}
-    />
+    <div className="relative h-full w-full" style={{ minHeight: '400px' }}>
+      <div ref={mapContainer} className="h-full w-full rounded-lg overflow-hidden" />
+      <HealthLegend hasPlots={plots.length > 0} />
+    </div>
+  );
+}
+
+/** Without this the colour ramp is guesswork. */
+function HealthLegend({ hasPlots }: { hasPlots: boolean }) {
+  if (!hasPlots) return null;
+
+  return (
+    <div className="absolute bottom-3 left-3 rounded-md bg-background/90 px-3 py-2 text-xs shadow-md backdrop-blur">
+      <div className="mb-1 font-medium text-muted-foreground">Crop health (NDVI)</div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1">
+        {[...NDVI_BANDS, NO_DATA].map((b) => (
+          <span key={b.label} className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full border border-white"
+              style={{ backgroundColor: b.color }}
+            />
+            {b.label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   Building2,
   BarChart3,
   Activity,
+  CloudRain,
   Users,
   FileText,
   DollarSign,
@@ -64,6 +65,7 @@ const platformNavItems: NavItem[] = [
     ],
   },
   { title: "Activity Log", href: "/platform/activity", icon: Activity },
+  { title: "Weather Stations", href: "/platform/weather-stations", icon: CloudRain },
 ];
 
 const orgNavItems: NavItem[] = [

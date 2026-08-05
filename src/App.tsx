@@ -44,6 +44,7 @@ const FarmersAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/
 const PayoutsAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/PayoutsAnalyticsPage"));
 const DamageAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/DamageAnalyticsPage"));
 const PlatformActivityPage = lazyRetry(() => import("@/pages/platform/PlatformActivityPage"));
+const WeatherStationsPage = lazyRetry(() => import("@/pages/platform/WeatherStationsPage"));
 const KYBReviewPage = lazyRetry(() => import("@/pages/platform/OrgKybReviewPage"));
 const InvitationsPage = lazyRetry(() => import("@/pages/platform/InvitationsPage"));
 const TreasuryPage = lazyRetry(() => import("@/pages/platform/TreasuryPage"));
@@ -62,6 +63,7 @@ const PolicyDetailPage = lazyRetry(() => import("@/pages/org/PolicyDetailPage"))
 const NewPolicyPage = lazyRetry(() => import("@/pages/org/NewPolicyPage"));
 const PayoutsPage = lazyRetry(() => import("@/pages/org/PayoutsPage"));
 const PlotsPage = lazyRetry(() => import("@/pages/org/PlotsPage"));
+const PlotWeatherPage = lazyRetry(() => import("@/pages/org/PlotWeatherPage"));
 const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
 const FinancialsPage = lazyRetry(() => import("@/pages/org/FinancialsPage"));
 const KYBPage = lazyRetry(() => import("@/pages/org/KYBPage"));
@@ -189,6 +191,7 @@ const App = () => (
                 <Route path="analytics/payouts" element={<PayoutsAnalyticsPage />} />
                 <Route path="analytics/damage" element={<DamageAnalyticsPage />} />
                 <Route path="activity" element={<PlatformActivityPage />} />
+                <Route path="weather-stations" element={<WeatherStationsPage />} />
                 <Route path="kyb-review" element={<KYBReviewPage />} />
                 <Route path="invitations" element={<InvitationsPage />} />
                 <Route path="treasury" element={<TreasuryPage />} />
@@ -217,6 +220,7 @@ const App = () => (
                 <Route path="policies/:policyId" element={<PolicyDetailPage />} />
                 <Route path="payouts" element={<PayoutsPage />} />
                 <Route path="plots" element={<PlotsPage />} />
+                <Route path="plots/:plotId/weather" element={<PlotWeatherPage />} />
                 <Route path="damage" element={<DamagePage />} />
                 <Route path="financials" element={<FinancialsPage />} />
                 <Route path="reserve" element={<ReservePage />} />

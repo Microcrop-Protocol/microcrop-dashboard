@@ -972,4 +972,20 @@ export const api = {
   getOrgReserve: async (orgId: string): Promise<ReserveStatus & { message?: string }> => {
     return apiClient.getOrgReserve(orgId);
   },
+
+  // ============================================
+  // WEATHER STATIONS (WeatherXM Pro coverage)
+  // ============================================
+
+  getWeatherMarkets: async () => {
+    return apiClient.weatherStationMarkets();
+  },
+
+  getWeatherStations: async (country: string) => {
+    return apiClient.weatherStationsInMarket(country);
+  },
+
+  getPlotWeatherCoverage: async (plotId: string, radiusKm?: number) => {
+    return apiClient.plotWeatherCoverage(plotId, radiusKm);
+  },
 };

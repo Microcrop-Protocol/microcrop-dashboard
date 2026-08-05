@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
@@ -17,6 +18,18 @@ const columns: ColumnDef<Plot>[] = [
   { accessorKey: "policiesCount", header: "Policies" },
   { accessorKey: "latestNdvi", header: "NDVI", cell: ({ row }) => (row.getValue("latestNdvi") as number)?.toFixed(2) ?? "-" },
   { accessorKey: "latestTemperature", header: "Temp (°C)", cell: ({ row }) => (row.getValue("latestTemperature") as number)?.toFixed(1) ?? "-" },
+  {
+    id: "weather",
+    header: "Weather",
+    cell: ({ row }) => (
+      <Link
+        to={`/org/plots/${row.original.id}/weather`}
+        className="text-sm text-primary hover:underline"
+      >
+        Coverage
+      </Link>
+    ),
+  },
 ];
 
 export default function PlotsPage() {
