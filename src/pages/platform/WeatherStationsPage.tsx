@@ -38,7 +38,7 @@ export default function WeatherStationsPage() {
   const summary = data?.summary;
   const threshold = data?.usableThreshold ?? 0.8;
 
-  const stations = [...(data?.stations ?? [])].sort((a, b) => b.qod - a.qod);
+  const stations = [...(data?.stations ?? [])].sort((a, b) => (b.qod ?? 0) - (a.qod ?? 0));
 
   return (
     <div className="space-y-6">
@@ -175,11 +175,13 @@ function StationRow({ station }: { station: WeatherStation }) {
           {station.usable ? "Reporting" : "No data"}
         </Badge>
       </TableCell>
-      <TableCell className="text-right tabular-nums">{station.qod.toFixed(2)}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {typeof station.qod === "number" ? station.qod.toFixed(2) : "—"}
+      </TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">
-        {station.lat === null || station.lon === null
-          ? "—"
-          : `${station.lat.toFixed(3)}, ${station.lon.toFixed(3)}`}
+        {typeof station.lat === "number" && typeof station.lon === "number"
+          ? `${station.lat.toFixed(3)}, ${station.lon.toFixed(3)}`
+          : "—"}
       </TableCell>
       <TableCell className="text-right text-muted-foreground">
         {station.dataSince ? station.dataSince.slice(0, 10) : "—"}

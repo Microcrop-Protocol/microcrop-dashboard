@@ -45,7 +45,13 @@ const columns: ColumnDef<User>[] = [
     },
   },
   { accessorKey: "isActive", header: "Status", cell: ({ row }) => <StatusBadge variant={row.getValue("isActive") ? "active" : "expired"}>{row.getValue("isActive") ? "Active" : "Inactive"}</StatusBadge> },
-  { accessorKey: "lastLoginAt", header: "Last Login", cell: ({ row }) => formatDate(row.getValue("lastLoginAt")) },
+  {
+    id: "lastLogin",
+    header: "Last Login",
+    // GET /api/staff selects `lastLogin`; the old accessor read `lastLoginAt` and so
+    // rendered every row empty. Accept either rather than depend on one spelling.
+    cell: ({ row }) => formatDate(row.original.lastLogin ?? row.original.lastLoginAt),
+  },
 ];
 
 export default function StaffPage() {

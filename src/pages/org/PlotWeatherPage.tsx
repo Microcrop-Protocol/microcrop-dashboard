@@ -63,7 +63,8 @@ export default function PlotWeatherPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-bold">{data.plot.name}</h1>
         <p className="text-muted-foreground tabular-nums">
-          {data.plot.lat.toFixed(4)}, {data.plot.lon.toFixed(4)} · searched{" "}
+          {typeof data.plot.lat === "number" ? data.plot.lat.toFixed(4) : "?"},{" "}
+          {typeof data.plot.lon === "number" ? data.plot.lon.toFixed(4) : "?"} · searched{" "}
           {data.radiusKm} km
         </p>
       </div>
@@ -144,7 +145,7 @@ export default function PlotWeatherPage() {
                         {s.distanceKm ?? "—"} km
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {s.qod.toFixed(2)}
+                        {typeof s.qod === "number" ? s.qod.toFixed(2) : "—"}
                       </TableCell>
                     </TableRow>
                   ))}

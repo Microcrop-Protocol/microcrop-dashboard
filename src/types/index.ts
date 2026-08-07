@@ -38,6 +38,8 @@ export interface User {
   organizationId?: string;
   isActive: boolean;
   lastLoginAt?: string;
+  /** The staff endpoint returns this name; other endpoints use lastLoginAt. */
+  lastLogin?: string | null;
   createdAt: string;
   // Author profile (used when authoring blog posts)
   bio?: string;
