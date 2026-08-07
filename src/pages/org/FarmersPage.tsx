@@ -41,6 +41,9 @@ const columns: ColumnDef<Farmer>[] = [
 export default function FarmersPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  // Mirrors ROLE_PERMISSIONS: only ORG_ADMIN holds import:farmers. PLATFORM_ADMIN bypasses
+  // every gate server-side.
+  const canImport = user?.role === 'ORG_ADMIN' || user?.role === 'PLATFORM_ADMIN';
   const orgId = user?.organizationId || "";
   const [exporting, setExporting] = useState(false);
 
@@ -76,9 +79,15 @@ export default function FarmersPage() {
           <p className="text-muted-foreground">Manage farmer registrations and KYC</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/org/farmers/import"><Upload className="mr-2 h-4 w-4" />Import</Link>
-          </Button>
+          {/* Bulk import and CSV export are admin-reserved on the backend
+              (import:farmers / export:farmers). Rendering them for a field agent or a
+              viewer produces a button that only ever 403s. The gate is server-side; this
+              just stops offering an action that cannot succeed. */}
+          {canImport && (
+            <Button variant="outline" asChild>
+              <Link to="/org/farmers/import"><Upload className="mr-2 h-4 w-4" />Import</Link>
+            </Button>
+          )}
           <Button variant="outline" onClick={handleExport} disabled={exporting}>
             {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             Export CSV
