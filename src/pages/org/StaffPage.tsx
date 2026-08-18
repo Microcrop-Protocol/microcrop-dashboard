@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColumnDef } from "@tanstack/react-table";
 import { User, OrgRole, ORG_ROLES, ORG_ROLE_LABELS } from "@/types";
-import { UserPlus, Loader2 } from "lucide-react";
+import { UserPlus, Loader2, Send } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import {
@@ -28,6 +28,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+/**
+ * Three states, not two. `acceptedAt == null` means the person was invited but never set
+ * a password — the account is dormant and must read Pending, not Active. Only after they
+ * accept does isActive decide Active vs Inactive.
+ */
+function staffStatus(u: User): { label: string; variant: "pending" | "active" | "expired" } {
+  if (!u.acceptedAt) return { label: "Pending", variant: "pending" };
+  return u.isActive ? { label: "Active", variant: "active" } : { label: "Inactive", variant: "expired" };
+}
+
 const columns: ColumnDef<User>[] = [
   { accessorKey: "firstName", header: "First Name" },
   { accessorKey: "lastName", header: "Last Name" },
@@ -44,7 +54,14 @@ const columns: ColumnDef<User>[] = [
       );
     },
   },
-  { accessorKey: "isActive", header: "Status", cell: ({ row }) => <StatusBadge variant={row.getValue("isActive") ? "active" : "expired"}>{row.getValue("isActive") ? "Active" : "Inactive"}</StatusBadge> },
+  {
+    id: "status",
+    header: "Status",
+    cell: ({ row }) => {
+      const s = staffStatus(row.original);
+      return <StatusBadge variant={s.variant}>{s.label}</StatusBadge>;
+    },
+  },
   {
     id: "lastLogin",
     header: "Last Login",
@@ -77,10 +94,20 @@ export default function StaffPage() {
 
   const staffList = toArray<User>(staff);
 
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      notifySuccess("Link copied", "Share it with the staff member if the email doesn't arrive.");
+    } catch {
+      notifyError(new Error(url), "Copy failed — here's the link");
+    }
+  };
+
   const inviteMutation = useMutation({
     mutationFn: () => api.inviteStaff(form),
-    onSuccess: () => {
-      notifySuccess("Invitation sent", `We've sent an invitation to ${form.email}.`);
+    onSuccess: (result) => {
+      notifySuccess("Invitation sent", `We've emailed an invite to ${form.email}. You can also copy the link.`);
+      if (result?.inviteUrl) copyLink(result.inviteUrl);
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       setOpen(false);
       setForm({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_FIELD_AGENT" });
@@ -89,6 +116,40 @@ export default function StaffPage() {
       notifyError(error, "Couldn't send the invitation. Please try again.");
     },
   });
+
+  const resendMutation = useMutation({
+    mutationFn: (userId: string) => api.resendStaffInvite(userId),
+    onSuccess: (result) => {
+      notifySuccess("Invitation re-sent", "A fresh link has been emailed and copied to your clipboard.");
+      if (result?.inviteUrl) copyLink(result.inviteUrl);
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+    },
+    onError: (error) => notifyError(error, "Couldn't resend the invitation."),
+  });
+
+  // Pending rows get resend + copy; the action column needs the mutation handlers, so it
+  // lives here rather than in the module-level column list.
+  const actionColumn: ColumnDef<User> = {
+    id: "actions",
+    header: "",
+    cell: ({ row }) => {
+      const u = row.original;
+      if (u.acceptedAt) return null; // accepted members are managed via role/deactivate elsewhere
+      return (
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={resendMutation.isPending}
+            onClick={() => resendMutation.mutate(u.id)}
+          >
+            <Send className="mr-1 h-3.5 w-3.5" />
+            Resend
+          </Button>
+        </div>
+      );
+    },
+  };
 
   return (
     <div className="space-y-6">
@@ -150,7 +211,7 @@ export default function StaffPage() {
         </Dialog>
       </div>
       <DataTable
-        columns={columns}
+        columns={[...columns, actionColumn]}
         data={staffList}
         isLoading={isLoading}
         searchKey="email"

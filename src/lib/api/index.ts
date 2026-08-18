@@ -531,6 +531,18 @@ export const api = {
     return apiClient.deactivateStaff(userId);
   },
 
+  resendStaffInvite: async (userId: string) => {
+    return apiClient.resendStaffInvite(userId);
+  },
+
+  getStaffInvitation: async (token: string) => {
+    return apiClient.getStaffInvitation(token);
+  },
+
+  acceptStaffInvitation: async (token: string, password: string) => {
+    return apiClient.acceptStaffInvitation(token, password);
+  },
+
   reactivateStaff: async (userId: string) => {
     return apiClient.reactivateStaff(userId);
   },

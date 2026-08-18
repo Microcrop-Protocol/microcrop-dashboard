@@ -947,9 +947,28 @@ class ApiClient {
     phone?: string;
     role: OrgRole;
   }) {
-    return this.request<User>('/staff/invite', {
+    return this.request<User & { inviteUrl: string }>('/staff/invite', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async resendStaffInvite(userId: string) {
+    return this.request<User & { inviteUrl: string }>(`/staff/${encodeURIComponent(userId)}/resend-invite`, {
+      method: 'POST',
+    });
+  }
+
+  async getStaffInvitation(token: string) {
+    return this.request<{ email: string; firstName: string; lastName: string; organizationName: string | null }>(
+      `/staff/invitation/${encodeURIComponent(token)}`,
+    );
+  }
+
+  async acceptStaffInvitation(token: string, password: string) {
+    return this.request<User>('/staff/accept-invitation', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
     });
   }
 
