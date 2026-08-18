@@ -991,6 +991,12 @@ class ApiClient {
     });
   }
 
+  async deleteStaff(userId: string) {
+    return this.request<{ id: string; removed: boolean }>(`/staff/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ============================================
   // ORG DASHBOARD
   // ============================================

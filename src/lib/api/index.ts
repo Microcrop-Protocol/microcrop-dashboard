@@ -543,6 +543,10 @@ export const api = {
     return apiClient.acceptStaffInvitation(token, password);
   },
 
+  deleteStaff: async (userId: string) => {
+    return apiClient.deleteStaff(userId);
+  },
+
   reactivateStaff: async (userId: string) => {
     return apiClient.reactivateStaff(userId);
   },
