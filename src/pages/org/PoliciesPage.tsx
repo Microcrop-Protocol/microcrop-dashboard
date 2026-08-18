@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { usePermissions } from "@/hooks/usePermissions";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ const columns: ColumnDef<Policy>[] = [
 export default function PoliciesPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { can } = usePermissions();
   const orgId = user?.organizationId || "";
 
   const { data, isLoading } = useQuery({
@@ -36,7 +38,7 @@ export default function PoliciesPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div><h1 className="text-2xl font-bold">Policies</h1><p className="text-muted-foreground">Manage crop insurance policies</p></div>
-        <Button asChild><Link to="/org/policies/new"><Plus className="mr-2 h-4 w-4" />New Policy</Link></Button>
+        {can.writePolicies && <Button asChild><Link to="/org/policies/new"><Plus className="mr-2 h-4 w-4" />New Policy</Link></Button>}
       </div>
       <DataTable columns={columns} data={data?.data ?? []} isLoading={isLoading} searchKey="policyNumber" onRowClick={(row) => navigate(`/org/policies/${row.id}`)} />
     </div>

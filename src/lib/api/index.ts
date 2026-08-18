@@ -513,6 +513,10 @@ export const api = {
     return apiClient.getStaff();
   },
 
+  getMyPermissions: async () => {
+    return apiClient.getMyPermissions();
+  },
+
   inviteStaff: async (data: {
     email: string;
     firstName: string;

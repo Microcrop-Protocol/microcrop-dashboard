@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -14,6 +15,7 @@ import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStat
 
 export default function PayoutsPage() {
   const { user } = useAuthStore();
+  const { can } = usePermissions();
   const queryClient = useQueryClient();
   const orgId = user?.organizationId || "";
 
@@ -52,7 +54,7 @@ export default function PayoutsPage() {
     {
       id: "actions",
       cell: ({ row }) =>
-        row.original.status === "FAILED" && (
+        row.original.status === "FAILED" && can.retryPayouts && (
           <Button
             size="sm"
             variant="outline"

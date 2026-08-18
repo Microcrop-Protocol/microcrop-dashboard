@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { usePermissions } from "@/hooks/usePermissions";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -41,9 +42,9 @@ const columns: ColumnDef<Farmer>[] = [
 export default function FarmersPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  // Mirrors ROLE_PERMISSIONS: only ORG_ADMIN holds import:farmers. PLATFORM_ADMIN bypasses
-  // every gate server-side.
-  const canImport = user?.role === 'ORG_ADMIN' || user?.role === 'PLATFORM_ADMIN';
+  const { can } = usePermissions();
+  const canImport = can.bulkImport;
+  const canExport = can.exportData;
   const orgId = user?.organizationId || "";
   const [exporting, setExporting] = useState(false);
 
@@ -88,10 +89,12 @@ export default function FarmersPage() {
               <Link to="/org/farmers/import"><Upload className="mr-2 h-4 w-4" />Import</Link>
             </Button>
           )}
+          {canExport && (
           <Button variant="outline" onClick={handleExport} disabled={exporting}>
             {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             Export CSV
           </Button>
+          )}
         </div>
       </div>
       <KybGatingBanner feature="Registering and importing farmers" />

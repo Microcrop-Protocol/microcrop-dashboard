@@ -999,3 +999,21 @@ export interface PlotCoverage {
   radiusKm: number;
   stations: WeatherStation[];
 }
+
+// ============================================
+// PERMISSIONS (GET /api/staff/me/permissions)
+// ============================================
+export interface MyPermissions {
+  role: UserRole;
+  label: string;
+  permissions: string[];
+  can: {
+    manageStaff: boolean;
+    exportData: boolean;
+    retryPayouts: boolean;
+    writePolicies: boolean;
+    editFarmers: boolean;
+    bulkImport: boolean;
+    decideKyc: boolean;
+  };
+}

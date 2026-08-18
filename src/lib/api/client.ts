@@ -940,6 +940,10 @@ class ApiClient {
     return this.request<User[]>('/staff');
   }
 
+  async getMyPermissions() {
+    return this.request<import('@/types').MyPermissions>('/staff/me/permissions');
+  }
+
   async inviteStaff(data: {
     email: string;
     firstName: string;

@@ -211,28 +211,30 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
+                {/* Per-route permission gates block direct-URL access, not just hidden nav.
+                    Server-side is the real enforcement; these mirror it for UX. */}
                 <Route path="dashboard" element={<OrgDashboard />} />
-                <Route path="farmers" element={<FarmersPage />} />
-                <Route path="farmers/import" element={<FarmerImportPage />} />
-                <Route path="farmers/:farmerId" element={<FarmerDetailPage />} />
-                <Route path="policies" element={<PoliciesPage />} />
-                <Route path="policies/new" element={<NewPolicyPage />} />
-                <Route path="policies/:policyId" element={<PolicyDetailPage />} />
-                <Route path="payouts" element={<PayoutsPage />} />
-                <Route path="plots" element={<PlotsPage />} />
-                <Route path="plots/:plotId/weather" element={<PlotWeatherPage />} />
-                <Route path="damage" element={<DamagePage />} />
-                <Route path="financials" element={<FinancialsPage />} />
-                <Route path="reserve" element={<ReservePage />} />
-                <Route path="kyb" element={<KYBPage />} />
-                <Route path="wallet" element={<WalletPage />} />
-                <Route path="staff" element={<StaffPage />} />
-                <Route path="export" element={<ExportPage />} />
+                <Route path="farmers" element={<ProtectedRoute requiredPermission="farmer:read"><FarmersPage /></ProtectedRoute>} />
+                <Route path="farmers/import" element={<ProtectedRoute requiredCan="bulkImport"><FarmerImportPage /></ProtectedRoute>} />
+                <Route path="farmers/:farmerId" element={<ProtectedRoute requiredPermission="farmer:read"><FarmerDetailPage /></ProtectedRoute>} />
+                <Route path="policies" element={<ProtectedRoute requiredPermission="policy:read"><PoliciesPage /></ProtectedRoute>} />
+                <Route path="policies/new" element={<ProtectedRoute requiredCan="writePolicies"><NewPolicyPage /></ProtectedRoute>} />
+                <Route path="policies/:policyId" element={<ProtectedRoute requiredPermission="policy:read"><PolicyDetailPage /></ProtectedRoute>} />
+                <Route path="payouts" element={<ProtectedRoute requiredPermission="payout:read"><PayoutsPage /></ProtectedRoute>} />
+                <Route path="plots" element={<ProtectedRoute requiredPermission="plot:read"><PlotsPage /></ProtectedRoute>} />
+                <Route path="plots/:plotId/weather" element={<ProtectedRoute requiredPermission="satellite:read"><PlotWeatherPage /></ProtectedRoute>} />
+                <Route path="damage" element={<ProtectedRoute requiredPermission="damage:read"><DamagePage /></ProtectedRoute>} />
+                <Route path="financials" element={<ProtectedRoute requiredPermission="financials:read"><FinancialsPage /></ProtectedRoute>} />
+                <Route path="reserve" element={<ProtectedRoute requiredPermission="reserve:read"><ReservePage /></ProtectedRoute>} />
+                <Route path="kyb" element={<ProtectedRoute allowedRoles={['ORG_ADMIN']}><KYBPage /></ProtectedRoute>} />
+                <Route path="wallet" element={<ProtectedRoute allowedRoles={['ORG_ADMIN']}><WalletPage /></ProtectedRoute>} />
+                <Route path="staff" element={<ProtectedRoute requiredCan="manageStaff"><StaffPage /></ProtectedRoute>} />
+                <Route path="export" element={<ProtectedRoute requiredCan="exportData"><ExportPage /></ProtectedRoute>} />
                 <Route path="activity" element={<OrgActivityPage />} />
-                <Route path="onboard" element={<FieldOnboardingPage />} />
-                <Route path="livestock-onboard" element={<LivestockOnboardingPage />} />
-                <Route path="herds" element={<HerdsPage />} />
-                <Route path="forage-alerts" element={<ForageAlertsPage />} />
+                <Route path="onboard" element={<ProtectedRoute requiredPermission={['farmer:create', 'plot:create']}><FieldOnboardingPage /></ProtectedRoute>} />
+                <Route path="livestock-onboard" element={<ProtectedRoute requiredPermission="herd:create"><LivestockOnboardingPage /></ProtectedRoute>} />
+                <Route path="herds" element={<ProtectedRoute requiredPermission="herd:read"><HerdsPage /></ProtectedRoute>} />
+                <Route path="forage-alerts" element={<ProtectedRoute requiredPermission="satellite:read"><ForageAlertsPage /></ProtectedRoute>} />
                 <Route
                   path="developers"
                   element={

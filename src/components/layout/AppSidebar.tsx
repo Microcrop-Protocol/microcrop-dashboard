@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { usePermissions } from '@/hooks/usePermissions';
+import type { PermissionCan } from '@/lib/permissions';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -42,6 +44,10 @@ interface NavItem {
   icon: React.ElementType;
   children?: { title: string; href: string }[];
   adminOnly?: boolean;
+  /** Backend permission required to see this item (preferred over adminOnly). */
+  permission?: string;
+  /** A derived capability flag required to see this item. */
+  can?: keyof PermissionCan;
 }
 
 const platformNavItems: NavItem[] = [
@@ -69,24 +75,24 @@ const platformNavItems: NavItem[] = [
 ];
 
 const orgNavItems: NavItem[] = [
-  { title: "Dashboard", href: "/org/dashboard", icon: LayoutDashboard },
-  { title: "Verification", href: "/org/kyb", icon: ClipboardCheck },
-  { title: "Field Onboarding", href: "/org/onboard", icon: ClipboardPlus },
-  { title: "Livestock Onboarding", href: "/org/livestock-onboard", icon: ClipboardPlus },
-  { title: "Farmers", href: "/org/farmers", icon: Users },
-  { title: "Policies", href: "/org/policies", icon: FileText },
-  { title: "Payouts", href: "/org/payouts", icon: DollarSign },
-  { title: "Plots", href: "/org/plots", icon: MapPin },
-  { title: "Herds", href: "/org/herds", icon: MapPin },
-  { title: "Forage Alerts", href: "/org/forage-alerts", icon: Sprout },
-  { title: "Damage", href: "/org/damage", icon: AlertTriangle },
-  { title: "Financials", href: "/org/financials", icon: BarChart3 },
-  { title: "Reserve", href: "/org/reserve", icon: PiggyBank },
-  { title: "Wallet", href: "/org/wallet", icon: Wallet },
-  { title: "Staff", href: "/org/staff", icon: UserCog },
+  { title: "Dashboard", href: "/org/dashboard", icon: LayoutDashboard, permission: "dashboard:read" },
+  { title: "Verification", href: "/org/kyb", icon: ClipboardCheck, adminOnly: true },
+  { title: "Field Onboarding", href: "/org/onboard", icon: ClipboardPlus, permission: "farmer:create" },
+  { title: "Livestock Onboarding", href: "/org/livestock-onboard", icon: ClipboardPlus, permission: "herd:create" },
+  { title: "Farmers", href: "/org/farmers", icon: Users, permission: "farmer:read" },
+  { title: "Policies", href: "/org/policies", icon: FileText, permission: "policy:read" },
+  { title: "Payouts", href: "/org/payouts", icon: DollarSign, permission: "payout:read" },
+  { title: "Plots", href: "/org/plots", icon: MapPin, permission: "plot:read" },
+  { title: "Herds", href: "/org/herds", icon: MapPin, permission: "herd:read" },
+  { title: "Forage Alerts", href: "/org/forage-alerts", icon: Sprout, permission: "satellite:read" },
+  { title: "Damage", href: "/org/damage", icon: AlertTriangle, permission: "damage:read" },
+  { title: "Financials", href: "/org/financials", icon: BarChart3, permission: "financials:read" },
+  { title: "Reserve", href: "/org/reserve", icon: PiggyBank, permission: "reserve:read" },
+  { title: "Wallet", href: "/org/wallet", icon: Wallet, adminOnly: true },
+  { title: "Staff", href: "/org/staff", icon: UserCog, can: "manageStaff" },
   { title: "Developers", href: "/org/developers", icon: Code2, adminOnly: true },
-  { title: "Export", href: "/org/export", icon: Download },
-  { title: "Activity", href: "/org/activity", icon: Activity },
+  { title: "Export", href: "/org/export", icon: Download, can: "exportData" },
+  { title: "Activity", href: "/org/activity", icon: Activity, permission: "dashboard:read" },
 ];
 
 interface AppSidebarProps {
@@ -97,11 +103,17 @@ interface AppSidebarProps {
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const location = useLocation();
   const { user, isPlatformAdmin } = useAuthStore();
+  const perms = usePermissions();
   const [openGroups, setOpenGroups] = useState<string[]>([]);
 
-  const navItems = (isPlatformAdmin() ? platformNavItems : orgNavItems).filter(
-    (item) => !item.adminOnly || user?.role === "ORG_ADMIN"
-  );
+  // Show a nav item only if the user's permissions clear its gate. Enforcement is
+  // server-side; this hides what a role can't use so it isn't offered a dead link.
+  const navItems = (isPlatformAdmin() ? platformNavItems : orgNavItems).filter((item) => {
+    if (item.adminOnly) return perms.isAdmin;
+    if (item.can) return perms.can[item.can];
+    if (item.permission) return perms.has(item.permission);
+    return true;
+  });
 
   const toggleGroup = (title: string) => {
     setOpenGroups((prev) =>

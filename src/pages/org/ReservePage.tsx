@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +17,8 @@ const usd = (n: number) => `$${(n ?? 0).toLocaleString(undefined, { maximumFract
 export default function ReservePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Finance can VIEW the reserve, but deposit/withdraw is ORG_ADMIN-only on the backend.
+  const { isAdmin } = usePermissions();
   const [depositAmt, setDepositAmt] = useState('');
   const [withdrawAmt, setWithdrawAmt] = useState('');
 
@@ -124,6 +127,7 @@ export default function ReservePage() {
         </Card>
       )}
 
+      {isAdmin && (
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -151,6 +155,7 @@ export default function ReservePage() {
           </CardContent>
         </Card>
       </div>
+      )}
     </div>
   );
 }
