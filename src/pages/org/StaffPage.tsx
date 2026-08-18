@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColumnDef } from "@tanstack/react-table";
 import { User, OrgRole, ORG_ROLES, ORG_ROLE_LABELS } from "@/types";
-import { UserPlus, Loader2, Send } from "lucide-react";
+import { UserPlus, Loader2, Send, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import {
@@ -127,24 +127,41 @@ export default function StaffPage() {
     onError: (error) => notifyError(error, "Couldn't resend the invitation."),
   });
 
-  // Pending rows get resend + copy; the action column needs the mutation handlers, so it
-  // lives here rather than in the module-level column list.
+  const [toDelete, setToDelete] = useState<User | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (userId: string) => api.deleteStaff(userId),
+    onSuccess: () => {
+      notifySuccess("Staff removed", `${toDelete?.firstName ?? "The member"} has been removed.`);
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      setToDelete(null);
+    },
+    onError: (error) => notifyError(error, "Couldn't remove the staff member."),
+  });
+
+  // Row actions need the mutation handlers, so the column lives here rather than in the
+  // module-level list. Pending rows also get a Resend; every row gets Remove.
   const actionColumn: ColumnDef<User> = {
     id: "actions",
     header: "",
     cell: ({ row }) => {
       const u = row.original;
-      if (u.acceptedAt) return null; // accepted members are managed via role/deactivate elsewhere
       return (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-1">
+          {!u.acceptedAt && (
+            <Button variant="ghost" size="sm" disabled={resendMutation.isPending} onClick={() => resendMutation.mutate(u.id)}>
+              <Send className="mr-1 h-3.5 w-3.5" />
+              Resend
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            disabled={resendMutation.isPending}
-            onClick={() => resendMutation.mutate(u.id)}
+            className="text-destructive hover:text-destructive"
+            onClick={() => setToDelete(u)}
           >
-            <Send className="mr-1 h-3.5 w-3.5" />
-            Resend
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            Remove
           </Button>
         </div>
       );
@@ -216,6 +233,29 @@ export default function StaffPage() {
         isLoading={isLoading}
         searchKey="email"
       />
+
+      <Dialog open={toDelete !== null} onOpenChange={(o) => !o && setToDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove staff member?</DialogTitle>
+            <DialogDescription>
+              This permanently removes {toDelete?.firstName} {toDelete?.lastName} ({toDelete?.email})
+              and frees the email to be invited again. This can't be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setToDelete(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => toDelete && deleteMutation.mutate(toDelete.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
