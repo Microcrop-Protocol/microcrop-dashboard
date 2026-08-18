@@ -20,7 +20,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   ORG_FIELD_AGENT: [
     'payout:read', 'farmer:*', 'plot:*', 'herd:*', 'damage:create',
-    'damage:read', 'satellite:read', 'policy:read', 'dashboard:read',
+    'damage:read', 'satellite:read', 'policy:read', 'policy:create', 'dashboard:read',
   ],
   ORG_FINANCE: [
     'payout:*', 'reserve:*', 'financials:read', 'export:*', 'policy:read',
