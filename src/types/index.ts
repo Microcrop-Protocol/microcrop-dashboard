@@ -37,6 +37,8 @@ export interface User {
   role: UserRole;
   organizationId?: string;
   isActive: boolean;
+  /** Set when the invitee accepts. NULL/absent = invited but not yet accepted (Pending). */
+  acceptedAt?: string | null;
   lastLoginAt?: string;
   /** The staff endpoint returns this name; other endpoints use lastLoginAt. */
   lastLogin?: string | null;

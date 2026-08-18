@@ -24,12 +24,17 @@ export default function AcceptInvitationPage() {
   const { token: pathToken } = useParams<{ token: string }>();
   const [searchParams] = useSearchParams();
   const token = pathToken || searchParams.get('token') || undefined;
+  // Staff invites carry ?type=staff and use the staff endpoints; everything else is the
+  // org-admin invitation flow. Only the endpoints differ — the password-setting UI is shared.
+  const isStaff = searchParams.get('type') === 'staff';
   const navigate = useNavigate();
 
   const [isValidating, setIsValidating] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [invitation, setInvitation] = useState<OrgAdminInvitation | null>(null);
+  const [invitation, setInvitation] = useState<
+    Pick<OrgAdminInvitation, 'email' | 'firstName' | 'lastName' | 'organizationName'> | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -52,28 +57,42 @@ export default function AcceptInvitationPage() {
       }
 
       try {
-        const result = await api.validateInvitationToken(token);
-        if (result.valid && result.invitation) {
-          setInvitation(result.invitation);
+        if (isStaff) {
+          const info = await api.getStaffInvitation(token);
+          setInvitation({
+            email: info.email,
+            firstName: info.firstName,
+            lastName: info.lastName,
+            organizationName: info.organizationName ?? undefined,
+          });
         } else {
-          setError(result.error || 'Invalid invitation');
+          const result = await api.validateInvitationToken(token);
+          if (result.valid && result.invitation) {
+            setInvitation(result.invitation);
+          } else {
+            setError(result.error || 'Invalid invitation');
+          }
         }
       } catch (err) {
-        setError('Failed to validate invitation');
+        setError('This invitation is invalid or has expired');
       } finally {
         setIsValidating(false);
       }
     };
 
     validateToken();
-  }, [token]);
+  }, [token, isStaff]);
 
   const onSubmit = async (data: AcceptInvitationFormData) => {
     if (!token) return;
 
     setIsSubmitting(true);
     try {
-      await api.acceptInvitation(token, data.password);
+      if (isStaff) {
+        await api.acceptStaffInvitation(token, data.password);
+      } else {
+        await api.acceptInvitation(token, data.password);
+      }
       setIsSuccess(true);
       notifySuccess('Account created!', 'Your account has been set up successfully. You can now log in.');
     } catch (err) {
