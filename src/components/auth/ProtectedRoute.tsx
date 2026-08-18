@@ -1,15 +1,21 @@
 import { useAuthStore } from "@/stores/authStore";
 import { Navigate, useLocation } from "react-router-dom";
 import { isRoleAllowedOnSubdomain, getCorrectSubdomain } from "@/lib/subdomain";
+import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import type { UserRole } from '@/types';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: UserRole[];
+  /** Require these backend permission(s) to enter (all of them). Blocks direct-URL access. */
+  requiredPermission?: string | string[];
+  /** Require one of the derived `can` capability flags. */
+  requiredCan?: keyof Permissions["can"];
 }
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, allowedRoles, requiredPermission, requiredCan }: ProtectedRouteProps) {
   const { isAuthenticated, user, isLoading } = useAuthStore();
+  const perms = usePermissions();
   const location = useLocation();
 
   if (isLoading) {
@@ -47,10 +53,20 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     }
   }
 
+  const homePath = user.role === 'PLATFORM_ADMIN' ? '/platform/dashboard' : '/org/dashboard';
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Redirect to appropriate dashboard based on role
-    const redirectPath = user.role === 'PLATFORM_ADMIN' ? '/platform/dashboard' : '/org/dashboard';
-    return <Navigate to={redirectPath} replace />;
+    return <Navigate to={homePath} replace />;
+  }
+
+  // Permission / capability gates. Platform admins bypass (their grants include '*').
+  // These block direct-URL access, not just hidden nav — failing sends the user home.
+  if (requiredPermission) {
+    const needed = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
+    if (!perms.hasAll(needed)) return <Navigate to={homePath} replace />;
+  }
+  if (requiredCan && !perms.can[requiredCan]) {
+    return <Navigate to={homePath} replace />;
   }
 
   return <>{children}</>;

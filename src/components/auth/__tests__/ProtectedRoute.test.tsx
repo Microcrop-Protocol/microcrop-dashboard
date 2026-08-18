@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@/types';
 
 // Mock the API client
@@ -45,7 +46,10 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 function renderProtected(children: React.ReactNode, allowedRoles?: ('PLATFORM_ADMIN' | 'ORG_ADMIN' | 'ORG_STAFF')[]) {
+  // ProtectedRoute now reads usePermissions (useQuery), so it needs a QueryClient in scope.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
+    <QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={['/protected']}>
       <Routes>
         <Route
@@ -61,6 +65,7 @@ function renderProtected(children: React.ReactNode, allowedRoles?: ('PLATFORM_AD
         <Route path="/org/dashboard" element={<div>Org Dashboard</div>} />
       </Routes>
     </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 
