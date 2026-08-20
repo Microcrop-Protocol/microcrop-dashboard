@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { explorerAddressUrl } from "@/lib/explorer";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, FileText, DollarSign, Wallet, TrendingUp, ExternalLink, ShieldAlert, Clock, ArrowRight } from "lucide-react";
+import { Users, FileText, DollarSign, Wallet, TrendingUp, ShieldAlert, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function OrgDashboard() {
@@ -24,11 +23,6 @@ export default function OrgDashboard() {
     enabled: !!orgId,
   });
 
-  const { data: wallet } = useQuery({
-    queryKey: ["orgWallet"],
-    queryFn: () => api.getOrgWallet(),
-  });
-
   const { data: kyb } = useQuery({
     queryKey: ["my-kyb"],
     queryFn: () => api.getMyKyb(),
@@ -43,13 +37,6 @@ export default function OrgDashboard() {
     }).format(value);
   };
 
-  const truncateAddress = (address: unknown) => {
-    const value = typeof address === "string" ? address : String(address ?? "");
-    if (!value) return "—";
-    if (value.length <= 10) return value;
-    return `${value.slice(0, 6)}...${value.slice(-4)}`;
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -57,14 +44,6 @@ export default function OrgDashboard() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Organization overview and key metrics</p>
         </div>
-        {wallet?.walletAddress && (
-          <Button variant="outline" asChild>
-            <a href={explorerAddressUrl(wallet.walletAddress)} target="_blank" rel="noopener noreferrer">
-              Wallet: {truncateAddress(wallet.walletAddress)}
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
-          </Button>
-        )}
       </div>
 
       {kyb && kyb.kybStatus !== "VERIFIED" && (

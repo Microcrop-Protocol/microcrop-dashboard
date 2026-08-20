@@ -762,36 +762,6 @@ describe('apiClient', () => {
     });
   });
 
-  describe('organization endpoints', () => {
-    beforeEach(() => {
-      apiClient.setAccessToken('org-tok');
-    });
-
-    it('depositReserve sends correct data', async () => {
-      globalThis.fetch = mockFetchResponse(envelope({ txHash: '0xabc', amountUsdc: 1000 }));
-
-      const result = await apiClient.depositReserve({ amountUsdc: 1000 });
-
-      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(url).toContain('/api/organizations/me/reserve/deposit');
-      expect(options.method).toBe('POST');
-      expect(JSON.parse(options.body)).toEqual({ amountUsdc: 1000 });
-      expect(result.txHash).toBe('0xabc');
-    });
-
-    it('getReserve reads the org reserve status', async () => {
-      globalThis.fetch = mockFetchResponse(
-        envelope({ walletAddress: '0xwallet', reserveUsdc: 5000, requiredUsdc: 2000, headroomUsdc: 3000, solvent: true })
-      );
-
-      const result = await apiClient.getReserve();
-
-      const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(url).toContain('/api/organizations/me/reserve');
-      expect(result.solvent).toBe(true);
-    });
-  });
-
   describe('farmer endpoints', () => {
     beforeEach(() => {
       apiClient.setAccessToken('org-tok');

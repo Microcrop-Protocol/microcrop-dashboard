@@ -402,26 +402,9 @@ export interface FinancialSummary {
   policyCount: number;
 }
 
-// Organization Wallet
-export interface OrgWallet {
-  walletAddress: string | null;
-  walletCreated: boolean;
-  balances?: {
-    usdc: string;
-    eth: string;
-  };
-  message?: string;
-}
-
-export interface WalletFundResult {
-  transactionId: string;
-  reference: string;
-  orderId: string;
-  provider: string;
-  status: string;
-  walletAddress: string;
-  instructions: string;
-}
+// OrgWallet / WalletFundResult were removed with the non-custodial model: there is no
+// per-org platform-provisioned wallet for an insurer to fund. Reserves are held
+// off-platform in a segregated trust.
 
 // Treasury Types
 export interface TreasuryStats {

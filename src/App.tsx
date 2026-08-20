@@ -68,7 +68,6 @@ const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
 const FinancialsPage = lazyRetry(() => import("@/pages/org/FinancialsPage"));
 const KYBPage = lazyRetry(() => import("@/pages/org/KYBPage"));
 const ReservePage = lazyRetry(() => import("@/pages/org/ReservePage"));
-const WalletPage = lazyRetry(() => import("@/pages/org/WalletPage"));
 const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
 const ExportPage = lazyRetry(() => import("@/pages/org/ExportPage"));
 const OrgActivityPage = lazyRetry(() => import("@/pages/org/OrgActivityPage"));
@@ -227,7 +226,6 @@ const App = () => (
                 <Route path="financials" element={<ProtectedRoute requiredPermission="financials:read"><FinancialsPage /></ProtectedRoute>} />
                 <Route path="reserve" element={<ProtectedRoute requiredPermission="reserve:read"><ReservePage /></ProtectedRoute>} />
                 <Route path="kyb" element={<ProtectedRoute allowedRoles={['ORG_ADMIN']}><KYBPage /></ProtectedRoute>} />
-                <Route path="wallet" element={<ProtectedRoute allowedRoles={['ORG_ADMIN']}><WalletPage /></ProtectedRoute>} />
                 <Route path="staff" element={<ProtectedRoute requiredCan="manageStaff"><StaffPage /></ProtectedRoute>} />
                 <Route path="export" element={<ProtectedRoute requiredCan="exportData"><ExportPage /></ProtectedRoute>} />
                 <Route path="activity" element={<OrgActivityPage />} />

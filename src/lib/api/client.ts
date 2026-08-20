@@ -561,27 +561,11 @@ class ApiClient {
     });
   }
 
-  // ============================================
-  // ORGANIZATION RESERVE (per-org treasury / v3)
-  // ============================================
-
-  async getReserve() {
-    return this.request<ReserveStatus>('/organizations/me/reserve');
-  }
-
-  async depositReserve(data: { amountUsdc: number }) {
-    return this.request<{ txHash: string; amountUsdc: number }>('/organizations/me/reserve/deposit', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async withdrawReserve(data: { amountUsdc: number; to?: string }) {
-    return this.request<{ txHash: string; amountUsdc: number; to: string }>('/organizations/me/reserve/withdraw', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
+  // Org-facing reserve custody (getReserve / depositReserve / withdrawReserve) was
+  // retired with the non-custodial (collateralized-trust) model: an insurer's reserve
+  // now sits off-platform in a segregated trust, not in a platform-provisioned wallet.
+  // Platform-admin reserve reads/ratio remain (getOrgReserve / setReserveRatio) as
+  // operators of the on-chain reserve-draw path, which is flagged for rework.
 
   // ============================================
   // ORGANIZATION KYB (in-dashboard verification)
@@ -610,33 +594,9 @@ class ApiClient {
     );
   }
 
-  // ============================================
-  // ORGANIZATION WALLET
-  // ============================================
-
-  async getOrgWallet() {
-    return this.request<{
-      walletAddress: string | null;
-      walletCreated: boolean;
-      balances?: { usdc: string; eth: string };
-      message?: string;
-    }>('/organizations/me/wallet');
-  }
-
-  async fundWallet(data: { phoneNumber: string; amountKES: number }) {
-    return this.request<{
-      transactionId: string;
-      reference: string;
-      orderId: string;
-      provider: string;
-      status: string;
-      walletAddress: string;
-      instructions: string;
-    }>('/organizations/me/wallet/fund', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
+  // The per-org custody wallet (getOrgWallet / fundWallet via M-Pesa) was retired with
+  // the non-custodial model. MicroCrop does not hold an insurer's capital; there is no
+  // platform-provisioned wallet for an org to top up.
 
   // ============================================
   // ORGANIZATION WEBHOOKS (partner integration)

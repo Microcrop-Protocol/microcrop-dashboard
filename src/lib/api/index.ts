@@ -15,8 +15,6 @@ import type {
   OnboardingStep,
   ReserveStatus,
   TreasuryStats,
-  OrgWallet,
-  WalletFundResult,
   Farmer,
   Plot,
   Policy,
@@ -373,37 +371,10 @@ export const api = {
   // ORGANIZATION RESERVE (per-org treasury / v3)
   // ============================================
 
-  getReserve: async (): Promise<ReserveStatus> => {
-    return apiClient.getReserve();
-  },
-
-  depositReserve: async (data: { amountUsdc: number }): Promise<{ txHash: string; amountUsdc: number }> => {
-    return apiClient.depositReserve(data);
-  },
-
-  withdrawReserve: async (data: { amountUsdc: number; to?: string }): Promise<{ txHash: string; amountUsdc: number; to: string }> => {
-    return apiClient.withdrawReserve(data);
-  },
-
-  // ============================================
-  // ORGANIZATION WALLET
-  // ============================================
-
-  getOrgWallet: async (): Promise<OrgWallet> => {
-    return apiClient.getOrgWallet();
-  },
-
-  fundWallet: async (data: { phoneNumber: string; amountKES: number }): Promise<WalletFundResult> => {
-    // Convert local phone format (07...) to international (+254...)
-    // while guarding against non-string runtime values.
-    const rawPhone = typeof data.phoneNumber === 'string'
-      ? data.phoneNumber.trim()
-      : String(data.phoneNumber ?? '').trim();
-    const phoneNumber = rawPhone.startsWith('0')
-      ? `+254${rawPhone.slice(1)}`
-      : rawPhone;
-    return apiClient.fundWallet({ ...data, phoneNumber });
-  },
+  // Org-facing reserve custody and the per-org M-Pesa-funded wallet were retired with
+  // the non-custodial (collateralized-trust) model. An insurer's reserve is held
+  // off-platform; MicroCrop never custodies partner capital. Platform-admin reserve
+  // reads/ratio (getOrgReserve / platformSetReserveRatio) remain below.
 
   // ============================================
   // ORGANIZATION WEBHOOKS (partner integration)
