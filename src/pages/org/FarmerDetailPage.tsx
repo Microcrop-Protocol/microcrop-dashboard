@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
+import { FarmerKycDecision } from "@/components/farmers/FarmerKycDecision";
 import { ArrowLeft, Phone, MapPin, Loader2 } from "lucide-react";
 
 export default function FarmerDetailPage() {
@@ -53,13 +54,15 @@ export default function FarmerDetailPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold truncate">{farmer.firstName} {farmer.lastName}</h1>
             <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-              <span className="flex items-center gap-1"><Phone className="h-4 w-4" />{farmer.phone}</span>
+              <span className="flex items-center gap-1"><Phone className="h-4 w-4" />{farmer.phoneNumber}</span>
               <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{farmer.county}</span>
             </div>
           </div>
         </div>
         <StatusBadge variant={getStatusVariant(farmer.kycStatus)} className="self-start sm:self-center">{farmer.kycStatus}</StatusBadge>
       </div>
+
+      <FarmerKycDecision farmer={farmer} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

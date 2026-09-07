@@ -18,7 +18,8 @@ import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
 const columns: ColumnDef<Farmer>[] = [
   { accessorKey: "firstName", header: "First Name" },
   { accessorKey: "lastName", header: "Last Name" },
-  { accessorKey: "phone", header: "Phone" },
+  // The API field is `phoneNumber`; `phone` is never returned and rendered blank.
+  { accessorKey: "phoneNumber", header: "Phone" },
   { accessorKey: "nationalId", header: "National ID" },
   { accessorKey: "county", header: "County" },
   {
@@ -45,6 +46,7 @@ export default function FarmersPage() {
   const { can } = usePermissions();
   const canImport = can.bulkImport;
   const canExport = can.exportData;
+  const canDecideKyc = can.decideKyc;
   const orgId = user?.organizationId || "";
   const [exporting, setExporting] = useState(false);
 
@@ -53,6 +55,8 @@ export default function FarmersPage() {
     queryFn: () => api.getFarmers(orgId),
     enabled: !!orgId,
   });
+
+  const pendingKycCount = (data?.data ?? []).filter((f) => f.kycStatus === "PENDING").length;
 
   const handleExport = async () => {
     setExporting(true);
@@ -98,6 +102,18 @@ export default function FarmersPage() {
         </div>
       </div>
       <KybGatingBanner feature="Registering and importing farmers" />
+      {/* Bulk import creates every farmer PENDING, and a policy cannot be sold to a
+          farmer who is not APPROVED — so an unreviewed import is an unsellable book.
+          Surface the backlog to whoever can actually clear it. */}
+      {canDecideKyc && pendingKycCount > 0 && (
+        <div className="rounded-lg border border-warning/20 bg-warning/10 p-4 text-sm">
+          <span className="font-medium">
+            {pendingKycCount} farmer{pendingKycCount === 1 ? "" : "s"} awaiting KYC approval.
+          </span>{" "}
+          Policies cannot be sold to a farmer until their KYC is approved. Open a farmer to
+          approve or reject.
+        </div>
+      )}
       <DataTable columns={columns} data={data?.data ?? []} isLoading={isLoading} searchKey="firstName" searchPlaceholder="Search farmers..." onRowClick={(row) => navigate(`/org/farmers/${row.id}`)} />
     </div>
   );
