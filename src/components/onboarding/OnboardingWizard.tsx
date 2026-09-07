@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   UserPlus, ShieldCheck, MapPin, Navigation, Map, Calculator,
-  FileCheck, Smartphone, Loader2, Check, MapPinned, AlertTriangle,
+  FileCheck, Smartphone, Loader2, Check, MapPinned, AlertTriangle, FileWarning,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import {
 } from '@/lib/validations/onboarding';
 import { BoundaryWalkStep } from './BoundaryWalkStep';
 import { BoundaryReviewMap } from './BoundaryReviewMap';
+import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
 
 /**
  * Sums insured, premiums and fees in this wizard are LOCAL currency — what the
@@ -53,8 +54,16 @@ function formatMoney(value: number | string | null | undefined): string {
     : `${CURRENCY} —`;
 }
 
+/**
+ * Consent sits immediately after registration and before anything else is collected:
+ * the plot walk, the GPS boundary and the KYC check all gather more personal data
+ * about the same person, so the lawful basis for holding it belongs first. It is also
+ * before Purchase, which is where the backend's (currently unwired) consent gate would
+ * bite if it were ever switched on.
+ */
 const STEPS = [
   { id: 'register', title: 'Register', icon: UserPlus },
+  { id: 'consent', title: 'Consent', icon: FileWarning },
   { id: 'kyc', title: 'Verify', icon: ShieldCheck },
   { id: 'plot', title: 'Plot', icon: MapPin },
   { id: 'walk', title: 'Boundary', icon: Navigation },
@@ -63,6 +72,18 @@ const STEPS = [
   { id: 'purchase', title: 'Purchase', icon: FileCheck },
   { id: 'payment', title: 'Payment', icon: Smartphone },
 ] as const;
+
+type StepId = (typeof STEPS)[number]['id'];
+
+/**
+ * Steps are addressed by name, not by ordinal. Inserting the consent step shifted
+ * every index in this file; the nine hand-written `setCurrentStep(4)`-style literals
+ * that used to encode the order were one typo away from sending a field agent to the
+ * wrong screen mid-onboarding.
+ */
+function stepIndex(id: StepId): number {
+  return STEPS.findIndex((step) => step.id === id);
+}
 
 export function OnboardingWizard() {
   const navigate = useNavigate();
@@ -142,7 +163,7 @@ export function OnboardingWizard() {
     mutationFn: (data: FarmerRegistrationData) => api.registerFarmer(data),
     onSuccess: (result) => {
       setFarmer(result);
-      setCurrentStep(1);
+      setCurrentStep(stepIndex('consent'));
       notifySuccess('Farmer registered', `${result.firstName} ${result.lastName} has been registered.`);
     },
     onError: (error) => {
@@ -154,7 +175,7 @@ export function OnboardingWizard() {
     mutationFn: (farmerId: string) => api.fieldVerifyKyc(farmerId),
     onSuccess: () => {
       if (farmer) setFarmer({ ...farmer, kycStatus: 'APPROVED' });
-      setCurrentStep(2);
+      setCurrentStep(stepIndex('plot'));
       notifySuccess('Identity verified', 'KYC field verification completed successfully.');
     },
     onError: (error) => {
@@ -176,7 +197,7 @@ export function OnboardingWizard() {
     },
     onSuccess: (result) => {
       setPlot(result);
-      setCurrentStep(3);
+      setCurrentStep(stepIndex('walk'));
       notifySuccess('Plot created', `"${result.name}" has been registered.`);
     },
     onError: (error) => {
@@ -220,7 +241,7 @@ export function OnboardingWizard() {
       // paymentInstructions.amount is the premium the STK push must charge.
       setPolicy(result.policy);
       setPaymentInstructions(result.paymentInstructions ?? null);
-      setCurrentStep(7);
+      setCurrentStep(stepIndex('payment'));
       notifySuccess('Policy created', `Policy ${result.policy.policyNumber} is ready for payment.`);
     },
     onError: (error) => {
@@ -328,7 +349,7 @@ export function OnboardingWizard() {
 
   const handleBoundaryComplete = useCallback((result: GpsTrackResponse) => {
     setBoundaryResult(result);
-    setCurrentStep(4);
+    setCurrentStep(stepIndex('review'));
   }, []);
 
   // ── Stepper ────────────────────────────────────────────
@@ -382,7 +403,7 @@ export function OnboardingWizard() {
   // STEP RENDERERS
   // ══════════════════════════════════════════════════════
 
-  // ── Step 0: Register Farmer ────────────────────────────
+  // ── Step: Register Farmer ──────────────────────────────
 
   const renderRegisterStep = () => (
     <Card>
@@ -471,7 +492,57 @@ export function OnboardingWizard() {
     </Card>
   );
 
-  // ── Step 1: KYC Verification ───────────────────────────
+  // ── Step: Consent ──────────────────────────────────────
+
+  /**
+   * The consent step DOES NOT BLOCK. Two reasons, both deliberate:
+   *
+   *  1. The backend reports `enforcedOnPurchase: false` — consent is recorded, not
+   *     required, and a wizard that pretended otherwise would be lying about the
+   *     product. The copy below says so instead of implying a gate.
+   *  2. Every document in the registry is an unapproved placeholder, and the backend
+   *     REFUSES to capture against a placeholder in production. Blocking here would
+   *     make the whole wizard unusable in prod the day it shipped.
+   *
+   * When approved wording lands and `assertConsentForPolicy` is wired into
+   * `policyService.purchase`, this is where the block belongs — gate Continue on the
+   * status response's `hasValidConsent`, which already accounts for placeholder rows.
+   */
+  const renderConsentStep = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Record Consent</CardTitle>
+        <CardDescription>
+          Record what this farmer has agreed to, and how that agreement was captured
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {farmer ? (
+          <FarmerConsentPanel farmerId={farmer.id} />
+        ) : (
+          <p className="text-muted-foreground">
+            Farmer data missing. Please go back and register the farmer first.
+          </p>
+        )}
+
+        <div className="space-y-2">
+          <Button
+            className="w-full"
+            onClick={() => setCurrentStep(stepIndex('kyc'))}
+            disabled={!farmer}
+          >
+            Continue
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Consent is not enforced on purchase, so onboarding continues either way.
+            Whatever is recorded here stays on the farmer&apos;s record.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // ── Step: KYC Verification ─────────────────────────────
 
   const renderKycStep = () => (
     <Card>
@@ -516,7 +587,7 @@ export function OnboardingWizard() {
     </Card>
   );
 
-  // ── Step 2: Create Plot ────────────────────────────────
+  // ── Step: Create Plot ──────────────────────────────────
 
   const renderPlotStep = () => (
     <Card>
@@ -629,7 +700,7 @@ export function OnboardingWizard() {
     </Card>
   );
 
-  // ── Step 4: Review Boundary ────────────────────────────
+  // ── Step: Review Boundary ──────────────────────────────
 
   const renderReviewStep = () => (
     <Card>
@@ -680,10 +751,10 @@ export function OnboardingWizard() {
             )}
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => { setBoundaryResult(null); setCurrentStep(3); }}>
+              <Button variant="outline" onClick={() => { setBoundaryResult(null); setCurrentStep(stepIndex('walk')); }}>
                 Re-walk Boundary
               </Button>
-              <Button className="flex-1" onClick={() => setCurrentStep(5)}>
+              <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('quote'))}>
                 Confirm Boundary
               </Button>
             </div>
@@ -693,7 +764,7 @@ export function OnboardingWizard() {
     </Card>
   );
 
-  // ── Step 5: Premium Quote ──────────────────────────────
+  // ── Step: Premium Quote ────────────────────────────────
 
   const renderQuoteStep = () => (
     <Card>
@@ -787,7 +858,7 @@ export function OnboardingWizard() {
                 {quote ? 'Recalculate' : 'Get Quote'}
               </Button>
               {quote && (
-                <Button className="flex-1" onClick={() => setCurrentStep(6)}>
+                <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))}>
                   Continue to Purchase
                 </Button>
               )}
@@ -798,7 +869,7 @@ export function OnboardingWizard() {
     </Card>
   );
 
-  // ── Step 6: Purchase Policy ────────────────────────────
+  // ── Step: Purchase Policy ──────────────────────────────
 
   const renderPurchaseStep = () => {
     const quoteValues = quoteForm.getValues();
@@ -839,7 +910,7 @@ export function OnboardingWizard() {
           </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setCurrentStep(5)} disabled={purchaseMutation.isPending}>
+            <Button variant="outline" onClick={() => setCurrentStep(stepIndex('quote'))} disabled={purchaseMutation.isPending}>
               Back
             </Button>
             <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending}>
@@ -852,7 +923,7 @@ export function OnboardingWizard() {
     );
   };
 
-  // ── Step 7: M-Pesa Payment ─────────────────────────────
+  // ── Step: M-Pesa Payment ───────────────────────────────
 
   const renderPaymentStep = () => {
     return (
@@ -971,18 +1042,21 @@ export function OnboardingWizard() {
   // ══════════════════════════════════════════════════════
 
   const renderStepContent = () => {
-    switch (currentStep) {
-      case 0: return renderRegisterStep();
-      case 1: return renderKycStep();
-      case 2: return renderPlotStep();
-      case 3: {
+    // Switched on the step's id rather than its ordinal, so inserting or reordering a
+    // step can never silently point a case at the wrong renderer.
+    switch (STEPS[currentStep]?.id) {
+      case 'register': return renderRegisterStep();
+      case 'consent': return renderConsentStep();
+      case 'kyc': return renderKycStep();
+      case 'plot': return renderPlotStep();
+      case 'walk': {
         if (!plot) return <Card><CardContent className="py-8 text-center text-muted-foreground">Plot data missing. Please go back and create a plot first.</CardContent></Card>;
         return <BoundaryWalkStep plotId={plot.id} onComplete={handleBoundaryComplete} />;
       }
-      case 4: return renderReviewStep();
-      case 5: return renderQuoteStep();
-      case 6: return renderPurchaseStep();
-      case 7: return renderPaymentStep();
+      case 'review': return renderReviewStep();
+      case 'quote': return renderQuoteStep();
+      case 'purchase': return renderPurchaseStep();
+      case 'payment': return renderPaymentStep();
       default: return null;
     }
   };

@@ -808,6 +808,99 @@ describe('apiClient', () => {
     });
   });
 
+  describe('farmer consent endpoints', () => {
+    beforeEach(() => {
+      apiClient.setAccessToken('org-tok');
+    });
+
+    // The registry route is registered BEFORE '/:farmerId' server-side so the literal
+    // path is not swallowed by the param route. Hitting the wrong path here would look
+    // like a missing farmer rather than a wrong URL.
+    it('getConsentDocuments reads the registry, not a farmer-scoped path', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({ documents: [], approvedCopyAvailable: false })
+      );
+
+      const result = await apiClient.getConsentDocuments();
+
+      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/farmers/consent/documents');
+      expect(options.method).toBeUndefined();
+      expect(result.approvedCopyAvailable).toBe(false);
+    });
+
+    it('getFarmerConsent surfaces enforcedOnPurchase rather than dropping it', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({
+          farmerId: 'f1',
+          documents: [],
+          hasValidConsent: false,
+          missing: [],
+          enforcedOnPurchase: false,
+        })
+      );
+
+      const result = await apiClient.getFarmerConsent('f1');
+
+      const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/farmers/f1/consent');
+      // A dropped `false` here would let the dashboard imply consent gates purchase.
+      expect(result.enforcedOnPurchase).toBe(false);
+    });
+
+    // The server reads the version in force from its own registry at capture time.
+    // A client that sent one could claim consent to a version never published.
+    it('recordFarmerConsent never sends a document version', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({ consent: { id: 'c1' }, replayed: false, status: 'GRANTED', documentApproved: false })
+      );
+
+      await apiClient.recordFarmerConsent('f1', {
+        documentId: 'FARMER_DATA_PROCESSING',
+        method: 'IN_PERSON_VERBAL_ATTESTED',
+        evidenceRef: 'FORM-1',
+      });
+
+      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/farmers/f1/consent');
+      expect(options.method).toBe('POST');
+      const body = JSON.parse(options.body);
+      expect(body).toEqual({
+        documentId: 'FARMER_DATA_PROCESSING',
+        method: 'IN_PERSON_VERBAL_ATTESTED',
+        evidenceRef: 'FORM-1',
+      });
+      expect(body).not.toHaveProperty('documentVersion');
+      expect(body).not.toHaveProperty('version');
+    });
+
+    it('withdrawFarmerConsent posts to the withdraw path with the reason', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({ consent: { id: 'c1' }, alreadyRevoked: false, status: 'REVOKED' })
+      );
+
+      await apiClient.withdrawFarmerConsent('f1', {
+        documentId: 'FARMER_DATA_PROCESSING',
+        reason: 'Farmer asked us to stop',
+      });
+
+      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/farmers/f1/consent/withdraw');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body)).toEqual({
+        documentId: 'FARMER_DATA_PROCESSING',
+        reason: 'Farmer asked us to stop',
+      });
+    });
+
+    it('encodes the farmer id on every consent path', async () => {
+      globalThis.fetch = mockFetchResponse(envelope({}));
+      await apiClient.getFarmerConsent('a/b');
+      const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/farmers/a%2Fb/consent');
+    });
+  });
+
   describe('policy endpoints', () => {
     beforeEach(() => {
       apiClient.setAccessToken('org-tok');

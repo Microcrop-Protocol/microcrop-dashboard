@@ -35,6 +35,11 @@ import type {
   BlogTag,
   PostStatus,
   UploadResult,
+  ConsentMethod,
+  ConsentDocumentsResponse,
+  FarmerConsentStatus,
+  RecordConsentResponse,
+  WithdrawConsentResponse,
 } from '@/types';
 
 const toArray = <T>(value: unknown): T[] => {
@@ -639,6 +644,38 @@ export const api = {
 
   bulkImportPlots: async (plots: Record<string, unknown>[]) => {
     return apiClient.bulkImportPlots(plots);
+  },
+
+  // ============================================
+  // FARMER CONSENT (Kenya Data Protection Act 2019)
+  //
+  // Deliberately unnormalized pass-throughs: every field of these responses is part
+  // of the record (or of the placeholder warning attached to it), so nothing here may
+  // be defaulted, renamed or dropped on the way to the UI.
+  // ============================================
+
+  getConsentDocuments: async (): Promise<ConsentDocumentsResponse> => {
+    return apiClient.getConsentDocuments();
+  },
+
+  getFarmerConsent: async (farmerId: string): Promise<FarmerConsentStatus> => {
+    return apiClient.getFarmerConsent(farmerId);
+  },
+
+  recordFarmerConsent: async (farmerId: string, data: {
+    documentId: string;
+    method: ConsentMethod;
+    evidenceRef?: string;
+    locale?: string;
+  }): Promise<RecordConsentResponse> => {
+    return apiClient.recordFarmerConsent(farmerId, data);
+  },
+
+  withdrawFarmerConsent: async (farmerId: string, data: {
+    documentId: string;
+    reason?: string;
+  }): Promise<WithdrawConsentResponse> => {
+    return apiClient.withdrawFarmerConsent(farmerId, data);
   },
 
   // ============================================

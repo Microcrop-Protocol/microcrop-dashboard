@@ -1076,3 +1076,119 @@ export interface MyPermissions {
     decideKyc: boolean;
   };
 }
+
+// ============================================
+// FARMER CONSENT (Kenya Data Protection Act 2019)
+//
+// Mirrors microcrop-backend src/config/consent.js + src/services/consent.service.js.
+//
+// NOTE FOR ANYONE EDITING THE UI THAT RENDERS THESE: `body` is the ONLY source of
+// consent wording. It is null for every document in the registry today and the
+// dashboard must never substitute prose of its own — see FarmerConsentPanel.
+// ============================================
+
+/** Mirrors the Prisma `ConsentMethod` enum / CONSENT_METHODS in the backend registry. */
+export type ConsentMethod =
+  | 'IN_PERSON_VERBAL_ATTESTED'
+  | 'IN_PERSON_SIGNATURE'
+  | 'SMS_REPLY'
+  | 'USSD'
+  | 'WEB_FORM'
+  | 'PAPER_RECORD_IMPORT';
+
+/**
+ * Derived consent state for one document.
+ *
+ * NOT_GIVEN ("never asked") and REVOKED ("agreed, then withdrew") are different facts
+ * and the UI must never collapse them. SUPERSEDED means consent exists but against an
+ * older version of the document.
+ */
+export type ConsentStatus = 'NOT_GIVEN' | 'GRANTED' | 'REVOKED' | 'SUPERSEDED';
+
+/** One entry of GET /farmers/consent/documents. */
+export interface ConsentDocument {
+  documentId: string;
+  version: string;
+  approved: boolean;
+  required: boolean;
+  purpose: string;
+  /** The exact wording shown to the farmer. Null while the document is a placeholder. */
+  body: string | null;
+  bodySha256: string | null;
+  /** Present only while `approved` is false. Render it verbatim; never paraphrase. */
+  warning?: string;
+  /** Present only while `approved` is false. What a human still has to do. */
+  todo?: string;
+}
+
+export interface ConsentDocumentsResponse {
+  documents: ConsentDocument[];
+  approvedCopyAvailable: boolean;
+  warning?: string;
+}
+
+/** A stored FarmerConsent row as the API returns it. */
+export interface FarmerConsentRecord {
+  id: string;
+  documentVersion: string;
+  documentHash: string | null;
+  method: ConsentMethod;
+  evidenceRef: string | null;
+  locale: string | null;
+  capturedByUserId: string | null;
+  grantedAt: string;
+  revokedAt: string | null;
+  revokedByUserId: string | null;
+  revokedReason: string | null;
+  capturedAgainstPlaceholder?: boolean;
+}
+
+/** Per-document status inside GET /farmers/:farmerId/consent. */
+export interface FarmerConsentDocumentStatus {
+  documentId: string;
+  requiredVersion: string;
+  required: boolean;
+  documentApproved: boolean;
+  purpose: string;
+  status: ConsentStatus;
+  consent: FarmerConsentRecord | null;
+  warning?: string;
+  todo?: string;
+}
+
+export interface FarmerConsentMissingEntry {
+  documentId: string;
+  status: ConsentStatus;
+  /** Set when consent exists but was captured against unapproved placeholder wording. */
+  unusable?: string;
+}
+
+/** GET /farmers/:farmerId/consent. */
+export interface FarmerConsentStatus {
+  farmerId: string;
+  documents: FarmerConsentDocumentStatus[];
+  hasValidConsent: boolean;
+  missing: FarmerConsentMissingEntry[];
+  /**
+   * The backend reports whether consent actually gates policy purchase. It is `false`
+   * today and the UI must say so rather than implying anything is being enforced.
+   */
+  enforcedOnPurchase: boolean;
+  warning?: string;
+}
+
+/** POST /farmers/:farmerId/consent — 201 on a new row, 200 on a replay. */
+export interface RecordConsentResponse {
+  consent: FarmerConsentRecord;
+  replayed: boolean;
+  status: ConsentStatus;
+  documentApproved: boolean;
+  warning?: string;
+}
+
+/** POST /farmers/:farmerId/consent/withdraw. */
+export interface WithdrawConsentResponse {
+  consent: FarmerConsentRecord;
+  alreadyRevoked: boolean;
+  status: ConsentStatus;
+}
