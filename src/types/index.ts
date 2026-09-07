@@ -292,9 +292,28 @@ export interface Farmer {
   nationalId: string;
   county: string;
   kycStatus: KYCStatus;
+  /**
+   * The API field is `kycRejectedReason` — the Prisma column name, written by
+   * `PUT /farmers/:id/kyc` and passed through verbatim. This was typed
+   * `kycRejectionReason` here, so the rejection note never rendered on a
+   * rejected farmer and the operator could not see why.
+   */
+  kycRejectedReason?: string;
+  /** @deprecated The API never returns `kycRejectionReason`. Read `kycRejectedReason`. */
   kycRejectionReason?: string;
-  plotsCount: number;
-  policiesCount: number;
+  /**
+   * Prisma relation counts, as `GET /farmers` returns them
+   * (`include: { _count: { select: { plots, policies } } }`). There are no flat
+   * `plotsCount`/`policiesCount` fields — typing them made both farmer-table
+   * columns permanently blank.
+   *
+   * Optional because `GET /farmers/:id` includes the full `plots`/`policies`
+   * ARRAYS instead and returns no `_count`. Never assume it is present.
+   */
+  _count?: {
+    plots: number;
+    policies: number;
+  };
   createdAt: string;
 }
 
@@ -728,10 +747,40 @@ export interface KycFieldVerifyResponse {
   kycApprovedAt: string;
 }
 
+/**
+ * POST /payments/initiate. Pinned by contracts/api-contract.json
+ * (`endpoints["POST /payments/initiate"].response`).
+ *
+ * MONEY PATH. This once declared a REQUIRED `message` and nothing else but
+ * `reference`/`status`. The backend has never returned a `message` — the
+ * human-readable line is `instructions` — so any UI rendering it printed
+ * `undefined` right after charging a farmer's phone, and `transactionId`,
+ * `orderId` and `provider` were invisible to every caller.
+ */
 export interface PaymentInitiateResponse {
+  transactionId: string;
+  /** The TRANSACTION reference (a fresh uuid) — NOT the policy id that was sent in. */
   reference: string;
+  /**
+   * Provider order id. Null on the replay-guard branch when the stored
+   * transaction has no order id recorded yet.
+   */
+  orderId: string | null;
+  /** 'PRETIUM' | 'SWYPT' | 'SIMULATED'. Null on the replay-guard branch, as above. */
+  provider: string | null;
   status: string;
-  message: string;
+  instructions: string;
+  /**
+   * True when a PENDING premium prompt for this policy was still fresh, so the
+   * backend returned the EXISTING transaction and sent NO second STK push.
+   * Duplicate premium is not refunded anywhere in this system, hence the guard.
+   * Absent (not `false`) on the normal path.
+   */
+  alreadyPending?: boolean;
+  /** Sandbox only (SIMULATE_PAYMENTS): no prompt was sent and no money moved. */
+  simulated?: boolean;
+  /** Sandbox only, accompanies `simulated`. */
+  warning?: string;
 }
 
 export interface PaymentStatusResponse {

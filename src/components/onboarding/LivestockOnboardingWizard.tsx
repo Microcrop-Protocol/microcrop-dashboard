@@ -249,7 +249,13 @@ export function LivestockOnboardingWizard() {
     onSuccess: (result) => {
       setPaymentRef(result.reference);
       setPaymentStatus('polling');
-      notifySuccess('Payment request sent', "Check the pastoralist's phone for the M-Pesa prompt.");
+      // Replay guard: the backend returned the EXISTING transaction and sent no
+      // second STK prompt. Polling still applies — it is the same reference.
+      if (result.alreadyPending) {
+        notifySuccess('Payment prompt already pending', result.instructions);
+      } else {
+        notifySuccess('Payment request sent', "Check the pastoralist's phone for the M-Pesa prompt.");
+      }
     },
     onError: (error) => {
       notifyError(error, "Couldn't send the payment request.");

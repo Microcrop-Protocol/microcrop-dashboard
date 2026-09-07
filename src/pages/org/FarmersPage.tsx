@@ -31,8 +31,21 @@ const columns: ColumnDef<Farmer>[] = [
       </StatusBadge>
     ),
   },
-  { accessorKey: "plotsCount", header: "Plots" },
-  { accessorKey: "policiesCount", header: "Policies" },
+  // GET /farmers returns Prisma relation counts under `_count: { plots, policies }`.
+  // These columns read flat `plotsCount`/`policiesCount`, which the API has never
+  // returned, so both rendered blank for every farmer in the book.
+  {
+    id: "plotsCount",
+    header: "Plots",
+    accessorFn: (farmer) => farmer._count?.plots ?? null,
+    cell: ({ row }) => row.original._count?.plots ?? "—",
+  },
+  {
+    id: "policiesCount",
+    header: "Policies",
+    accessorFn: (farmer) => farmer._count?.policies ?? null,
+    cell: ({ row }) => row.original._count?.policies ?? "—",
+  },
   {
     accessorKey: "createdAt",
     header: "Created",

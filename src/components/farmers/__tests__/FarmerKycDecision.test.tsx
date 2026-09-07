@@ -22,7 +22,7 @@ vi.mock('@/lib/notify', () => ({
 
 import { FarmerKycDecision } from '../FarmerKycDecision';
 
-function makeFarmer(kycStatus: KYCStatus): Farmer {
+function makeFarmer(kycStatus: KYCStatus, overrides: Partial<Farmer> = {}): Farmer {
   return {
     id: 'farmer-1',
     organizationId: 'org-1',
@@ -32,17 +32,18 @@ function makeFarmer(kycStatus: KYCStatus): Farmer {
     nationalId: '12345678',
     county: 'Nakuru',
     kycStatus,
-    plotsCount: 1,
-    policiesCount: 0,
+    // Relation counts arrive under `_count`; there are no flat count fields.
+    _count: { plots: 1, policies: 0 },
     createdAt: '2026-01-01T00:00:00Z',
+    ...overrides,
   };
 }
 
-function renderDecision(kycStatus: KYCStatus = 'PENDING') {
+function renderDecision(kycStatus: KYCStatus = 'PENDING', overrides: Partial<Farmer> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <FarmerKycDecision farmer={makeFarmer(kycStatus)} />
+      <FarmerKycDecision farmer={makeFarmer(kycStatus, overrides)} />
     </QueryClientProvider>,
   );
 }
@@ -93,6 +94,20 @@ describe('FarmerKycDecision', () => {
     expect(screen.queryByRole('button', { name: /approve kyc/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /reject kyc/i })).not.toBeInTheDocument();
     expect(screen.getByText(/only an organization admin/i)).toBeInTheDocument();
+  });
+
+  // The Prisma column — and therefore the API field — is `kycRejectedReason`.
+  // This component read `kycRejectionReason`, so the reason a farmer was rejected
+  // never reached the operator who had to act on it.
+  it('shows the rejection reason under the field name the API returns', () => {
+    renderDecision('REJECTED', { kycRejectedReason: 'ID photo unreadable' });
+    expect(screen.getByText(/ID photo unreadable/)).toBeInTheDocument();
+  });
+
+  it('ignores the deprecated `kycRejectionReason` spelling', () => {
+    renderDecision('REJECTED', { kycRejectionReason: 'never returned by the API' });
+    expect(screen.queryByText(/never returned by the API/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Reason:/)).not.toBeInTheDocument();
   });
 
   it('does not re-offer approval for an already approved farmer', () => {

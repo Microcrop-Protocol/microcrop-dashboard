@@ -71,9 +71,12 @@ export function FarmerKycDecision({ farmer }: { farmer: Farmer }) {
           </p>
         )}
 
-        {farmer.kycStatus === 'REJECTED' && farmer.kycRejectionReason && (
+        {/* The column is `kycRejectedReason` (Prisma, passed through verbatim).
+            Reading `kycRejectionReason` yielded undefined, so the reason a farmer
+            was rejected never reached the operator who had to act on it. */}
+        {farmer.kycStatus === 'REJECTED' && farmer.kycRejectedReason && (
           <p className="rounded-md bg-muted/50 p-3 text-sm">
-            <span className="font-medium">Reason:</span> {farmer.kycRejectionReason}
+            <span className="font-medium">Reason:</span> {farmer.kycRejectedReason}
           </p>
         )}
 
