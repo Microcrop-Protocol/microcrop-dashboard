@@ -830,6 +830,75 @@ describe('apiClient', () => {
       expect(url).toContain('/api/policies/quote');
     });
 
+    it('getPolicyQuote surfaces totalCost from the quote payload', async () => {
+      const quoteData = {
+        sumInsured: 10000,
+        coverageType: 'DROUGHT',
+        durationDays: 90,
+        premium: 500,
+        platformFee: 50,
+        totalCost: 550,
+        riskScore: 42,
+      };
+      globalThis.fetch = mockFetchResponse(envelope(quoteData));
+
+      const result = await apiClient.getPolicyQuote({
+        farmerId: 'f1',
+        plotId: 'p1',
+        sumInsured: 10000,
+        coverageType: 'DROUGHT',
+        durationDays: 90,
+      });
+
+      expect(result.totalCost).toBe(550);
+    });
+
+    it('purchasePolicy returns both the policy and the payment instructions', async () => {
+      const purchasePayload = {
+        policy: { id: 'pol-1', policyNumber: 'MC-001', status: 'PENDING', premium: 550 },
+        paymentInstructions: {
+          amount: 550,
+          policyNumber: 'MC-001',
+          message: 'Please complete premium payment to activate this policy.',
+        },
+      };
+      globalThis.fetch = mockFetchResponse(envelope(purchasePayload));
+
+      const result = await apiClient.purchasePolicy({
+        farmerId: 'f1',
+        plotId: 'p1',
+        sumInsured: 10000,
+        coverageType: 'DROUGHT',
+        durationDays: 90,
+      });
+
+      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/policies/purchase');
+      expect(options.method).toBe('POST');
+      // The envelope is stripped, but neither half of the payload is.
+      expect(result.policy.id).toBe('pol-1');
+      expect(result.paymentInstructions.amount).toBe(550);
+      expect(result.paymentInstructions.policyNumber).toBe('MC-001');
+    });
+
+    it('purchasePolicy defaults productType to CROP but lets the caller override it', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({ policy: { id: 'pol-2' }, paymentInstructions: { amount: 1, policyNumber: 'x', message: 'm' } })
+      );
+
+      await apiClient.purchasePolicy({
+        farmerId: 'f1',
+        productType: 'LIVESTOCK',
+        herdId: 'h1',
+        sumInsured: 10000,
+        coverageType: 'DROUGHT',
+        durationDays: 90,
+      });
+
+      const [, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(JSON.parse(options.body).productType).toBe('LIVESTOCK');
+    });
+
     it('cancelPolicy sends reason in body', async () => {
       globalThis.fetch = mockFetchResponse(envelope({ id: 'pol-1', status: 'CANCELLED' }));
 
@@ -849,6 +918,58 @@ describe('apiClient', () => {
       const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(url).toContain('/api/policies/pol-1/activate');
       expect(options.method).toBe('PUT');
+    });
+  });
+
+  describe('payment endpoints', () => {
+    beforeEach(() => {
+      apiClient.setAccessToken('org-tok');
+    });
+
+    it('initiatePayment posts reference/amount/phoneNumber, not policyId', async () => {
+      globalThis.fetch = mockFetchResponse(
+        envelope({ reference: 'txn-ref-1', status: 'PENDING', message: 'Check your phone' })
+      );
+
+      const result = await apiClient.initiatePayment({
+        policyId: 'pol-1',
+        amount: 550,
+        phoneNumber: '+254700000000',
+      });
+
+      const [url, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/payments/initiate');
+      expect(options.method).toBe('POST');
+      // The backend reads data.reference and data.amount; a body carrying
+      // `policyId` never reaches the farmer's phone.
+      expect(JSON.parse(options.body)).toEqual({
+        reference: 'pol-1',
+        amount: 550,
+        phoneNumber: '+254700000000',
+      });
+      expect(JSON.parse(options.body)).not.toHaveProperty('policyId');
+      expect(result.reference).toBe('txn-ref-1');
+    });
+
+    // The server rejects a non-positive amount; what matters here is that the
+    // client serialises a falsy amount instead of omitting the key, so the
+    // failure surfaces as a validation error rather than "amount is required".
+    it('initiatePayment forwards a zero amount rather than dropping the key', async () => {
+      globalThis.fetch = mockFetchResponse(envelope({ reference: 'r', status: 'PENDING', message: 'm' }));
+
+      await apiClient.initiatePayment({ policyId: 'pol-9', amount: 0, phoneNumber: '+254711111111' });
+
+      const [, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(JSON.parse(options.body).amount).toBe(0);
+    });
+
+    it('getPaymentStatusByRef encodes the reference into the path', async () => {
+      globalThis.fetch = mockFetchResponse(envelope({ reference: 'a/b', status: 'PENDING' }));
+
+      await apiClient.getPaymentStatusByRef('a/b');
+
+      const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('/api/payments/status/a%2Fb');
     });
   });
 

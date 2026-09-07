@@ -348,6 +348,26 @@ export interface PolicyQuote {
   riskScore: number;
 }
 
+/**
+ * What the backend tells the caller to collect once a policy has been created.
+ * `amount` is the premium in the policy's currency and is the value that must be
+ * passed straight back to `initiatePayment`.
+ */
+export interface PaymentInstructions {
+  amount: number;
+  policyNumber: string;
+  message: string;
+}
+
+/**
+ * `POST /policies/purchase` does not return a bare Policy — it returns the created
+ * policy alongside the payment instructions needed to collect the premium.
+ */
+export interface PolicyPurchaseResponse {
+  policy: Policy;
+  paymentInstructions: PaymentInstructions;
+}
+
 // Payout Types
 export type PayoutStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
