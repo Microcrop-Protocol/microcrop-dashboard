@@ -281,7 +281,14 @@ export interface Farmer {
   organizationId: string;
   firstName: string;
   lastName: string;
-  phone: string;
+  /**
+   * The API field is `phoneNumber` — every farmer endpoint (register, list, get,
+   * update) returns the Prisma `Farmer` record verbatim, and that column is
+   * `phoneNumber`. Reading `phone` yields `undefined` and renders blank.
+   */
+  phoneNumber: string;
+  /** @deprecated The API never returns `phone`. Read `phoneNumber`. */
+  phone?: string;
   nationalId: string;
   county: string;
   kycStatus: KYCStatus;

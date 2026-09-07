@@ -20,7 +20,9 @@ import {
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { Farmer, Plot, PolicyQuote, Policy, GpsTrackResponse, CoverageType } from '@/types';
+import type {
+  Farmer, Plot, PolicyQuote, Policy, PaymentInstructions, GpsTrackResponse, CoverageType,
+} from '@/types';
 import {
   farmerRegistrationSchema, plotCreationSchema, policyConfigSchema,
   CROP_TYPES,
@@ -28,6 +30,28 @@ import {
 } from '@/lib/validations/onboarding';
 import { BoundaryWalkStep } from './BoundaryWalkStep';
 import { BoundaryReviewMap } from './BoundaryReviewMap';
+
+/**
+ * Sums insured, premiums and fees in this wizard are LOCAL currency — what the
+ * farmer is quoted and what M-Pesa collects. They are not USDC: the stablecoin
+ * leg is settlement plumbing the field agent never sees. Kenya (KES) is the only
+ * market this wizard is used in today, and the quote endpoint returns no currency
+ * tag, so the label is fixed rather than guessed.
+ */
+const CURRENCY = 'KES';
+
+/**
+ * Render a money field without assuming the API sent it. `undefined.toLocaleString()`
+ * throws, and a throw inside a step renderer is caught by the app-level
+ * ErrorBoundary, which unmounts the wizard and loses every step of state the
+ * field agent has collected. A dash is a far cheaper failure.
+ */
+function formatMoney(value: number | string | null | undefined): string {
+  const amount = Number(value);
+  return value != null && Number.isFinite(amount)
+    ? `${CURRENCY} ${amount.toLocaleString()}`
+    : `${CURRENCY} —`;
+}
 
 const STEPS = [
   { id: 'register', title: 'Register', icon: UserPlus },
@@ -51,16 +75,26 @@ export function OnboardingWizard() {
   const [boundaryResult, setBoundaryResult] = useState<GpsTrackResponse | null>(null);
   const [quote, setQuote] = useState<PolicyQuote | null>(null);
   const [policy, setPolicy] = useState<Policy | null>(null);
+  const [paymentInstructions, setPaymentInstructions] = useState<PaymentInstructions | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'polling' | 'completed' | 'failed'>('idle');
   const [paymentPhone, setPaymentPhone] = useState('');
 
   // Sync paymentPhone when farmer is registered
   useEffect(() => {
-    if (farmer?.phone && !paymentPhone) {
-      setPaymentPhone(farmer.phone);
+    if (farmer?.phoneNumber && !paymentPhone) {
+      setPaymentPhone(farmer.phoneNumber);
     }
   }, [farmer, paymentPhone]);
+
+  /**
+   * The premium the farmer actually owes. The purchase response is authoritative
+   * (it is the amount the backend wrote onto the policy); the quote is a fallback
+   * for the window before the policy exists. Decimal fields arrive as strings, so
+   * this is parsed rather than trusted to be a number.
+   */
+  const parsedAmountDue = Number(paymentInstructions?.amount ?? quote?.totalCost);
+  const amountDue = Number.isFinite(parsedAmountDue) && parsedAmountDue > 0 ? parsedAmountDue : null;
 
   // ── Forms ──────────────────────────────────────────────
 
@@ -182,9 +216,12 @@ export function OnboardingWizard() {
       });
     },
     onSuccess: (result) => {
-      setPolicy(result);
+      // /policies/purchase returns { policy, paymentInstructions } — keep both:
+      // paymentInstructions.amount is the premium the STK push must charge.
+      setPolicy(result.policy);
+      setPaymentInstructions(result.paymentInstructions ?? null);
       setCurrentStep(7);
-      notifySuccess('Policy created', `Policy ${result.policyNumber} is ready for payment.`);
+      notifySuccess('Policy created', `Policy ${result.policy.policyNumber} is ready for payment.`);
     },
     onError: (error) => {
       notifyError(error, "Couldn't create the policy.");
@@ -194,7 +231,8 @@ export function OnboardingWizard() {
   const paymentMutation = useMutation({
     mutationFn: (phoneNumber: string) => {
       if (!policy) throw new Error('No policy created');
-      return api.initiatePayment({ policyId: policy.id, phoneNumber });
+      if (amountDue == null) throw new Error('Premium amount unavailable — re-open the policy to collect payment');
+      return api.initiatePayment({ policyId: policy.id, amount: amountDue, phoneNumber });
     },
     onSuccess: (result) => {
       setPaymentRef(result.reference);
@@ -440,7 +478,7 @@ export function OnboardingWizard() {
           <div className="rounded-lg border p-4">
             <div className="grid gap-2 sm:grid-cols-2 text-sm">
               <div><span className="text-muted-foreground">Name:</span> {farmer.firstName} {farmer.lastName}</div>
-              <div><span className="text-muted-foreground">Phone:</span> {farmer.phone}</div>
+              <div><span className="text-muted-foreground">Phone:</span> {farmer.phoneNumber}</div>
               <div><span className="text-muted-foreground">National ID:</span> {farmer.nationalId}</div>
               <div><span className="text-muted-foreground">County:</span> {farmer.county}</div>
             </div>
@@ -665,7 +703,7 @@ export function OnboardingWizard() {
           >
             <FormField control={quoteForm.control} name="sumInsured" render={({ field }) => (
               <FormItem>
-                <FormLabel>Sum Insured (USDC) <span className="text-destructive">*</span></FormLabel>
+                <FormLabel>Sum Insured ({CURRENCY}) <span className="text-destructive">*</span></FormLabel>
                 <FormControl>
                   <Input
                     type="number"
@@ -675,7 +713,7 @@ export function OnboardingWizard() {
                     onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                   />
                 </FormControl>
-                <FormDescription>Minimum 1,000 USDC</FormDescription>
+                <FormDescription>Minimum {formatMoney(1000)}</FormDescription>
                 <FormMessage />
               </FormItem>
             )} />
@@ -718,15 +756,15 @@ export function OnboardingWizard() {
               <div className="rounded-lg bg-muted p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Premium</span>
-                  <span className="font-medium">{quote.premium.toLocaleString()} USDC</span>
+                  <span className="font-medium">{formatMoney(quote.premium)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Platform Fee</span>
-                  <span>{quote.platformFee.toLocaleString()} USDC</span>
+                  <span>{formatMoney(quote.platformFee)}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2 font-bold">
                   <span>Total</span>
-                  <span>{quote.totalCost.toLocaleString()} USDC</span>
+                  <span>{formatMoney(quote.totalCost)}</span>
                 </div>
                 {quote.riskScore != null && (
                   <div className="flex justify-between text-xs text-muted-foreground pt-1">
@@ -769,7 +807,7 @@ export function OnboardingWizard() {
             <div className="p-4">
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Farmer</h4>
               <p className="font-medium">{farmer?.firstName} {farmer?.lastName}</p>
-              <p className="text-sm text-muted-foreground">{farmer?.phone} &middot; {farmer?.county}</p>
+              <p className="text-sm text-muted-foreground">{farmer?.phoneNumber} &middot; {farmer?.county}</p>
             </div>
             <div className="p-4">
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Plot</h4>
@@ -782,13 +820,13 @@ export function OnboardingWizard() {
             <div className="p-4">
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Coverage</h4>
               <p className="font-medium">{quoteValues.coverageType} &middot; {quoteValues.durationDays} days</p>
-              <p className="text-sm text-muted-foreground">Sum Insured: {quoteValues.sumInsured.toLocaleString()} USDC</p>
+              <p className="text-sm text-muted-foreground">Sum Insured: {formatMoney(quoteValues.sumInsured)}</p>
             </div>
             {quote && (
               <div className="p-4 bg-muted">
                 <div className="flex justify-between font-bold">
                   <span>Total Cost</span>
-                  <span>{quote.totalCost.toLocaleString()} USDC</span>
+                  <span>{formatMoney(quote.totalCost)}</span>
                 </div>
               </div>
             )}
@@ -838,17 +876,21 @@ export function OnboardingWizard() {
                     className="max-w-[200px]"
                   />
                 </div>
-                {quote && (
-                  <div className="flex justify-between font-bold border-t pt-2">
-                    <span>Amount</span>
-                    <span>{quote.totalCost.toLocaleString()} USDC</span>
-                  </div>
-                )}
+                <div className="flex justify-between font-bold border-t pt-2">
+                  <span>Amount</span>
+                  <span>{formatMoney(amountDue)}</span>
+                </div>
               </div>
+              {amountDue == null && (
+                <p className="text-sm text-destructive">
+                  The premium for this policy is unavailable, so no payment request can be
+                  sent from here. Collect payment from the policy page instead.
+                </p>
+              )}
               <Button
                 className="w-full"
-                onClick={() => { if (paymentPhone) paymentMutation.mutate(paymentPhone); }}
-                disabled={paymentMutation.isPending || !paymentPhone}
+                onClick={() => { if (paymentPhone && amountDue != null) paymentMutation.mutate(paymentPhone); }}
+                disabled={paymentMutation.isPending || !paymentPhone || amountDue == null}
               >
                 {paymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 <Smartphone className="mr-2 h-4 w-4" />

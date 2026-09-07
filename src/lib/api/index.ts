@@ -19,6 +19,7 @@ import type {
   Plot,
   Policy,
   PolicyQuote,
+  PolicyPurchaseResponse,
   PolicyStatus,
   CoverageType,
   Payout,
@@ -695,7 +696,9 @@ export const api = {
     coverageType: CoverageType;
     durationDays: number;
     season?: 'LRLD' | 'SRSD';
-  }): Promise<Policy> => {
+  }): Promise<PolicyPurchaseResponse> => {
+    // POST /policies/purchase returns { policy, paymentInstructions } — the
+    // premium to collect lives in paymentInstructions.amount, not on the policy.
     return apiClient.purchasePolicy(data);
   },
 
@@ -786,7 +789,7 @@ export const api = {
     return apiClient.getPlotBoundaryReview(plotId);
   },
 
-  initiatePayment: async (data: { policyId: string; phoneNumber: string }): Promise<PaymentInitiateResponse> => {
+  initiatePayment: async (data: { policyId: string; amount: number; phoneNumber: string }): Promise<PaymentInitiateResponse> => {
     return apiClient.initiatePayment(data);
   },
 

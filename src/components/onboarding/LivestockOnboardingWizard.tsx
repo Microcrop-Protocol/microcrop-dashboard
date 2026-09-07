@@ -19,12 +19,35 @@ import {
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { Farmer, Herd, LivestockPolicyQuote, Policy, IBLISeason, CoverageType } from '@/types';
+import type {
+  Farmer, Herd, LivestockPolicyQuote, Policy, PaymentInstructions, IBLISeason, CoverageType,
+} from '@/types';
 import {
   pastoralistRegistrationSchema, herdRegistrationSchema, livestockPolicyConfigSchema,
   LIVESTOCK_TYPES, calculateTLU,
   type PastoralistRegistrationData, type HerdRegistrationData, type LivestockPolicyConfigData,
 } from '@/lib/validations/livestock-onboarding';
+
+/**
+ * IBLI premiums, herd values and fees are LOCAL currency — the backend prices
+ * livestock in KES per TLU and M-Pesa collects in KES. Not USDC: the stablecoin
+ * leg is settlement plumbing. The quote endpoint returns no currency tag and
+ * livestock is a Kenya-only product today, so the label is fixed, not guessed.
+ */
+const CURRENCY = 'KES';
+
+/**
+ * Render a money field without assuming the API sent it. `undefined.toLocaleString()`
+ * throws, and a throw inside a step renderer is caught by the app-level
+ * ErrorBoundary, which unmounts the wizard and loses every step of state the
+ * field agent has collected. A dash is a far cheaper failure.
+ */
+function formatMoney(value: number | string | null | undefined): string {
+  const amount = Number(value);
+  return value != null && Number.isFinite(amount)
+    ? `${CURRENCY} ${amount.toLocaleString()}`
+    : `${CURRENCY} —`;
+}
 
 const STEPS = [
   { id: 'register', title: 'Register', icon: UserPlus },
@@ -45,6 +68,7 @@ export function LivestockOnboardingWizard() {
   const [herd, setHerd] = useState<Herd | null>(null);
   const [quote, setQuote] = useState<LivestockPolicyQuote | null>(null);
   const [policy, setPolicy] = useState<Policy | null>(null);
+  const [paymentInstructions, setPaymentInstructions] = useState<PaymentInstructions | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'polling' | 'completed' | 'failed'>('idle');
   const [paymentPhone, setPaymentPhone] = useState('');
@@ -53,10 +77,20 @@ export function LivestockOnboardingWizard() {
 
   // Sync paymentPhone when farmer is registered
   useEffect(() => {
-    if (farmer?.phone && !paymentPhone) {
-      setPaymentPhone(farmer.phone);
+    if (farmer?.phoneNumber && !paymentPhone) {
+      setPaymentPhone(farmer.phoneNumber);
     }
   }, [farmer, paymentPhone]);
+
+  /**
+   * The premium the pastoralist actually owes. The purchase response is
+   * authoritative (it is the amount the backend wrote onto the policy); the quote
+   * is a fallback for the window before the policy exists. Decimal fields arrive
+   * as strings, so this is parsed rather than trusted to be a number. Note the
+   * platform fee comes OUT OF the premium, so it is never added on top.
+   */
+  const parsedAmountDue = Number(paymentInstructions?.amount ?? quote?.totalCost);
+  const amountDue = Number.isFinite(parsedAmountDue) && parsedAmountDue > 0 ? parsedAmountDue : null;
 
   // ── Queries ──────────────────────────────────────────────
 
@@ -194,9 +228,12 @@ export function LivestockOnboardingWizard() {
       });
     },
     onSuccess: (result) => {
-      setPolicy(result);
+      // /policies/purchase returns { policy, paymentInstructions } — keep both:
+      // paymentInstructions.amount is the premium the STK push must charge.
+      setPolicy(result.policy);
+      setPaymentInstructions(result.paymentInstructions ?? null);
       setCurrentStep(5);
-      notifySuccess('Policy created', `Policy ${result.policyNumber} is ready for payment.`);
+      notifySuccess('Policy created', `Policy ${result.policy.policyNumber} is ready for payment.`);
     },
     onError: (error) => {
       notifyError(error, "Couldn't create the policy.");
@@ -206,7 +243,8 @@ export function LivestockOnboardingWizard() {
   const paymentMutation = useMutation({
     mutationFn: (phoneNumber: string) => {
       if (!policy) throw new Error('No policy created');
-      return api.initiatePayment({ policyId: policy.id, phoneNumber });
+      if (amountDue == null) throw new Error('Premium amount unavailable — re-open the policy to collect payment');
+      return api.initiatePayment({ policyId: policy.id, amount: amountDue, phoneNumber });
     },
     onSuccess: (result) => {
       setPaymentRef(result.reference);
@@ -415,7 +453,7 @@ export function LivestockOnboardingWizard() {
               <dt className="text-muted-foreground">ID Number</dt>
               <dd className="font-medium">{farmer.nationalId}</dd>
               <dt className="text-muted-foreground">Phone</dt>
-              <dd className="font-medium">{farmer.phone}</dd>
+              <dd className="font-medium">{farmer.phoneNumber}</dd>
               <dt className="text-muted-foreground">Location</dt>
               <dd className="font-medium">{farmer.county}</dd>
             </dl>
@@ -569,7 +607,7 @@ export function LivestockOnboardingWizard() {
 
               <FormField control={herdForm.control} name="estimatedValue" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Estimated Value (Per Head) in KES <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel>Estimated Value (Per Head) in {CURRENCY} <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input type="number" min={100} {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
                   </FormControl>
@@ -585,7 +623,7 @@ export function LivestockOnboardingWizard() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Total Herd Value</div>
-                  <div className="text-2xl font-bold">KES {totalValue.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{formatMoney(totalValue)}</div>
                 </div>
               </div>
 
@@ -672,20 +710,20 @@ export function LivestockOnboardingWizard() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Premium Rate (per TLU)</span>
-                          <span className="font-medium">KES {quote.premiumPerTLU.toLocaleString()}</span>
+                          <span className="font-medium">{formatMoney(quote.premiumPerTLU)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Base Premium</span>
-                          <span className="font-medium">KES {quote.premium.toLocaleString()}</span>
+                          <span className="font-medium">{formatMoney(quote.premium)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Platform Fee</span>
-                          <span className="font-medium">KES {quote.platformFee.toLocaleString()}</span>
+                          <span className="font-medium">{formatMoney(quote.platformFee)}</span>
                         </div>
                         <div className="my-2 h-px bg-border" />
                         <div className="flex justify-between text-base font-bold">
                           <span>Total Amount Due</span>
-                          <span className="text-primary">KES {quote.totalCost.toLocaleString()}</span>
+                          <span className="text-primary">{formatMoney(quote.totalCost)}</span>
                         </div>
                       </div>
                     </div>
@@ -725,7 +763,7 @@ export function LivestockOnboardingWizard() {
           <div className="rounded-lg bg-muted p-4 space-y-4">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Policyholder</h4>
-              <p className="font-medium">{farmer.firstName} {farmer.lastName} ({farmer.phone})</p>
+              <p className="font-medium">{farmer.firstName} {farmer.lastName} ({farmer.phoneNumber})</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -792,7 +830,12 @@ export function LivestockOnboardingWizard() {
           <div className="rounded-lg border p-4 flex items-center justify-between">
             <div>
               <div className="text-sm text-muted-foreground">Amount to Pay</div>
-              <div className="text-2xl font-bold">KES {policy.premium + policy.platformFee}</div>
+              {/*
+                This is the premium the STK push charges. It is NOT premium +
+                platformFee: the fee is deducted out of the premium. Both fields
+                are also decimal strings, so adding them concatenated text.
+              */}
+              <div className="text-2xl font-bold">{formatMoney(amountDue)}</div>
             </div>
             <Smartphone className="h-8 w-8 text-muted-foreground opacity-50" />
           </div>
@@ -808,12 +851,18 @@ export function LivestockOnboardingWizard() {
                 />
                 <p className="text-xs text-muted-foreground">The prompt will be sent to this number.</p>
               </div>
+              {amountDue == null && (
+                <p className="text-sm text-destructive">
+                  The premium for this policy is unavailable, so no payment request can be
+                  sent from here. Collect payment from the policy page instead.
+                </p>
+              )}
               <Button
                 className="w-full"
                 onClick={() => {
-                  if (paymentPhone) paymentMutation.mutate(paymentPhone);
+                  if (paymentPhone && amountDue != null) paymentMutation.mutate(paymentPhone);
                 }}
-                disabled={paymentMutation.isPending || !paymentPhone}
+                disabled={paymentMutation.isPending || !paymentPhone || amountDue == null}
               >
                 {paymentMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {paymentStatus === 'failed' ? 'Retry Payment' : 'Send Payment Prompt'}
