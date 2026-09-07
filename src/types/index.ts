@@ -281,7 +281,14 @@ export interface Farmer {
   organizationId: string;
   firstName: string;
   lastName: string;
-  phone: string;
+  /**
+   * The API field is `phoneNumber` — every farmer endpoint (register, list, get,
+   * update) returns the Prisma `Farmer` record verbatim, and that column is
+   * `phoneNumber`. Reading `phone` yields `undefined` and renders blank.
+   */
+  phoneNumber: string;
+  /** @deprecated The API never returns `phone`. Read `phoneNumber`. */
+  phone?: string;
   nationalId: string;
   county: string;
   kycStatus: KYCStatus;
@@ -346,6 +353,26 @@ export interface PolicyQuote {
   platformFee: number;
   totalCost: number;
   riskScore: number;
+}
+
+/**
+ * What the backend tells the caller to collect once a policy has been created.
+ * `amount` is the premium in the policy's currency and is the value that must be
+ * passed straight back to `initiatePayment`.
+ */
+export interface PaymentInstructions {
+  amount: number;
+  policyNumber: string;
+  message: string;
+}
+
+/**
+ * `POST /policies/purchase` does not return a bare Policy — it returns the created
+ * policy alongside the payment instructions needed to collect the premium.
+ */
+export interface PolicyPurchaseResponse {
+  policy: Policy;
+  paymentInstructions: PaymentInstructions;
 }
 
 // Payout Types

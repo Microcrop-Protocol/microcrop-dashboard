@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -806,7 +806,10 @@ class ApiClient {
     durationDays: number;
     season?: 'LRLD' | 'SRSD';
   }) {
-    return this.request<Policy>('/policies/purchase', {
+    // The endpoint returns { policy, paymentInstructions } inside the standard
+    // envelope; `request` only strips the envelope, so the type parameter must
+    // describe both halves or callers silently lose the premium amount.
+    return this.request<PolicyPurchaseResponse>('/policies/purchase', {
       method: 'POST',
       body: JSON.stringify({ productType: 'CROP', ...data }),
     });
@@ -1328,10 +1331,22 @@ class ApiClient {
     return this.request<PlotBoundary>(`/satellite/plots/${encodeURIComponent(plotId)}/boundary`);
   }
 
-  async initiatePayment(data: { policyId: string; phoneNumber: string }) {
+  /**
+   * Triggers the M-Pesa STK push for a PENDING policy's premium.
+   *
+   * The backend reads `reference` (the policy id) and `amount` — it rejects the
+   * request outright when `amount` is missing, so `amount` is required here and
+   * `policyId` is mapped onto `reference` at the boundary rather than by callers.
+   * Pass `paymentInstructions.amount` from `purchasePolicy`.
+   */
+  async initiatePayment(data: { policyId: string; amount: number; phoneNumber: string }) {
     return this.request<PaymentInitiateResponse>('/payments/initiate', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        reference: data.policyId,
+        amount: data.amount,
+        phoneNumber: data.phoneNumber,
+      }),
     });
   }
 

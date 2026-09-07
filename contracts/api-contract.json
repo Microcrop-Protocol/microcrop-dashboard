@@ -1,0 +1,93 @@
+{
+  "_readme": [
+    "SINGLE SOURCE OF TRUTH for the request/response shapes the dashboard and the backend",
+    "must agree on. It exists because five production-breaking bugs shipped at once, all of",
+    "the same class: the two repos disagreed about a field name or a payload shape while 275",
+    "backend tests and 176 dashboard tests stayed green. Unit tests on either side alone",
+    "cannot see that class of defect, because each side is internally consistent.",
+    "",
+    "This file is duplicated VERBATIM in both repos:",
+    "  microcrop-core/microcrop-backend/contracts/api-contract.json",
+    "  microcrop-dashboard/contracts/api-contract.json",
+    "Both copies are sha256-pinned by a test in their own repo, so a change here fails a",
+    "build in the repo you edited and tells you to copy the file into the other one. Both",
+    "test files print the same expected hash — if the two hashes differ in review, the",
+    "copies have drifted.",
+    "",
+    "The backend test drives the REAL services and validators and asserts their shapes",
+    "against this file. The dashboard test drives the REAL api client with a mocked fetch",
+    "and asserts the JSON body it actually sends against this file. Neither test restates",
+    "the shape, so there is exactly one place to change when the contract changes — and",
+    "changing it in one repo cannot silently pass in the other.",
+    "",
+    "Contract changes are BREAKING unless both repos ship together. Bump `version`."
+  ],
+  "version": "2026-09-07.1",
+  "endpoints": {
+    "POST /policies/quote": {
+      "_note": "Priced but not sold. The dashboard renders every response money field.",
+      "request": {
+        "required": ["farmerId", "productType", "sumInsured", "coverageType", "durationDays"],
+        "optional": ["plotId", "herdId", "season"]
+      },
+      "response": {
+        "commonKeys": [
+          "productType",
+          "sumInsured",
+          "premium",
+          "platformFee",
+          "netPremium",
+          "totalCost",
+          "coverageType",
+          "durationDays",
+          "breakdown"
+        ],
+        "livestockOnlyKeys": ["season", "startDate", "endDate"],
+        "invariants": [
+          "totalCost === premium. The platform fee is DEDUCTED OUT OF the premium (netPremium = premium - platformFee, the carrier's share); it is NOT added on top. payment.service charges against policy.premiumKES || policy.premium, so totalCost = premium + platformFee would overcharge every farmer by the fee.",
+          "totalCost is REQUIRED. It was once absent while the dashboard type declared it required: every quote screen rendered `undefined`."
+        ]
+      }
+    },
+    "POST /policies/purchase": {
+      "_note": "Creates the policy PENDING and unpaid. It does NOT activate it and does NOT charge anyone — premium collection is POST /payments/initiate.",
+      "request": {
+        "required": ["farmerId", "productType", "sumInsured", "coverageType", "durationDays"],
+        "optional": ["plotId", "herdId", "season"]
+      },
+      "response": {
+        "keys": ["policy", "paymentInstructions"],
+        "paymentInstructions": {
+          "keys": ["amount", "policyNumber", "message"],
+          "_note": "`amount` is a Prisma Decimal server-side and serialises to a STRING on the wire. Coerce with Number() before arithmetic or comparison."
+        },
+        "invariants": [
+          "The response is NOT a bare Policy. It is an envelope with the policy under `policy`. Typing it as a Policy silently loses paymentInstructions.amount, which is the exact amount POST /payments/initiate then needs."
+        ]
+      }
+    },
+    "POST /payments/initiate": {
+      "_note": "MONEY PATH. Triggers the M-Pesa STK push that charges a farmer's phone.",
+      "request": {
+        "required": ["reference", "amount", "phoneNumber"],
+        "deprecatedAliases": { "policyId": "reference" },
+        "invariants": [
+          "`reference` is the POLICY id. Prisma DROPS undefined keys from a where clause, so a body missing it degraded the lookup into `findFirst({ where: { organizationId } })` — an arbitrary-row match on the money path.",
+          "`policyId` is accepted server-side as a back-compat alias only. New callers send `reference`.",
+          "`amount` is required and positive. The client must serialise it even when falsy, so a bad amount fails loudly as a validation error rather than as 'amount is required'."
+        ]
+      },
+      "response": {
+        "keys": ["transactionId", "reference", "orderId", "provider", "status", "instructions"],
+        "_note": "`reference` here is the TRANSACTION reference (a fresh uuid), not the policy id that was sent in. The human-readable line is `instructions`, not `message`."
+      }
+    }
+  },
+  "entities": {
+    "Farmer": {
+      "phoneField": "phoneNumber",
+      "forbiddenFields": ["phone"],
+      "_note": "The API returns `phoneNumber` (Prisma Farmer.phoneNumber, passed through verbatim). The dashboard once typed it `phone`, so every farmer phone rendered blank and the M-Pesa number never prefilled."
+    }
+  }
+}
