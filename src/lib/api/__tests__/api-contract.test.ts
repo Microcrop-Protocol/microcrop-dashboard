@@ -31,7 +31,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 import { apiClient } from '../client';
-import type { Farmer } from '../../../types';
+import type { Farmer, PaymentInitiateResponse } from '../../../types';
 
 // vitest runs with cwd at the project root (its `root` defaults to process.cwd()).
 const CONTRACT_PATH = resolve(process.cwd(), 'contracts/api-contract.json');
@@ -42,7 +42,7 @@ const CONTRACT_RAW = readFileSync(CONTRACT_PATH);
  * repos is the cheapest available proof that the two copies of the contract have not
  * drifted — if the hashes differ in review, someone edited one copy only.
  */
-const CONTRACT_SHA256 = '0ad10191afac31d0230b1a5f4328675bdc7fcdd2cde5a72aa70b010afd70c141';
+const CONTRACT_SHA256 = 'fd54140706c08553580b62329ffd287aaac1db204ce3bfce95603c5cad808094';
 
 interface EndpointContract {
   request: {
@@ -52,6 +52,8 @@ interface EndpointContract {
   };
   response: {
     keys?: string[];
+    optionalKeys?: string[];
+    forbiddenKeys?: string[];
     commonKeys?: string[];
     livestockOnlyKeys?: string[];
     paymentInstructions?: { keys: string[] };
@@ -60,7 +62,15 @@ interface EndpointContract {
 
 const contract = JSON.parse(CONTRACT_RAW.toString('utf8')) as {
   endpoints: Record<string, EndpointContract>;
-  entities: { Farmer: { phoneField: string; forbiddenFields: string[] } };
+  entities: {
+    Farmer: {
+      phoneField: string;
+      kycRejectionField: string;
+      relationCountsField: string;
+      relationCountKeys: string[];
+      forbiddenFields: string[];
+    };
+  };
 };
 
 const QUOTE = contract.endpoints['POST /policies/quote'];
@@ -271,9 +281,83 @@ describe('cross-repo API contract', () => {
         expect(result[key]).toBe(payload[key]);
       }
     });
+
+    // Compile-time half of the guard. `tsc -b` fails if PaymentInitiateResponse
+    // stops declaring one of the contract's response keys as required, and the
+    // runtime assertion below pins that literal set back to the contract so the
+    // two cannot drift apart.
+    const typedResponse: PaymentInitiateResponse = {
+      transactionId: 'txn-1',
+      reference: 'ref-1',
+      orderId: 'order-1',
+      provider: 'PRETIUM',
+      status: 'PENDING',
+      instructions: 'Check your phone for M-Pesa prompt',
+    };
+
+    it('types the response with exactly the keys the server declares', () => {
+      expect(Object.keys(typedResponse).sort()).toEqual([...INITIATE.response.keys!].sort());
+    });
+
+    it('declares no forbidden response key — there is no `message`', () => {
+      // The old type required `message`, which the backend has never returned,
+      // so the money-path confirmation rendered `undefined`.
+      for (const forbidden of INITIATE.response.forbiddenKeys!) {
+        expect(INITIATE.response.keys!).not.toContain(forbidden);
+        expect(INITIATE.response.optionalKeys!).not.toContain(forbidden);
+        expect(Object.keys(typedResponse)).not.toContain(forbidden);
+      }
+      // The compile-time half: adding `message` back to the interface makes this
+      // annotation a type error.
+      const messageIsNotAField: 'message' extends keyof PaymentInitiateResponse ? true : false =
+        false;
+      expect(messageIsNotAField).toBe(false);
+    });
+
+    it('surfaces the optional replay-guard/sandbox fields on top of the base keys', async () => {
+      // The replay guard returns the EXISTING transaction rather than pushing a
+      // second STK prompt, and marks it. A client that cannot see the marker tells
+      // the operator a fresh prompt was sent when none was.
+      const payload = {
+        ...payloadFrom(INITIATE.response.keys!),
+        ...payloadFrom(INITIATE.response.optionalKeys!),
+      };
+      globalThis.fetch = mockFetchResponse(payload);
+
+      const result = (await apiClient.initiatePayment({
+        policyId: 'pol-1',
+        amount: 550,
+        phoneNumber: '+254700000000',
+      })) as unknown as Record<string, unknown>;
+
+      for (const key of INITIATE.response.optionalKeys!) {
+        expect(result[key]).toBe(payload[key]);
+      }
+    });
+
+    it('models the optional fields as optional, and the nullable ones as nullable', () => {
+      // Every optional key must be omittable — this object compiles only if none
+      // of them is required.
+      const withoutOptionals: PaymentInitiateResponse = typedResponse;
+      for (const key of INITIATE.response.optionalKeys!) {
+        expect(withoutOptionals).not.toHaveProperty(key);
+      }
+
+      // On the replay-guard branch orderId/provider are read off the stored
+      // transaction and may be null.
+      const replay: PaymentInitiateResponse = {
+        ...typedResponse,
+        orderId: null,
+        provider: null,
+        alreadyPending: true,
+      };
+      expect(replay.alreadyPending).toBe(true);
+    });
   });
 
   describe('Farmer entity field naming', () => {
+    const FARMER = contract.entities.Farmer;
+
     // Compile-time half of this guard: `tsc -b` fails if `Farmer` stops declaring
     // `phoneNumber` as a required string, or starts requiring the forbidden `phone`.
     // The runtime half below pins those literals to the contract, so the two cannot
@@ -285,9 +369,52 @@ describe('cross-repo API contract', () => {
     };
 
     it('reads the phone field the server actually returns', () => {
-      expect(contract.entities.Farmer.phoneField).toBe('phoneNumber');
-      expect(contract.entities.Farmer.forbiddenFields).toContain('phone');
+      expect(FARMER.phoneField).toBe('phoneNumber');
+      expect(FARMER.forbiddenFields).toContain('phone');
       expect(farmerWithoutForbiddenField.phoneNumber).toBe(phoneField);
+    });
+
+    it('reads the KYC rejection field the server actually returns', () => {
+      // The Prisma column is `kycRejectedReason`; the dashboard typed and rendered
+      // `kycRejectionReason`, so a rejected farmer's reason was always undefined.
+      const rejection: Pick<Farmer, 'kycRejectedReason'> = { kycRejectedReason: 'blurry ID' };
+      expect(FARMER.kycRejectionField).toBe('kycRejectedReason');
+      expect(FARMER.forbiddenFields).toContain('kycRejectionReason');
+      expect(rejection[FARMER.kycRejectionField as 'kycRejectedReason']).toBe('blurry ID');
+    });
+
+    it('reads relation counts under `_count`, not as flat count fields', () => {
+      // GET /farmers returns Prisma relation counts; there are no flat
+      // plotsCount/policiesCount fields, so a table reading them renders blank.
+      const counts: Pick<Farmer, '_count'> = { _count: { plots: 3, policies: 2 } };
+
+      expect(FARMER.relationCountsField).toBe('_count');
+      for (const key of FARMER.relationCountKeys) {
+        expect(counts._count).toHaveProperty(key);
+      }
+      for (const flat of ['plotsCount', 'policiesCount']) {
+        expect(FARMER.forbiddenFields).toContain(flat);
+      }
+    });
+
+    it('never requires a forbidden field, so a full Farmer can be built without one', () => {
+      // Anything the API does not return must be omittable — otherwise the type
+      // pressures callers into inventing the field, which is how the drift starts.
+      const farmer: Farmer = {
+        id: 'f1',
+        organizationId: 'org-1',
+        firstName: 'Wanjiku',
+        lastName: 'Mwangi',
+        phoneNumber: phoneField,
+        nationalId: '12345678',
+        county: 'Nakuru',
+        kycStatus: 'APPROVED',
+        createdAt: '2026-01-01T00:00:00Z',
+      };
+
+      for (const forbidden of FARMER.forbiddenFields) {
+        expect(Object.keys(farmer)).not.toContain(forbidden);
+      }
     });
   });
 });

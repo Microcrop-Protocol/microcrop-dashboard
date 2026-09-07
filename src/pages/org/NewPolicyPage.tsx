@@ -153,7 +153,14 @@ export default function NewPolicyPage() {
     },
     onSuccess: (result) => {
       setPaymentRef(result.reference);
-      notifySuccess("Payment request sent", "Check the farmer's phone for the M-Pesa prompt.");
+      // The backend's replay guard returns the EXISTING transaction without pushing
+      // a second STK prompt. Reporting "sent" there invites the operator to keep
+      // clicking, and duplicate premium is not refunded anywhere in this system.
+      if (result.alreadyPending) {
+        notifySuccess("Payment prompt already pending", result.instructions);
+      } else {
+        notifySuccess("Payment request sent", "Check the farmer's phone for the M-Pesa prompt.");
+      }
     },
     onError: (error) => {
       notifyError(error, "Couldn't send the payment request.");

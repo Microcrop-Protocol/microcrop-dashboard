@@ -22,7 +22,7 @@
     "",
     "Contract changes are BREAKING unless both repos ship together. Bump `version`."
   ],
-  "version": "2026-09-07.1",
+  "version": "2026-09-07.2",
   "endpoints": {
     "POST /policies/quote": {
       "_note": "Priced but not sold. The dashboard renders every response money field.",
@@ -79,15 +79,27 @@
       },
       "response": {
         "keys": ["transactionId", "reference", "orderId", "provider", "status", "instructions"],
-        "_note": "`reference` here is the TRANSACTION reference (a fresh uuid), not the policy id that was sent in. The human-readable line is `instructions`, not `message`."
+        "optionalKeys": ["alreadyPending", "simulated", "warning"],
+        "forbiddenKeys": ["message"],
+        "_note": "`reference` here is the TRANSACTION reference (a fresh uuid), not the policy id that was sent in. The human-readable line is `instructions`, not `message`.",
+        "invariants": [
+          "`keys` is the exact key set of the normal (fresh STK push) response. `optionalKeys` may be added on top of it by specific branches and NEVER replace a key in `keys`.",
+          "There is no `message`, and there never was. The dashboard typed one as REQUIRED, so any UI rendering it printed `undefined` on the money path immediately after charging a phone.",
+          "`alreadyPending: true` marks the replay-guard branch: a PENDING premium prompt for this policy is still fresh, so the existing transaction is returned and NO second STK push was sent. `orderId` and `provider` are read off the stored transaction there and may be null, so both are nullable client-side.",
+          "`simulated: true` + `warning` appear only under SIMULATE_PAYMENTS (sandbox). No money moved; the caller must be able to tell at a glance."
+        ]
       }
     }
   },
   "entities": {
     "Farmer": {
       "phoneField": "phoneNumber",
-      "forbiddenFields": ["phone"],
-      "_note": "The API returns `phoneNumber` (Prisma Farmer.phoneNumber, passed through verbatim). The dashboard once typed it `phone`, so every farmer phone rendered blank and the M-Pesa number never prefilled."
+      "kycRejectionField": "kycRejectedReason",
+      "relationCountsField": "_count",
+      "relationCountKeys": ["plots", "policies"],
+      "forbiddenFields": ["phone", "kycRejectionReason", "plotsCount", "policiesCount"],
+      "_note": "Every farmer endpoint returns the Prisma `Farmer` record verbatim, so the API field names ARE the Prisma column names. Three drifts have shipped off that: (1) the dashboard typed the phone `phone`, so every farmer phone rendered blank and the M-Pesa number never prefilled; (2) it typed the KYC rejection note `kycRejectionReason` while the column is `kycRejectedReason`, so a rejected farmer's reason never rendered; (3) it typed flat `plotsCount`/`policiesCount` while the list endpoint returns Prisma relation counts under `_count: { plots, policies }`, so both farmer-table columns were permanently blank.",
+      "_relationCountsNote": "GET /farmers (list) includes `_count`. GET /farmers/:id (detail) includes the full `plots` and `policies` ARRAYS instead and returns no `_count` — so `_count` is optional client-side and must never be assumed present."
     }
   }
 }
