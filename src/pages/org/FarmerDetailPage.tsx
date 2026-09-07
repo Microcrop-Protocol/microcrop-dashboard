@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { FarmerKycDecision } from "@/components/farmers/FarmerKycDecision";
+import { FarmerConsentCard } from "@/components/farmers/FarmerConsentPanel";
 import { ArrowLeft, Phone, MapPin, Loader2 } from "lucide-react";
 
 export default function FarmerDetailPage() {
@@ -63,6 +64,10 @@ export default function FarmerDetailPage() {
       </div>
 
       <FarmerKycDecision farmer={farmer} />
+
+      {/* The farmer's Data Protection Act record: what was consented to, how it was
+          captured, and — distinctly from "never asked" — whether it was withdrawn. */}
+      <FarmerConsentCard farmerId={farmer.id} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

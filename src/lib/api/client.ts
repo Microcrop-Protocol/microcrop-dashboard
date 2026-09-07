@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -727,6 +727,57 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ farmers }),
     });
+  }
+
+  // ============================================
+  // FARMER CONSENT (Kenya Data Protection Act 2019)
+  //
+  // Reads need `farmer:read`, capture and withdrawal need `farmer:update` — the field
+  // agent standing in front of the farmer is the point of capture, so this is
+  // deliberately not an admin-only namespace.
+  // ============================================
+
+  /**
+   * The versioned document registry. Every document is a PLACEHOLDER today: `body` is
+   * null and the version string carries `UNAPPROVED-PLACEHOLDER`. The response's own
+   * `warning` is the only wording the UI may show about that — do not write copy here.
+   */
+  async getConsentDocuments() {
+    return this.request<ConsentDocumentsResponse>('/farmers/consent/documents');
+  }
+
+  async getFarmerConsent(farmerId: string) {
+    return this.request<FarmerConsentStatus>(
+      `/farmers/${encodeURIComponent(farmerId)}/consent`,
+    );
+  }
+
+  /**
+   * Record consent to the CURRENT version of a document. The version is never sent:
+   * the server reads it from the registry at capture time, so a client cannot claim
+   * consent to a version that was never published.
+   */
+  async recordFarmerConsent(farmerId: string, data: {
+    documentId: string;
+    method: ConsentMethod;
+    evidenceRef?: string;
+    locale?: string;
+  }) {
+    return this.request<RecordConsentResponse>(
+      `/farmers/${encodeURIComponent(farmerId)}/consent`,
+      { method: 'POST', body: JSON.stringify(data) },
+    );
+  }
+
+  /** Withdraw the standing grant. Append-only: the row survives, stamped `revokedAt`. */
+  async withdrawFarmerConsent(farmerId: string, data: {
+    documentId: string;
+    reason?: string;
+  }) {
+    return this.request<WithdrawConsentResponse>(
+      `/farmers/${encodeURIComponent(farmerId)}/consent/withdraw`,
+      { method: 'POST', body: JSON.stringify(data) },
+    );
   }
 
   // ============================================

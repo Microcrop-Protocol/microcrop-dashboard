@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   UserPlus, ShieldCheck, MapPin, Calculator,
-  FileCheck, Smartphone, Loader2, Check,
+  FileCheck, Smartphone, Loader2, Check, FileWarning,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { notifySuccess, notifyError } from '@/lib/notify';
+import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type {
@@ -49,14 +50,27 @@ function formatMoney(value: number | string | null | undefined): string {
     : `${CURRENCY} —`;
 }
 
+/**
+ * A pastoralist is a farmer: the same personal data, the same Data Protection Act
+ * obligation. Leaving consent out of this second onboarding path would have meant
+ * anyone onboarded through the livestock product was never asked at all.
+ */
 const STEPS = [
   { id: 'register', title: 'Register', icon: UserPlus },
+  { id: 'consent', title: 'Consent', icon: FileWarning },
   { id: 'kyc', title: 'Verify', icon: ShieldCheck },
   { id: 'herd', title: 'Herd', icon: MapPin },
   { id: 'quote', title: 'Quote', icon: Calculator },
   { id: 'purchase', title: 'Purchase', icon: FileCheck },
   { id: 'payment', title: 'Payment', icon: Smartphone },
 ] as const;
+
+type StepId = (typeof STEPS)[number]['id'];
+
+/** Steps are addressed by name so inserting one cannot mis-target a transition. */
+function stepIndex(id: StepId): number {
+  return STEPS.findIndex((step) => step.id === id);
+}
 
 export function LivestockOnboardingWizard() {
   const navigate = useNavigate();
@@ -149,7 +163,7 @@ export function LivestockOnboardingWizard() {
     }),
     onSuccess: (result) => {
       setFarmer(result);
-      setCurrentStep(1);
+      setCurrentStep(stepIndex('consent'));
       notifySuccess('Pastoralist registered', `${result.firstName} ${result.lastName} has been registered.`);
     },
     onError: (error) => {
@@ -161,7 +175,7 @@ export function LivestockOnboardingWizard() {
     mutationFn: (farmerId: string) => api.fieldVerifyKyc(farmerId),
     onSuccess: () => {
       if (farmer) setFarmer({ ...farmer, kycStatus: 'APPROVED' });
-      setCurrentStep(2);
+      setCurrentStep(stepIndex('herd'));
       notifySuccess('Identity verified', 'KYC field verification completed successfully.');
     },
     onError: (error) => {
@@ -183,7 +197,7 @@ export function LivestockOnboardingWizard() {
     },
     onSuccess: (result) => {
       setHerd(result);
-      setCurrentStep(3);
+      setCurrentStep(stepIndex('quote'));
       notifySuccess('Herd registered', `"${result.name}" has been registered.`);
     },
     onError: (error) => {
@@ -232,7 +246,7 @@ export function LivestockOnboardingWizard() {
       // paymentInstructions.amount is the premium the STK push must charge.
       setPolicy(result.policy);
       setPaymentInstructions(result.paymentInstructions ?? null);
-      setCurrentStep(5);
+      setCurrentStep(stepIndex('payment'));
       notifySuccess('Policy created', `Policy ${result.policy.policyNumber} is ready for payment.`);
     },
     onError: (error) => {
@@ -369,7 +383,7 @@ export function LivestockOnboardingWizard() {
   // STEP RENDERERS
   // ══════════════════════════════════════════════════════
 
-  // ── Step 0: Register Pastoralist ────────────────────────────
+  // ── Step: Register Pastoralist ──────────────────────────
 
   const renderRegisterStep = () => (
     <Card>
@@ -441,7 +455,48 @@ export function LivestockOnboardingWizard() {
     </Card>
   );
 
-  // ── Step 1: KYC Verification ────────────────────────────
+  // ── Step: Consent ───────────────────────────────────────
+
+  /**
+   * Non-blocking, for the same two reasons as the crop wizard: the backend reports
+   * `enforcedOnPurchase: false`, and it refuses to capture against the unapproved
+   * placeholder documents in production. See OnboardingWizard's consent step.
+   */
+  const renderConsentStep = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Record Consent</CardTitle>
+        <CardDescription>
+          Record what this pastoralist has agreed to, and how that agreement was captured
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {farmer ? (
+          <FarmerConsentPanel farmerId={farmer.id} />
+        ) : (
+          <p className="text-muted-foreground">
+            Pastoralist data missing. Please go back and register them first.
+          </p>
+        )}
+
+        <div className="space-y-2">
+          <Button
+            className="w-full"
+            onClick={() => setCurrentStep(stepIndex('kyc'))}
+            disabled={!farmer}
+          >
+            Continue
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Consent is not enforced on purchase, so onboarding continues either way.
+            Whatever is recorded here stays on the pastoralist&apos;s record.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // ── Step: KYC Verification ──────────────────────────────
 
   const renderKycStep = () => (
     <Card>
@@ -476,7 +531,7 @@ export function LivestockOnboardingWizard() {
         </div>
 
         <div className="flex gap-4">
-          <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(0)}>Back</Button>
+          <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(stepIndex('consent'))}>Back</Button>
           <Button
             className="flex-1"
             onClick={() => { if (farmer) kycMutation.mutate(farmer.id); }}
@@ -490,7 +545,7 @@ export function LivestockOnboardingWizard() {
     </Card>
   );
 
-  // ── Step 2: Register Herd ─────────────────────────────
+  // ── Step: Register Herd ─────────────────────────────────
 
   const renderHerdStep = () => {
     const headCount = herdForm.watch('headCount');
@@ -644,7 +699,7 @@ export function LivestockOnboardingWizard() {
     );
   };
 
-  // ── Step 3: Get Quote ──────────────────────────────────
+  // ── Step: Get Quote ─────────────────────────────────────
 
   const renderQuoteStep = () => {
     // Determine the current season dynamically
@@ -739,7 +794,7 @@ export function LivestockOnboardingWizard() {
                     <Button variant="outline" className="flex-1" onClick={() => setQuote(null)} type="button">
                       Recalculate
                     </Button>
-                    <Button className="flex-1" onClick={() => setCurrentStep(4)} type="button">
+                    <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))} type="button">
                       Proceed to Purchase
                     </Button>
                   </div>
@@ -752,7 +807,7 @@ export function LivestockOnboardingWizard() {
     );
   };
 
-  // ── Step 4: Purchase Policy ────────────────────────────
+  // ── Step: Purchase Policy ───────────────────────────────
 
   const renderPurchaseStep = () => {
     if (!farmer || !herd || !quote) return null;
@@ -799,7 +854,7 @@ export function LivestockOnboardingWizard() {
     );
   };
 
-  // ── Step 5: Payment ────────────────────────────────────
+  // ── Step: Payment ───────────────────────────────────────
 
   const renderPaymentStep = () => {
     if (!policy) return null;
@@ -902,12 +957,15 @@ export function LivestockOnboardingWizard() {
       {renderStepper()}
 
       <div className="mt-8">
-        {currentStep === 0 && renderRegisterStep()}
-        {currentStep === 1 && renderKycStep()}
-        {currentStep === 2 && renderHerdStep()}
-        {currentStep === 3 && renderQuoteStep()}
-        {currentStep === 4 && renderPurchaseStep()}
-        {currentStep === 5 && renderPaymentStep()}
+        {/* Keyed off the step id, not its ordinal, so a reorder cannot render the
+            wrong screen. */}
+        {STEPS[currentStep]?.id === 'register' && renderRegisterStep()}
+        {STEPS[currentStep]?.id === 'consent' && renderConsentStep()}
+        {STEPS[currentStep]?.id === 'kyc' && renderKycStep()}
+        {STEPS[currentStep]?.id === 'herd' && renderHerdStep()}
+        {STEPS[currentStep]?.id === 'quote' && renderQuoteStep()}
+        {STEPS[currentStep]?.id === 'purchase' && renderPurchaseStep()}
+        {STEPS[currentStep]?.id === 'payment' && renderPaymentStep()}
       </div>
     </div>
   );
