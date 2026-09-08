@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { FarmerKycDecision } from "@/components/farmers/FarmerKycDecision";
 import { FarmerConsentCard } from "@/components/farmers/FarmerConsentPanel";
+import { SimulatedBadge } from "@/components/ui/simulated-badge";
+import { isSimulatedPolicy } from "@/lib/simulated";
 import { ArrowLeft, Phone, MapPin, Loader2 } from "lucide-react";
 
 export default function FarmerDetailPage() {
@@ -94,12 +96,17 @@ export default function FarmerDetailPage() {
               <p className="text-muted-foreground">No policies found</p>
             ) : (
               farmerPolicies.map((policy) => (
-                <div key={policy.id} className="flex justify-between rounded-lg border p-3">
+                <div key={policy.id} className="flex justify-between gap-2 rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{policy.policyNumber}</p>
                     <p className="text-sm text-muted-foreground">{policy.coverageType}</p>
                   </div>
-                  <StatusBadge variant={getStatusVariant(policy.status)}>{policy.status}</StatusBadge>
+                  {/* Whether this farmer is actually covered is exactly the question this
+                      card answers, so a test policy must say so here too. */}
+                  <div className="flex flex-wrap items-start justify-end gap-2">
+                    {isSimulatedPolicy(policy) && <SimulatedBadge />}
+                    <StatusBadge variant={getStatusVariant(policy.status)}>{policy.status}</StatusBadge>
+                  </div>
                 </div>
               ))
             )}

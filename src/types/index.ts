@@ -362,6 +362,18 @@ export interface Policy {
   startDate: string;
   endDate: string;
   createdAt: string;
+  /**
+   * On-chain activation artifacts. `GET /policies` and `GET /policies/:id` return the raw
+   * Prisma Policy row, so these reach the client. They are ALSO how a sandbox-activated
+   * ("test data") policy is recognised — see `@/lib/simulated`:
+   *   real       onChainPolicyId is a decimal uint256, txHash is 0x + 64 hex, blockNumber > 0
+   *   simulated  both are prefixed "SIMULATED-NO-CHAIN-" and blockNumber is -1
+   * Nullable throughout: a PENDING policy has no on-chain state at all. `blockNumber` is a
+   * Prisma BigInt, JSON-serialised as a STRING by the backend.
+   */
+  onChainPolicyId?: string | null;
+  txHash?: string | null;
+  blockNumber?: string | number | null;
 }
 
 export interface PolicyQuote {
@@ -416,6 +428,23 @@ export interface Payout {
   // could not fully fund the payout.
   determination?: Determination;
   determinationStatus?: DeterminationStatus;
+  /**
+   * M-Pesa settlement receipt, written when the payout completes. A sandbox-settled
+   * ("test data") payout carries a "SIMULATED-NO-REAL-MONEY-…" pseudo receipt instead —
+   * see `@/lib/simulated`.
+   */
+  mpesaRef?: string | null;
+  /**
+   * The parent policy, as included by `GET /payouts` (which selects `policyNumber` and
+   * `onChainPolicyId`) and `GET /payouts/:id` (which includes the whole row). Used to
+   * recognise a test payout before it has settled, when it has no `mpesaRef` yet.
+   */
+  policy?: {
+    policyNumber?: string;
+    onChainPolicyId?: string | null;
+    txHash?: string | null;
+    blockNumber?: string | number | null;
+  } | null;
 }
 
 // Damage Assessment Types

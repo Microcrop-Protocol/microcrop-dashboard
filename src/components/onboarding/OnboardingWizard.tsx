@@ -20,6 +20,8 @@ import {
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { isSimulatedTransaction } from '@/lib/simulated';
+import { SimulatedBanner } from '@/components/ui/simulated-badge';
 import type {
   Farmer, Plot, PolicyQuote, Policy, PaymentInstructions, GpsTrackResponse, CoverageType,
 } from '@/types';
@@ -100,6 +102,11 @@ export function OnboardingWizard() {
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'polling' | 'completed' | 'failed'>('idle');
   const [paymentPhone, setPaymentPhone] = useState('');
+  // `/payments/initiate` says so outright when the backend is in sandbox mode: NO STK push
+  // was sent to the farmer's phone. Without surfacing it, this step tells the operator to
+  // ask the farmer for a PIN on a prompt that will never arrive, and then reports the
+  // policy "active" as if a premium had been paid.
+  const [paymentSimulated, setPaymentSimulated] = useState(false);
 
   // Sync paymentPhone when farmer is registered
   useEffect(() => {
@@ -258,9 +265,13 @@ export function OnboardingWizard() {
     onSuccess: (result) => {
       setPaymentRef(result.reference);
       setPaymentStatus('polling');
+      const simulated = isSimulatedTransaction(result);
+      setPaymentSimulated(simulated);
       // Replay guard: the backend returned the EXISTING transaction and sent no
       // second STK prompt. Polling still applies — it is the same reference.
-      if (result.alreadyPending) {
+      if (simulated) {
+        notifySuccess('Test payment started', 'No M-Pesa prompt was sent and no money will be charged.');
+      } else if (result.alreadyPending) {
         notifySuccess('Payment prompt already pending', result.instructions);
       } else {
         notifySuccess('Payment request sent', "Check the farmer's phone for the M-Pesa prompt.");
@@ -937,6 +948,12 @@ export function OnboardingWizard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {paymentSimulated && (
+            <SimulatedBanner>
+              This was a test payment. No M-Pesa prompt was sent to the farmer, no money was
+              charged, and the policy it activates is test data — the farmer is not covered.
+            </SimulatedBanner>
+          )}
           {paymentStatus === 'idle' && (
             <>
               <div className="rounded-lg border p-4 space-y-2 text-sm">
@@ -982,7 +999,9 @@ export function OnboardingWizard() {
               <div>
                 <p className="font-medium">Waiting for payment confirmation...</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  The farmer should see an M-Pesa prompt on their phone. Ask them to enter their PIN to confirm.
+                  {paymentSimulated
+                    ? 'No prompt was sent to the farmer — there is nothing for them to confirm. Waiting for the test payment to settle.'
+                    : "The farmer should see an M-Pesa prompt on their phone. Ask them to enter their PIN to confirm."}
                 </p>
               </div>
             </div>
@@ -994,10 +1013,21 @@ export function OnboardingWizard() {
                 <Check className="h-8 w-8 text-green-600" />
               </div>
               <div>
-                <p className="font-medium text-lg">Onboarding Complete!</p>
+                <p className="font-medium text-lg">
+                  {paymentSimulated ? 'Test Run Complete' : 'Onboarding Complete!'}
+                </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {farmer?.firstName} {farmer?.lastName}&apos;s policy is now active.
-                  They will receive an SMS confirmation shortly.
+                  {paymentSimulated ? (
+                    <>
+                      {farmer?.firstName} {farmer?.lastName}&apos;s policy shows as active, but this
+                      was a test: no premium was collected and they are NOT covered.
+                    </>
+                  ) : (
+                    <>
+                      {farmer?.firstName} {farmer?.lastName}&apos;s policy is now active.
+                      They will receive an SMS confirmation shortly.
+                    </>
+                  )}
                 </p>
               </div>
               <div className="flex gap-3 justify-center pt-4">

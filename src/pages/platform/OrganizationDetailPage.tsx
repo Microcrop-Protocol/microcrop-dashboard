@@ -22,6 +22,8 @@ import {
 import { ArrowLeft, Users, FileText, DollarSign, Wallet, TrendingDown, CheckCircle2, Circle, ExternalLink, Percent, Loader2, Info } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { notifySuccess, notifyError } from "@/lib/notify";
+import { isSimulatedPayout, isSimulatedPolicy } from "@/lib/simulated";
+import { SimulatedBadge } from "@/components/ui/simulated-badge";
 import type { Policy, Payout, OnboardingStep } from "@/types";
 
 // Keys MUST match the backend OnboardingStep enum; labels are human-friendly.
@@ -352,14 +354,17 @@ export default function OrganizationDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-4">No recent policies</p>
               ) : (
                 recentPolicies.map((policy) => (
-                  <div key={policy.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div key={policy.id} className="flex items-center justify-between gap-2 rounded-lg border p-3">
                     <div>
                       <p className="font-medium">{policy.policyNumber}</p>
                       <p className="text-sm text-muted-foreground">{policy.farmerName}</p>
                     </div>
-                    <StatusBadge variant={getStatusVariant(policy.status)}>
-                      {policy.status}
-                    </StatusBadge>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {isSimulatedPolicy(policy) && <SimulatedBadge />}
+                      <StatusBadge variant={getStatusVariant(policy.status)}>
+                        {policy.status}
+                      </StatusBadge>
+                    </div>
                   </div>
                 ))
               )}
@@ -377,13 +382,14 @@ export default function OrganizationDetailPage() {
                 <p className="text-sm text-muted-foreground text-center py-4">No recent payouts</p>
               ) : (
                 recentPayouts.map((payout) => (
-                  <div key={payout.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div key={payout.id} className="flex items-center justify-between gap-2 rounded-lg border p-3">
                     <div>
                       <p className="font-medium">{payout.policyNumber}</p>
                       <p className="text-sm text-muted-foreground">{payout.farmerName}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex flex-col items-end gap-1 text-right">
                       <p className="font-medium">KES {Number(payout.amount ?? 0).toLocaleString()}</p>
+                      {isSimulatedPayout(payout) && <SimulatedBadge />}
                       <StatusBadge variant={getStatusVariant(payout.status)}>
                         {payout.status}
                       </StatusBadge>
