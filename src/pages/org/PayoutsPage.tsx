@@ -10,6 +10,8 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Payout } from "@/types";
 import { DollarSign, Hash, TrendingUp, CheckCircle, RefreshCw, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { isSimulatedPayout } from "@/lib/simulated";
+import { SimulatedBadge, SimulatedBanner } from "@/components/ui/simulated-badge";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
 
@@ -37,7 +39,19 @@ export default function PayoutsPage() {
   });
 
   const columns: ColumnDef<Payout>[] = [
-    { accessorKey: "policyNumber", header: "Policy" },
+    {
+      accessorKey: "policyNumber",
+      header: "Policy",
+      // A sandbox payout reaches COMPLETED with a fake receipt and no disbursement, so it
+      // is indistinguishable from a real one by status or amount. Mark it against the
+      // identifier, in the first column, where it cannot be scrolled out of view.
+      cell: ({ row }) => (
+        <div className="flex flex-col items-start gap-1">
+          <span>{row.getValue("policyNumber")}</span>
+          {isSimulatedPayout(row.original) && <SimulatedBadge />}
+        </div>
+      ),
+    },
     { accessorKey: "farmerName", header: "Farmer" },
     { accessorKey: "farmerPhone", header: "Phone" },
     { accessorKey: "amount", header: "Amount", cell: ({ row }) => `KES ${(row.getValue("amount") as number).toLocaleString()}` },
@@ -72,9 +86,26 @@ export default function PayoutsPage() {
   const total = payouts.reduce((s, p) => s + p.amount, 0);
   const successCount = payouts.filter(p => p.status === 'COMPLETED').length;
 
+  // Test payouts are counted in the tiles below because they are counted in the list —
+  // silently dropping them would make the tiles disagree with the rows. Instead we say
+  // out loud how much of the total is not real, which is what stops a UAT figure being
+  // reported as money disbursed.
+  const simulatedPayouts = payouts.filter(isSimulatedPayout);
+  const simulatedTotal = simulatedPayouts.reduce((s, p) => s + p.amount, 0);
+
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold">Payouts</h1><p className="text-muted-foreground">Track and manage farmer payouts</p></div>
+      {simulatedPayouts.length > 0 && (
+        <SimulatedBanner>
+          {simulatedPayouts.length} of these {payouts.length} payouts{" "}
+          {simulatedPayouts.length === 1 ? "is" : "are"} test data, worth KES{" "}
+          {simulatedTotal.toLocaleString()} of the totals below. No money reached any farmer for{" "}
+          {simulatedPayouts.length === 1 ? "it" : "them"} and no M-Pesa message was sent — do not
+          report {simulatedPayouts.length === 1 ? "it" : "them"} as money disbursed. Each one is
+          marked in the list below.
+        </SimulatedBanner>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Amount" value={`KES ${total.toLocaleString()}`} icon={DollarSign} />
         <StatCard title="Avg Payout" value={`KES ${payouts.length ? Math.round(total / payouts.length).toLocaleString() : 0}`} icon={TrendingUp} />

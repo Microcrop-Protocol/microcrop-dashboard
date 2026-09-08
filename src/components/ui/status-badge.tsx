@@ -31,6 +31,12 @@ const statusBadgeVariants = cva(
         // Policy status
         claimed: "bg-info/10 text-info border border-info/20",
         
+        // Sandbox / test data. Deliberately unlike every status above: a hue no status
+        // uses, a DASHED border and heavier, wider type, so it reads as "this record is
+        // not real" rather than as another workflow state. See SimulatedBadge.
+        simulated:
+          "bg-chart-4/15 text-chart-4 border border-dashed border-chart-4/60 font-semibold uppercase tracking-wide",
+
         // Role badges
         platform_admin: "bg-primary/10 text-primary border border-primary/20",
         org_admin: "bg-chart-4/10 text-chart-4 border border-chart-4/20",

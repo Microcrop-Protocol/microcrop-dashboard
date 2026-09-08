@@ -20,6 +20,8 @@ import { notifySuccess, notifyError } from '@/lib/notify';
 import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { isSimulatedTransaction } from '@/lib/simulated';
+import { SimulatedBanner } from '@/components/ui/simulated-badge';
 import type {
   Farmer, Herd, LivestockPolicyQuote, Policy, PaymentInstructions, IBLISeason, CoverageType,
 } from '@/types';
@@ -85,6 +87,9 @@ export function LivestockOnboardingWizard() {
   const [paymentInstructions, setPaymentInstructions] = useState<PaymentInstructions | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'polling' | 'completed' | 'failed'>('idle');
+  // See OnboardingWizard: `/payments/initiate` reports sandbox mode outright, and without
+  // showing it this step claims an STK prompt was sent that never was.
+  const [paymentSimulated, setPaymentSimulated] = useState(false);
   const [paymentPhone, setPaymentPhone] = useState('');
   // Multi-country: narrow the insurance-unit list by country (units carry an ISO country).
   const [unitCountry, setUnitCountry] = useState<string>('all');
@@ -263,9 +268,13 @@ export function LivestockOnboardingWizard() {
     onSuccess: (result) => {
       setPaymentRef(result.reference);
       setPaymentStatus('polling');
+      const simulated = isSimulatedTransaction(result);
+      setPaymentSimulated(simulated);
       // Replay guard: the backend returned the EXISTING transaction and sent no
       // second STK prompt. Polling still applies — it is the same reference.
-      if (result.alreadyPending) {
+      if (simulated) {
+        notifySuccess('Test payment started', 'No M-Pesa prompt was sent and no money will be charged.');
+      } else if (result.alreadyPending) {
         notifySuccess('Payment prompt already pending', result.instructions);
       } else {
         notifySuccess('Payment request sent', "Check the pastoralist's phone for the M-Pesa prompt.");
@@ -861,13 +870,21 @@ export function LivestockOnboardingWizard() {
 
     if (paymentStatus === 'completed') {
       return (
-        <Card className="border-success/50 bg-success/5">
+        <Card className={paymentSimulated ? undefined : "border-success/50 bg-success/5"}>
           <CardContent className="flex flex-col items-center justify-center space-y-4 pt-6 text-center">
+            {paymentSimulated && (
+              <SimulatedBanner className="w-full text-left">
+                This was a test payment. No M-Pesa prompt was sent, no money was charged, and the
+                policy below is test data — the pastoralist is NOT covered.
+              </SimulatedBanner>
+            )}
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/20 text-success">
               <Check className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-success">Payment Successful!</h3>
+              <h3 className="text-xl font-bold text-success">
+                {paymentSimulated ? 'Test Payment Settled' : 'Payment Successful!'}
+              </h3>
               <p className="text-muted-foreground mt-2">
                 Policy <span className="font-medium text-foreground">{policy.policyNumber}</span> is now active.
               </p>
@@ -888,6 +905,12 @@ export function LivestockOnboardingWizard() {
           <CardDescription>Send an M-Pesa STK prompt to the pastoralist</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {paymentSimulated && (
+            <SimulatedBanner>
+              This is a test payment. No M-Pesa prompt was sent to the pastoralist and no money
+              will be charged — the policy it activates is test data.
+            </SimulatedBanner>
+          )}
           <div className="rounded-lg border p-4 flex items-center justify-between">
             <div>
               <div className="text-sm text-muted-foreground">Amount to Pay</div>
@@ -935,7 +958,9 @@ export function LivestockOnboardingWizard() {
               <div>
                 <h3 className="font-medium">Waiting for Payment</h3>
                 <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
-                  An M-Pesa prompt has been sent to the phone. Waiting for the pastoralist to enter their PIN...
+                  {paymentSimulated
+                    ? 'No prompt was sent — there is nothing for the pastoralist to confirm. Waiting for the test payment to settle.'
+                    : 'An M-Pesa prompt has been sent to the phone. Waiting for the pastoralist to enter their PIN...'}
                 </p>
               </div>
             </div>

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { isSimulatedPayout, isSimulatedPolicy } from "@/lib/simulated";
+import { SimulatedBadge, SimulatedBanner } from "@/components/ui/simulated-badge";
 import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
 
 export default function PolicyDetailPage() {
@@ -43,6 +45,7 @@ export default function PolicyDetailPage() {
 
   const policyPayouts = payoutsData?.data?.filter((p) => p.policyId === policyId) ?? [];
   const policyDamage = damageData?.data?.filter((d) => d.policyId === policyId) ?? [];
+  const simulated = isSimulatedPolicy(policy);
 
   return (
     <div className="space-y-6">
@@ -54,8 +57,19 @@ export default function PolicyDetailPage() {
           <h1 className="text-2xl font-bold">{policy.policyNumber}</h1>
           <p className="text-muted-foreground">{policy.farmerName} • {policy.plotName}</p>
         </div>
-        <StatusBadge variant={getStatusVariant(policy.status)}>{policy.status}</StatusBadge>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {simulated && <SimulatedBadge />}
+          <StatusBadge variant={getStatusVariant(policy.status)}>{policy.status}</StatusBadge>
+        </div>
       </div>
+
+      {simulated && (
+        <SimulatedBanner>
+          This policy was activated by a test. No premium was collected, no farmer is covered by
+          it, and it does not exist on the blockchain — the status above is the test&apos;s result,
+          not a real sale. Do not include it in any report of policies sold or cover in force.
+        </SimulatedBanner>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -104,9 +118,10 @@ export default function PolicyDetailPage() {
               policyPayouts.map((p) => {
                 const determinationStatus = p.determination?.status ?? p.determinationStatus;
                 return (
-                  <div key={p.id} className="flex items-center justify-between border-b py-2 last:border-0">
+                  <div key={p.id} className="flex items-center justify-between gap-2 border-b py-2 last:border-0">
                     <span>KES {p.amount?.toLocaleString() ?? 0}</span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {isSimulatedPayout(p) && <SimulatedBadge />}
                       {determinationStatus && <DeterminationStatusBadge status={determinationStatus} />}
                       <StatusBadge variant={getStatusVariant(p.status)}>{p.status}</StatusBadge>
                     </div>
