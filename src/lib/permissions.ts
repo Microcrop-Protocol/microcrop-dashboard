@@ -14,25 +14,36 @@ import type { UserRole } from '@/types';
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
   PLATFORM_ADMIN: ['*'],
   ORG_ADMIN: ['*'],
+  // `determination:read` is granted to exactly the set that already holds `payout:read`. The
+  // determination and its evidence package ARE the Determination-plan product, and a Tier 1 org
+  // has no payouts at all, so letting it ride on `payout:read` would have left the product
+  // unreachable by its buyer.
+  //
+  // `settlement:report` is ORG_FINANCE only (ORG_ADMIN inherits it through '*'). It attests that
+  // the ORGANIZATION paid a farmer, signed by a named officer, so it sits with finance and
+  // nowhere else — and it is deliberately outside the `determination:` namespace so a role
+  // holding `determination:*` can never inherit the power to state that money moved.
   ORG_STAFF: [
     'farmer:*', 'plot:*', 'herd:*', 'policy:read', 'policy:create',
-    'damage:*', 'satellite:read', 'dashboard:read', 'payout:read',
+    'damage:*', 'satellite:read', 'dashboard:read', 'payout:read', 'determination:read',
   ],
   ORG_FIELD_AGENT: [
     'payout:read', 'farmer:*', 'plot:*', 'herd:*', 'damage:create',
     'damage:read', 'satellite:read', 'policy:read', 'policy:create', 'dashboard:read',
+    'determination:read',
   ],
   ORG_FINANCE: [
     'payout:*', 'reserve:*', 'financials:read', 'export:*', 'policy:read',
-    'farmer:read', 'dashboard:read',
+    'farmer:read', 'dashboard:read', 'determination:read', 'settlement:report',
   ],
   ORG_UNDERWRITER: [
     'payout:read', 'policy:*', 'farmer:read', 'plot:read', 'herd:read',
-    'satellite:read', 'dashboard:read',
+    'satellite:read', 'dashboard:read', 'determination:read',
   ],
   ORG_VIEWER: [
     'farmer:read', 'plot:read', 'herd:read', 'policy:read', 'payout:read',
     'damage:read', 'satellite:read', 'financials:read', 'dashboard:read',
+    'determination:read',
   ],
 };
 

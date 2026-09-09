@@ -22,7 +22,7 @@
     "",
     "Contract changes are BREAKING unless both repos ship together. Bump `version`."
   ],
-  "version": "2026-09-07.2",
+  "version": "2026-09-09.1",
   "endpoints": {
     "POST /policies/quote": {
       "_note": "Priced but not sold. The dashboard renders every response money field.",
@@ -87,6 +87,86 @@
           "There is no `message`, and there never was. The dashboard typed one as REQUIRED, so any UI rendering it printed `undefined` on the money path immediately after charging a phone.",
           "`alreadyPending: true` marks the replay-guard branch: a PENDING premium prompt for this policy is still fresh, so the existing transaction is returned and NO second STK push was sent. `orderId` and `provider` are read off the stored transaction there and may be null, so both are nullable client-side.",
           "`simulated: true` + `warning` appear only under SIMULATE_PAYMENTS (sandbox). No money moved; the caller must be able to tell at a glance."
+        ]
+      }
+    },
+    "POST /determinations/:determinationId/settlement-report": {
+      "_note": "NOT THE MONEY PATH, and that is the whole point. A Tier 1 (settlementMode = DETERMINATION) partner settles its farmer off-platform, off its own balance sheet, then tells us what it did. MicroCrop stores the claim, labels it PARTNER-ATTESTED and UNVERIFIED, and moves nothing: no Payout, no Transaction, no policy status change, no queue job.",
+      "request": {
+        "required": [
+          "partnerReference",
+          "outcome",
+          "method",
+          "settledAmountMinor",
+          "settlementCurrency",
+          "settledAt",
+          "attestingOfficerName",
+          "attestingOfficerTitle"
+        ],
+        "optional": [
+          "attestingOfficerEmail",
+          "shortfallReason",
+          "declineReason",
+          "evidenceRef",
+          "evidenceHash",
+          "notes",
+          "supersedesReportId"
+        ],
+        "idempotencyKey": ["determinationId", "partnerReference"],
+        "forbiddenFields": [
+          "amountUSDC",
+          "settledAmountUsdc",
+          "payoutAmountUsdc",
+          "payoutId",
+          "reportedVia",
+          "verificationStatus"
+        ],
+        "enums": {
+          "outcome": ["SETTLED_FULL", "SETTLED_PARTIAL", "DECLINED"],
+          "method": ["MOBILE_MONEY", "BANK_TRANSFER", "CASH", "ACCOUNT_CREDIT", "IN_KIND", "OTHER"]
+        },
+        "invariants": [
+          "`partnerReference` IS THE IDEMPOTENCY KEY, together with the determination id in the path. It is a BODY field, not an Idempotency-Key header, because it must be durable and queryable — an operator has to be able to ask 'have you already told us about M-Pesa ref QK73HG9XYZ?'. A client that generates a fresh key per attempt would post two attestations that the same money moved once.",
+          "`settledAmountMinor` is a decimal STRING of MINOR UNITS of `settlementCurrency` ('2250000' = KES 22,500.00). Never send a JSON number: it is an exact integer and a double loses precision at scale. The server rejects a number outright.",
+          "`settlementCurrency` MUST equal the policy's own currency. MicroCrop does not convert on this path — a mismatch is 400, never an FX conversion.",
+          "THERE IS NO USDC FIELD IN EITHER DIRECTION. The forbiddenFields above are not merely unused: sending one is a 400, so a client cannot believe it reported a USDC figure that was silently dropped.",
+          "`outcome` must agree with the amount: equal to what MicroCrop determined is owed => SETTLED_FULL; less => SETTLED_PARTIAL and `shortfallReason`; DECLINED => `declineReason` and settledAmountMinor '0'. More than the determined amount is refused.",
+          "A report is NEVER edited. A correction is a NEW request with a NEW `partnerReference` plus `supersedesReportId` naming the live report it replaces."
+        ]
+      },
+      "response": {
+        "keys": [
+          "replayed",
+          "determinationId",
+          "policyId",
+          "settlementMode",
+          "settledByMicrocrop",
+          "verifiedByMicrocrop",
+          "partnerSettlementStatus",
+          "report",
+          "note"
+        ],
+        "report": {
+          "requiredKeys": [
+            "id",
+            "partnerReference",
+            "outcome",
+            "method",
+            "settledAmountMinor",
+            "settledAmount",
+            "settlementCurrency",
+            "settledAt",
+            "reportedVia",
+            "reportedAt",
+            "verificationStatus",
+            "attestedByPartner",
+            "verifiedByMicrocrop"
+          ]
+        },
+        "invariants": [
+          "201 on a first recording, 200 with `replayed: true` on a replay of the same (determinationId, partnerReference). The stored row is returned verbatim on a replay; no second attestation is created, the AWAITING -> REPORTED transition does not re-run, and no webhook is re-emitted.",
+          "`settledByMicrocrop` and `verifiedByMicrocrop` are ALWAYS false here, and `verificationStatus` is always 'UNVERIFIED' (the Prisma enum has exactly one value). A UI must never render this as a MicroCrop settlement — show it as partner-attested and unverified, beside what MicroCrop determined, never merged into it.",
+          "`partnerSettlementStatus` is a REPORTING state (AWAITING_PARTNER_REPORT | REPORTED | OVERDUE), never a funding state. OVERDUE means we have no report by the due date; it does not mean MicroCrop owes anything."
         ]
       }
     }

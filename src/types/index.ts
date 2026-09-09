@@ -57,6 +57,23 @@ export interface AuthTokens {
 
 // Organization Types
 export type OrganizationType = 'COOPERATIVE' | 'NGO' | 'MFI' | 'INSURANCE_COMPANY' | 'GOVERNMENT' | 'OTHER';
+
+/**
+ * WHAT THE PARTNER BOUGHT. Mirrors the backend Prisma `ServiceTier` enum exactly
+ * (microcrop-backend/src/services/entitlement.service.js `SERVICE_TIER`).
+ *
+ *   DETERMINATION               MicroCrop determines whether the parametric trigger fired and
+ *                               issues a signed, independently verifiable determination plus
+ *                               its evidence package. The PARTNER settles the farmer
+ *                               off-platform, off its own balance sheet. We never touch money.
+ *   DETERMINATION_AND_SETTLEMENT  the above, plus MicroCrop originates and settles the payout.
+ *
+ * This union is deliberately NOT widened with a `| string` escape hatch: an unrecognised value
+ * arriving from the server must not typecheck as a tier, so it falls through to the "unknown"
+ * branch of `@/lib/tier`, which denies. Never compare against `'DETERMINATION'` to decide
+ * whether to hide a settlement feature — see `isSettlementEntitled`.
+ */
+export type ServiceTier = 'DETERMINATION' | 'DETERMINATION_AND_SETTLEMENT';
 // Onboarding lifecycle emitted by the backend (application.service / kyb.service / invitation.service).
 // POOL_DEPLOYMENT is the legacy enum name for the wallet & reserve setup phase.
 export type OnboardingStep = 'APPLICATION' | 'KYB_VERIFICATION' | 'POOL_DEPLOYMENT' | 'ADMIN_SETUP' | 'COMPLETED';
@@ -82,6 +99,17 @@ export interface Organization {
   walletAddress?: string;
   privyWalletId?: string;
   onboardingStep: OnboardingStep;
+  /**
+   * The tier the organization is on TODAY — mutable, changed only by a platform admin
+   * (`POST /platform/organizations/:orgId/service-tier`). `GET /organizations/me` returns the
+   * whole org row minus credentials, so this column reaches the dashboard.
+   *
+   * GATES INTAKE, NEVER DRAIN. Use it to decide what to OFFER (may this org start a settlement
+   * flow at all); never to decide what happens to an existing policy — that is
+   * `Policy.settlementMode`, frozen at inception. Optional because an older backend, or a
+   * cached response, may not carry it: absent means UNKNOWN, not Tier 2 (see `@/lib/tier`).
+   */
+  serviceTier?: ServiceTier | null;
   farmersCount: number;
   policiesCount: number;
   payoutsCount: number;
@@ -374,6 +402,17 @@ export interface Policy {
   onChainPolicyId?: string | null;
   txHash?: string | null;
   blockNumber?: string | number | null;
+  /**
+   * WHO OWES THIS FARMER FOR THIS COVER — frozen at inception, immutable once ACTIVE.
+   *
+   * A different question from `Organization.serviceTier` (what the org bought TODAY, which is
+   * mutable). A tier downgrade must never strand an in-flight payout on cover sold under
+   * Tier 2, so every per-policy settlement decision reads THIS field and never the org's.
+   * Optional because an older cached payload, or an endpoint that does not select it, may omit
+   * it — and an absent value must DENY, never default to "MicroCrop settles it". See
+   * `@/lib/tier`.
+   */
+  settlementMode?: ServiceTier | null;
 }
 
 export interface PolicyQuote {
@@ -942,13 +981,22 @@ export interface UploadResult {
 // Livestock peril (backend LivestockPeril enum). Types only — no UI yet.
 export type LivestockPeril = 'DROUGHT_PASTURE' | 'DISEASE_OUTBREAK' | 'HEAT_STRESS';
 
-// Determination (per-org treasury settlement determination). Types only — no UI yet.
+/**
+ * The raw determination lifecycle (Prisma `DeterminationStatus`). This is MicroCrop's own
+ * processing state for the record, NOT an answer to "was the farmer paid".
+ *
+ * `DETERMINATION_ONLY` is the terminal state a determination reaches when the policy behind it
+ * was sold under Tier 1: MicroCrop determined, signed and anchored it, and then deliberately
+ * did not submit anything on chain. It is a SUCCESS, and must never be rendered as a failure —
+ * `failureReason` is NULL on it for exactly that reason.
+ */
 export type DeterminationStatus =
   | 'RECEIVED'
   | 'SUBMITTING'
   | 'CONFIRMED'
   | 'FAILED'
-  | 'UNDERFUNDED';
+  | 'UNDERFUNDED'
+  | 'DETERMINATION_ONLY';
 
 export interface Determination {
   id: string;
@@ -967,6 +1015,313 @@ export interface Determination {
   failureReason?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ===========================================================================
+// THE PARTNER DETERMINATION VIEW — GET /api/determinations[/:id]
+//
+// THREE FACTS, NEVER COLLAPSED INTO ONE STATUS. The backend projection
+// (determination.service.buildPartnerDeterminationView) returns them as three sibling blocks
+// and the UI must keep them apart:
+//
+//   determined     what MICROCROP determined. Signed, hashed, anchored, re-verifiable.
+//   settlement     whether MICROCROP settled — and under Tier 1, that it deliberately did NOT.
+//   partnerReport  what the PARTNER claims it did. Always partner-attested, never verified.
+//
+// Collapsing them is the failure this shape exists to prevent: a single status reading UNPAID
+// looks like a broken determination, and one reading PAID launders an unverified partner claim
+// into a MicroCrop fact.
+//
+// CURRENCY NEUTRALITY. Every money figure below is in the POLICY's own currency, as an exact
+// integer count of MINOR units (`amountMinor`) plus a human string (`amount`). There is no USDC
+// field on a Tier 1 response and there must never be one — the backend runs the whole Tier 1
+// projection through a guard that throws on any key ending in `usdc`, on `chainId` and on
+// `verifyingContract`. A Tier 1 partner settles in its own currency and must not inherit an FX
+// dependency from us.
+// ===========================================================================
+
+/**
+ * An amount stated in the policy's own currency. `amountMinor` is AUTHORITATIVE — a decimal
+ * string of minor units, never a JSON number, because a large KES/GHS figure loses precision as
+ * an IEEE-754 double. `amount` is the pre-formatted human string; `exponent` is the ISO 4217
+ * minor-unit scale (2 for KES/GHS/USD, 0 for e.g. UGX) and is what a form must use to convert
+ * an operator's typed amount back into minor units. Never assume 2.
+ */
+export interface MoneyMinor {
+  amountMinor: string;
+  amount: string;
+  currency: string;
+  exponent: number;
+  damagePercentBp: number;
+  /** Plain-English statement of how the figure was derived; render it verbatim. */
+  basis: string;
+}
+
+/** Notary anchor receipt, allow-listed by the backend (never the raw provider blob). */
+export interface DeterminationNotary {
+  provider?: string;
+  network?: string;
+  reference?: string;
+  txHash?: string;
+  ledger?: string | number;
+  anchoredAt?: string;
+}
+
+/** FACT 1 — what MicroCrop determined. Identical in both tiers. */
+export interface DeterminedFact {
+  kind: string;
+  schemaVersion: string;
+  methodologyVersion: string;
+  unitCode: string | null;
+  triggered: boolean;
+  thresholdBp: number | null;
+  damagePercentBp: number;
+  assessedAt: string | null;
+  determinedAt: string | null;
+  canonicalHash: string | null;
+  signerAddress: string | null;
+  notary: DeterminationNotary | null;
+  evidence: {
+    available: boolean;
+    href: string;
+    /** False on a legacy EVM-only record: it exports, but cannot be independently re-verified. */
+    verifiable: boolean;
+  };
+}
+
+/**
+ * FACT 2, Tier 1 — MicroCrop deliberately did not settle. `status` is `NOT_SETTLED_BY_MICROCROP`
+ * when the trigger fired and `NO_PAYOUT_DUE` when it did not; both are correct outcomes, neither
+ * is an error. There is NO `onChain` block: a chain reference under a Tier 1 settlement heading
+ * would assert something false.
+ */
+export type Tier1SettlementStatus = 'NOT_SETTLED_BY_MICROCROP' | 'NO_PAYOUT_DUE';
+
+/** FACT 2, Tier 2 — MicroCrop's own settlement lifecycle, derived from the determination. */
+export type Tier2SettlementStatus =
+  | 'SETTLEMENT_PENDING'
+  | 'SETTLEMENT_IN_PROGRESS'
+  | 'SETTLEMENT_SUBMITTED_ON_CHAIN'
+  | 'SETTLEMENT_BLOCKED_UNDERFUNDED'
+  | 'SETTLEMENT_FAILED'
+  | 'NOT_SETTLED_BY_MICROCROP';
+
+export type SettlementFactStatus = Tier1SettlementStatus | Tier2SettlementStatus;
+
+/**
+ * Served when the derived amount disagrees with the amount inside the SIGNED canonical
+ * determination that ships in the evidence package. The backend serves the derived figure and
+ * says so; a partner that can see the divergence can stop and reconcile rather than pay the
+ * wrong farmer the wrong amount. Rare, and must be rendered loudly when present.
+ */
+export interface AmountOwedDiscrepancy {
+  derivedAmountMinor: string;
+  signedAmountMinor: string;
+  currency: string;
+  servedFigure: string;
+  note: string;
+}
+
+export interface SettlementFact {
+  mode: ServiceTier | null;
+  settledByMicrocrop: boolean;
+  status: SettlementFactStatus;
+  /** Tier 1 only: the plain-English statement of why we did not settle. Render verbatim. */
+  reason: string | null;
+  /** Null when the policy's currency has no registered minor-unit exponent — never guessed. */
+  amountOwed: MoneyMinor | null;
+  amountOwedUnavailableReason?: string;
+  amountOwedDiscrepancy?: AmountOwedDiscrepancy;
+  /** Tier 2 only. */
+  failureReason?: string | null;
+  /** Tier 2 only — absent entirely under Tier 1, not nulled. */
+  onChain?: {
+    chainId: number | null;
+    verifyingContract: string | null;
+    submittedTxHash: string | null;
+    blockNumber: string | null;
+    payoutAmountUsdc: string | null;
+  };
+}
+
+/** Prisma `PartnerSettlementOutcome`. */
+export type PartnerSettlementOutcome = 'SETTLED_FULL' | 'SETTLED_PARTIAL' | 'DECLINED';
+
+/** Prisma `PartnerSettlementMethod`. */
+export type PartnerSettlementMethod =
+  | 'MOBILE_MONEY'
+  | 'BANK_TRANSFER'
+  | 'CASH'
+  | 'ACCOUNT_CREDIT'
+  | 'IN_KIND'
+  | 'OTHER';
+
+/**
+ * The status of FACT 3. A REPORTING state, never a funding state:
+ *   NOT_REPORTED             we are waiting and the due date has not passed
+ *   OVERDUE                  the reporting window closed with no report — it does NOT mean
+ *                            MicroCrop owes anything
+ *   REPORTED                 the partner has attested; still unverified
+ *   NOT_APPLICABLE           Tier 2 — MicroCrop settled it, there is nothing to attest
+ */
+export type PartnerReportStatus = 'NOT_REPORTED' | 'OVERDUE' | 'REPORTED' | 'NOT_APPLICABLE';
+
+/**
+ * One stored attestation. A report is NEVER edited — a correction is a new row naming the one
+ * it supersedes, so the chain IS the audit trail and superseded rows stay visible.
+ *
+ * `verificationStatus` is a ONE-VALUED enum on the backend. There is no code path anywhere that
+ * can express "MicroCrop verified this", so the UI must never offer a control that implies one.
+ */
+export interface PartnerSettlementReport {
+  id: string;
+  determinationId: string;
+  policyId: string;
+  /** The idempotency key, with the determination id. The partner's own M-Pesa/bank reference. */
+  partnerReference: string;
+  outcome: PartnerSettlementOutcome;
+  method: PartnerSettlementMethod;
+  settledAmountMinor: string;
+  /** Human string, or null when the currency has no registered exponent. */
+  settledAmount: string | null;
+  settlementCurrency: string;
+  settledAt: string | null;
+  shortfallReason: string | null;
+  declineReason: string | null;
+  attestingOfficer: { name: string; title: string; email: string | null };
+  evidenceRef: string | null;
+  evidenceHash: string | null;
+  notes: string | null;
+  reportedVia: string;
+  reportedAt: string | null;
+  verificationStatus: 'UNVERIFIED';
+  attestedByPartner: true;
+  verifiedByMicrocrop: false;
+  supersedesReportId: string | null;
+  supersededAt: string | null;
+  supersededByReportId: string | null;
+}
+
+/** FACT 3 — what the partner says it did. Never merged into `settlement`. */
+export interface PartnerReportFact {
+  status: PartnerReportStatus;
+  attestedByPartner: boolean;
+  /** Hardcoded false on the backend, not a column. Never render this as a MicroCrop fact. */
+  verifiedByMicrocrop: false;
+  /** False below the trigger: nothing is owed, so no report is expected. */
+  reportRequired: boolean;
+  dueAt: string | null;
+  overdue: boolean;
+  reportedAt: string | null;
+  reference: string | null;
+  amount: { amountMinor: string; amount: string | null; currency: string } | null;
+  outcome?: PartnerSettlementOutcome;
+  method?: PartnerSettlementMethod;
+  /** The current (newest un-superseded) attestation. */
+  report: PartnerSettlementReport | null;
+  /** Newest first, INCLUDING superseded rows — the correction chain is the audit trail. */
+  history: PartnerSettlementReport[];
+  /** The unverified-attestation disclaimer. Render it verbatim; do not paraphrase. */
+  note: string;
+}
+
+/** The org-scoped determination, as returned by GET /determinations and /determinations/:id. */
+export interface PartnerDetermination {
+  id: string;
+  policy: {
+    id: string;
+    policyNumber: string | null;
+    sumInsured: DecimalString | null;
+    currency: string | null;
+    coverageType: CoverageType | null;
+    settlementMode: ServiceTier | null;
+  } | null;
+  determined: DeterminedFact;
+  settlement: SettlementFact;
+  partnerReport: PartnerReportFact;
+}
+
+/** GET /determinations/:id/evidence — the independently verifiable package. */
+export interface EvidencePackage {
+  packageVersion: string;
+  exportedAt: string | null;
+  determination: {
+    id: string;
+    kind: string;
+    methodologyVersion: string;
+    status: DeterminationStatus;
+    createdAt: string | null;
+  };
+  policy: {
+    policyNumber: string | null;
+    organizationName: string | null;
+    coverageType: string | null;
+    sumInsured: string | null;
+    currency: string | null;
+    durationDays: number | null;
+  } | null;
+  provenance: unknown;
+  canonical: {
+    schemaVersion: string | null;
+    body: unknown;
+    hash: string | null;
+    signer: string | null;
+    signature: string | null;
+  } | null;
+  notary: unknown;
+  verification: {
+    available?: boolean;
+    reason?: string;
+    method?: string;
+    reproducer?: string;
+    [key: string]: unknown;
+  };
+}
+
+/** Request body for POST /determinations/:determinationId/settlement-report. */
+export interface SettlementReportInput {
+  partnerReference: string;
+  outcome: PartnerSettlementOutcome;
+  method: PartnerSettlementMethod;
+  /** Minor units of `settlementCurrency`, canonical decimal STRING. Never a number. */
+  settledAmountMinor: string;
+  settlementCurrency: string;
+  settledAt: string;
+  attestingOfficerName: string;
+  attestingOfficerTitle: string;
+  attestingOfficerEmail?: string;
+  shortfallReason?: string;
+  declineReason?: string;
+  evidenceRef?: string;
+  evidenceHash?: string;
+  notes?: string;
+  supersedesReportId?: string;
+}
+
+/** 201 on a first recording; 200 with `replayed: true` on a replay of the same key. */
+export interface SettlementReportResult {
+  replayed: boolean;
+  determinationId: string;
+  policyId: string | null;
+  settlementMode: ServiceTier | null;
+  settledByMicrocrop: false;
+  verifiedByMicrocrop: false;
+  partnerSettlementStatus: string;
+  report: PartnerSettlementReport;
+  note: string;
+}
+
+/** GET /determinations/:determinationId/settlement-report — the whole correction chain. */
+export interface SettlementReportsResponse {
+  determinationId: string;
+  policyId: string | null;
+  settlementMode: ServiceTier | null;
+  partnerSettlementStatus: string | null;
+  dueAt: string | null;
+  verifiedByMicrocrop: false;
+  current: PartnerSettlementReport | null;
+  reports: PartnerSettlementReport[];
+  note: string;
 }
 
 // Forage-failure alert (livestock/IBLI). Shape matches
