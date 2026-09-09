@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse, PartnerDetermination, DeterminationStatus, EvidencePackage, SettlementReportInput, SettlementReportResult, SettlementReportsResponse } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -945,6 +945,80 @@ class ApiClient {
     return this.request<{ matched: number; unmatched: number; total: number }>(`/payouts/reconciliation${query ? `?${query}` : ''}`);
   }
 
+  // ============================================
+  // DETERMINATIONS (the Tier 1 product)
+  //
+  // Org-scoped, permission `determination:read`. NOT tier-gated, deliberately: both tiers
+  // determine, and the tier only decides who SETTLES. Gating these reads on the settlement tier
+  // would hide the Determination plan's one deliverable from the partners who bought it.
+  //
+  // The security boundary is a relation filter inside the server's WHERE clause, so another
+  // org's determination id returns 404 — identical to an unknown id, on purpose.
+  // ============================================
+
+  async getDeterminations(params?: {
+    page?: number;
+    limit?: number;
+    status?: DeterminationStatus;
+    kind?: string;
+    policyId?: string;
+  }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<PartnerDetermination[]>(
+      `/determinations${query ? `?${query}` : ''}`
+    );
+  }
+
+  async getDetermination(determinationId: string) {
+    return this.request<PartnerDetermination>(
+      `/determinations/${encodeURIComponent(determinationId)}`
+    );
+  }
+
+  /**
+   * The evidence package: the canonical signed body, its hash, the signer, the provenance
+   * citation and the notary anchor. This is the artifact a Tier 1 partner actually bought, and
+   * it is independently verifiable without MicroCrop — so it is fetched as JSON and saved
+   * byte-for-byte, never rebuilt from rendered fields.
+   */
+  async getDeterminationEvidence(determinationId: string) {
+    return this.request<EvidencePackage>(
+      `/determinations/${encodeURIComponent(determinationId)}/evidence`
+    );
+  }
+
+  /**
+   * Record what YOUR organization paid the farmer off-platform.
+   *
+   * Writes no Payout, no Transaction and no policy status — MicroCrop moves no money here and
+   * stores the statement labelled partner-attested and unverified.
+   *
+   * IDEMPOTENT on (determinationId, `partnerReference`). `partnerReference` is a BODY field and
+   * is the partner's own settlement reference (M-Pesa code, bank reference), NOT a per-attempt
+   * uuid: re-posting the same reference returns the stored row with `replayed: true` instead of
+   * recording a second attestation that the same money moved once. A caller that generated a
+   * fresh key per retry would defeat the guarantee, so never synthesise this value.
+   *
+   * `settledAmountMinor` must be a canonical decimal STRING of minor units — see
+   * `@/lib/money-minor`. Sending a number, or any USDC-named field, is a 400 by design.
+   */
+  async recordSettlementReport(determinationId: string, body: SettlementReportInput) {
+    return this.request<SettlementReportResult>(
+      `/determinations/${encodeURIComponent(determinationId)}/settlement-report`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  /** The full correction chain, newest first, superseded rows included. */
+  async getSettlementReports(determinationId: string) {
+    return this.request<SettlementReportsResponse>(
+      `/determinations/${encodeURIComponent(determinationId)}/settlement-report`
+    );
+  }
 
   // ============================================
   // STAFF MANAGEMENT

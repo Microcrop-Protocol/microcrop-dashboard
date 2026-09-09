@@ -42,7 +42,7 @@ const CONTRACT_RAW = readFileSync(CONTRACT_PATH);
  * repos is the cheapest available proof that the two copies of the contract have not
  * drifted — if the hashes differ in review, someone edited one copy only.
  */
-const CONTRACT_SHA256 = 'fd54140706c08553580b62329ffd287aaac1db204ce3bfce95603c5cad808094';
+const CONTRACT_SHA256 = '568bbf91b5e1018a7b96d18c8c71602e1c73749399e69b058d10f92a782e2e12';
 
 interface EndpointContract {
   request: {

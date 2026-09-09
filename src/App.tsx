@@ -62,6 +62,8 @@ const PoliciesPage = lazyRetry(() => import("@/pages/org/PoliciesPage"));
 const PolicyDetailPage = lazyRetry(() => import("@/pages/org/PolicyDetailPage"));
 const NewPolicyPage = lazyRetry(() => import("@/pages/org/NewPolicyPage"));
 const PayoutsPage = lazyRetry(() => import("@/pages/org/PayoutsPage"));
+const DeterminationsPage = lazyRetry(() => import("@/pages/org/DeterminationsPage"));
+const DeterminationDetailPage = lazyRetry(() => import("@/pages/org/DeterminationDetailPage"));
 const PlotsPage = lazyRetry(() => import("@/pages/org/PlotsPage"));
 const PlotWeatherPage = lazyRetry(() => import("@/pages/org/PlotWeatherPage"));
 const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
@@ -220,6 +222,12 @@ const App = () => (
                 <Route path="policies/new" element={<ProtectedRoute requiredCan="writePolicies"><NewPolicyPage /></ProtectedRoute>} />
                 <Route path="policies/:policyId" element={<ProtectedRoute requiredPermission="policy:read"><PolicyDetailPage /></ProtectedRoute>} />
                 <Route path="payouts" element={<ProtectedRoute requiredPermission="payout:read"><PayoutsPage /></ProtectedRoute>} />
+                {/* Gated on `determination:read`, NOT on the service tier: both tiers determine,
+                    and tier-gating the read would hide the Determination plan's one deliverable
+                    from the partners who bought it. The write inside (settlement:report) is
+                    gated separately, in the page. */}
+                <Route path="determinations" element={<ProtectedRoute requiredPermission="determination:read"><DeterminationsPage /></ProtectedRoute>} />
+                <Route path="determinations/:determinationId" element={<ProtectedRoute requiredPermission="determination:read"><DeterminationDetailPage /></ProtectedRoute>} />
                 <Route path="plots" element={<ProtectedRoute requiredPermission="plot:read"><PlotsPage /></ProtectedRoute>} />
                 <Route path="plots/:plotId/weather" element={<ProtectedRoute requiredPermission="satellite:read"><PlotWeatherPage /></ProtectedRoute>} />
                 <Route path="damage" element={<ProtectedRoute requiredPermission="damage:read"><DamagePage /></ProtectedRoute>} />

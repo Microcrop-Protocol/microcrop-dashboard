@@ -7,6 +7,8 @@
 
 import { apiClient } from './client';
 import type {
+  DeterminationStatus,
+  SettlementReportInput,
   OrgRole,
   User,
   Organization,
@@ -1019,5 +1021,44 @@ export const api = {
 
   getPlotWeatherCoverage: async (plotId: string, radiusKm?: number) => {
     return apiClient.plotWeatherCoverage(plotId, radiusKm);
+  },
+
+  // ============================================
+  // DETERMINATIONS (the Tier 1 product)
+  //
+  // The facade half of the determination surface. These delegate to apiClient exactly like
+  // every other entry here; without them the components compile against a facade that has no
+  // such methods, which is what CI caught.
+  //
+  // NOT tier-gated on the client: both tiers determine, and the tier only decides who SETTLES.
+  // Gating these reads behind the settlement tier would hide the Determination plan's one
+  // deliverable from the partners who bought it. The real boundary is server-side — another
+  // org's determination id returns 404, identical to an unknown id.
+  // ============================================
+
+  getDeterminations: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: DeterminationStatus;
+    policyId?: string;
+  }) => {
+    return apiClient.getDeterminations(params);
+  },
+
+  getDetermination: async (determinationId: string) => {
+    return apiClient.getDetermination(determinationId);
+  },
+
+  getDeterminationEvidence: async (determinationId: string) => {
+    return apiClient.getDeterminationEvidence(determinationId);
+  },
+
+  /** IDEMPOTENT on (determinationId, partnerReference) — a replay returns the existing row. */
+  recordSettlementReport: async (determinationId: string, body: SettlementReportInput) => {
+    return apiClient.recordSettlementReport(determinationId, body);
+  },
+
+  getSettlementReports: async (determinationId: string) => {
+    return apiClient.getSettlementReports(determinationId);
   },
 };
