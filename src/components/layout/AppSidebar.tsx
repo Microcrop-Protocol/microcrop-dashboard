@@ -7,6 +7,8 @@ import type { PermissionCan } from '@/lib/permissions';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  ExternalLink,
+  BookOpen,
   LayoutDashboard,
   Building2,
   BarChart3,
@@ -31,6 +33,7 @@ import {
   Code2,
   Sprout,
 } from "lucide-react";
+import { docsUrl } from "@/lib/docs";
 import {
   Collapsible,
   CollapsibleContent,
@@ -47,6 +50,12 @@ interface NavItem {
   permission?: string;
   /** A derived capability flag required to see this item. */
   can?: keyof PermissionCan;
+  /**
+   * Renders a plain anchor to another origin instead of a react-router Link, and opens it in a
+   * new tab. `href` must be an absolute URL. An item that is external is only ever added to the
+   * list when its destination is actually configured — see docsUrl().
+   */
+  external?: boolean;
 }
 
 const platformNavItems: NavItem[] = [
@@ -93,6 +102,21 @@ const orgNavItems: NavItem[] = [
   { title: "Activity", href: "/org/activity", icon: Activity, permission: "dashboard:read" },
 ];
 
+/**
+ * The outbound docs link, appended to a nav list only when a docs site is actually configured.
+ *
+ * No permission gate: every org role benefits from the integration guides, and the docs are a
+ * public site — gating them would only hide them from the engineer most likely to need them.
+ *
+ * Returns the list unchanged when VITE_DOCS_URL is unset, so an undeployed docs site produces
+ * NO nav item at all rather than one that leads nowhere.
+ */
+function withDocsLink(items: NavItem[]): NavItem[] {
+  const url = docsUrl();
+  if (!url) return items;
+  return [...items, { title: "API docs", href: url, icon: BookOpen, external: true }];
+}
+
 interface AppSidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -106,12 +130,16 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
 
   // Show a nav item only if the user's permissions clear its gate. Enforcement is
   // server-side; this hides what a role can't use so it isn't offered a dead link.
-  const navItems = (isPlatformAdmin() ? platformNavItems : orgNavItems).filter((item) => {
-    if (item.adminOnly) return perms.isAdmin;
-    if (item.can) return perms.can[item.can];
-    if (item.permission) return perms.has(item.permission);
-    return true;
-  });
+  // The docs link is appended AFTER permission filtering, not before: it carries no permission
+  // and must not be dropped by a rule meant for in-app routes.
+  const navItems = withDocsLink(
+    (isPlatformAdmin() ? platformNavItems : orgNavItems).filter((item) => {
+      if (item.adminOnly) return perms.isAdmin;
+      if (item.can) return perms.can[item.can];
+      if (item.permission) return perms.has(item.permission);
+      return true;
+    })
+  );
 
   const toggleGroup = (title: string) => {
     setOpenGroups((prev) =>
@@ -219,6 +247,33 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                       ))}
                     </CollapsibleContent>
                   </Collapsible>
+                );
+              }
+
+              // Another origin (the docs site). A react-router Link would resolve it against
+              // the dashboard and 404; this must be a real anchor. noopener/noreferrer because
+              // target=_blank otherwise hands the opened page a reference to this window.
+              if (item.external) {
+                return (
+                  <Button
+                    key={item.href}
+                    variant="ghost"
+                    asChild
+                    className="w-full justify-start text-sidebar-foreground transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  >
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={onClose}
+                      className="flex items-center gap-3"
+                    >
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                      <span className="flex-1 text-left">{item.title}</span>
+                      <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                      <span className="sr-only">(opens in a new tab)</span>
+                    </a>
+                  </Button>
                 );
               }
 
