@@ -24,6 +24,7 @@
 import { formatMoneyMinor } from '@/lib/money-minor';
 import type { StatusBadgeProps } from '@/components/ui/status-badge';
 import type {
+  MoneyMinor,
   DeterminationStatus,
   PartnerReportStatus,
   PartnerSettlementMethod,
