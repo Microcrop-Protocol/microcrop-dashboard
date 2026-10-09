@@ -13,20 +13,12 @@ import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { Loader2, Smartphone } from "lucide-react";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
+import { CapabilityGate } from "@/components/capability/CapabilityGate";
+import { useCapability } from "@/hooks/useCapabilities";
+import { CAPABILITY } from "@/lib/capability";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import { formatMoney as formatMarketMoney, withCurrencySuffix } from "@/lib/market";
 import type { Farmer, Plot, CoverageType, Policy, PaymentInstructions } from "@/types";
-
-const CURRENCY = "KES";
-
-/**
- * Render a money field without assuming the API sent it, and without assuming it
- * arrived as a number — Prisma Decimals serialize to strings on the wire.
- */
-function formatMoney(value: number | string | null | undefined): string {
-  const amount = Number(value);
-  return value != null && Number.isFinite(amount)
-    ? `${CURRENCY} ${amount.toLocaleString()}`
-    : `${CURRENCY} —`;
-}
 
 const STEP_TITLES = ["Configure Policy", "Review & Create", "Collect Premium"];
 
@@ -35,6 +27,21 @@ export default function NewPolicyPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const orgId = user?.organizationId || "";
+  const cropUnderwriting = useCapability(CAPABILITY.CROP_UNDERWRITING);
+  // The organization's currency and the local name for the mobile-money prompt. `market` is null
+  // while it resolves or if the country is unrecognised, and formatMoney then renders the number
+  // with NO currency rather than asserting KES over a Ghanaian partner's premiums.
+  const { market, mobileMoneyLabel } = useOrgMarket();
+
+  /**
+   * Render a money field without assuming the API sent it, and without assuming it arrived as a
+   * number — Prisma Decimals serialize to strings on the wire.
+   */
+  const formatMoney = (value: number | string | null | undefined): string => {
+    const amount = Number(value);
+    if (value == null || !Number.isFinite(amount)) return market ? `${market.currency} —` : "—";
+    return formatMarketMoney(amount, market);
+  };
 
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -104,7 +111,7 @@ export default function NewPolicyPage() {
   const total = quote?.totalCost ?? null;
 
   // `/policies/purchase` creates the policy PENDING and unpaid — it does NOT
-  // activate it. Activation happens only after the farmer confirms the M-Pesa
+  // activate it. Activation happens only after the farmer confirms the mobile-money
   // prompt and the payment webhook lands, so this page must never report
   // activation here; it reports the real status and then collects the premium.
   const purchaseMutation = useMutation({
@@ -159,7 +166,10 @@ export default function NewPolicyPage() {
       if (result.alreadyPending) {
         notifySuccess("Payment prompt already pending", result.instructions);
       } else {
-        notifySuccess("Payment request sent", "Check the farmer's phone for the M-Pesa prompt.");
+        notifySuccess(
+          "Payment request sent",
+          `Check the farmer's phone for the ${mobileMoneyLabel} prompt.`,
+        );
       }
     },
     onError: (error) => {
@@ -178,6 +188,21 @@ export default function NewPolicyPage() {
 
       <KybGatingBanner feature="Creating policies" />
 
+      {/*
+        CROP_UNDERWRITING gates quote AND purchase inside policy.service, so without it every
+        control on this page leads to a 403 — the quote request included. The whole flow is
+        replaced rather than the Create button disabled: a partner stepping through three screens
+        to be refused at the end is strictly worse than being told up front.
+
+        It is deliberately ONE gate for the three steps. Steps 2 and 3 are only reachable through
+        step 1, and re-gating each would add two more places for the loading branch to be
+        forgotten.
+      */}
+      <CapabilityGate
+        capability={CAPABILITY.CROP_UNDERWRITING}
+        state={cropUnderwriting.state}
+        onRetry={cropUnderwriting.refetch}
+      >
       {step === 1 ? (
         <Card>
           <CardHeader><CardTitle>Policy Details</CardTitle></CardHeader>
@@ -216,7 +241,7 @@ export default function NewPolicyPage() {
             </div>
 
             <div>
-              <Label>Sum Insured (KES)</Label>
+              <Label>{withCurrencySuffix("Sum Insured", market)}</Label>
               <Input
                 type="number"
                 value={formData.sumInsured}
@@ -301,7 +326,7 @@ export default function NewPolicyPage() {
               <p>
                 Creating the policy does <strong>not</strong> activate it. The policy is
                 recorded as <strong>pending</strong> until the premium is paid. On the next
-                step you can send the M-Pesa prompt to
+                step you can send the {mobileMoneyLabel} prompt to
                 {selectedFarmer ? ` ${selectedFarmer.firstName} ${selectedFarmer.lastName}` : " the farmer"}
                 {selectedFarmer?.phoneNumber ? ` (${selectedFarmer.phoneNumber})` : ""}; the policy
                 activates only once that payment is confirmed.
@@ -342,7 +367,7 @@ export default function NewPolicyPage() {
               <div className="space-y-3">
                 <div className="rounded-lg border p-4 text-sm text-muted-foreground">
                   <p>
-                    An M-Pesa prompt was sent to <strong>{paymentPhone}</strong>. The policy stays
+                    A {mobileMoneyLabel} prompt was sent to <strong>{paymentPhone}</strong>. The policy stays
                     <strong> pending</strong> until the farmer approves it on their phone — it is not
                     active yet. Refresh the policy from the policies list to see the confirmed status.
                   </p>
@@ -365,11 +390,11 @@ export default function NewPolicyPage() {
             ) : (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="payment-phone">Farmer's M-Pesa number</Label>
+                  <Label htmlFor="payment-phone">Farmer&apos;s {mobileMoneyLabel} number</Label>
                   <Input
                     id="payment-phone"
                     type="tel"
-                    placeholder="+254700000000"
+                    placeholder={market?.phoneExample ?? ""}
                     value={paymentPhone}
                     onChange={(e) => setPaymentPhone(e.target.value)}
                   />
@@ -391,7 +416,7 @@ export default function NewPolicyPage() {
                     {paymentMutation.isPending
                       ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       : <Smartphone className="mr-2 h-4 w-4" />}
-                    Send M-Pesa request
+                    Send {mobileMoneyLabel} request
                   </Button>
                   <Button variant="outline" onClick={() => navigate("/org/policies")}>
                     Collect later
@@ -402,6 +427,7 @@ export default function NewPolicyPage() {
           </CardContent>
         </Card>
       )}
+      </CapabilityGate>
     </div>
   );
 }

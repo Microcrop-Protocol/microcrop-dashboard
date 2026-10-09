@@ -3,13 +3,19 @@ import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { Wallet, DollarSign, TrendingDown, Percent } from "lucide-react";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import { formatMoneyCompact } from "@/lib/market";
 
 export default function FinancialsPage() {
   const { data } = useQuery({
     queryKey: ["financials"],
     queryFn: () => api.getFinancialSummary(),
   });
-  const formatCurrency = (v: number) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(v);
+  // This organization's own currency. `market` is null while the org resolves or if its country
+  // is unrecognised, and the market formatters then render the number with NO currency token
+  // rather than asserting Kenyan shillings — see lib/market.
+  const { market } = useOrgMarket();
+  const formatCurrency = (v: number) => formatMoneyCompact(v, market);
 
   // Drive the chart from a real timeseries if the financials response includes
   // one; otherwise pass an empty array so AreaChart shows its "No data

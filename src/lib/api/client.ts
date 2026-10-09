@@ -6,7 +6,7 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse, PartnerDetermination, DeterminationStatus, EvidencePackage, SettlementReportInput, SettlementReportResult, SettlementReportsResponse } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse, PartnerDetermination, DeterminationStatus, EvidencePackage, SettlementReportInput, SettlementReportResult, SettlementReportsResponse, OrgCapability, OrgCapabilityStatus, OrgCapabilitiesResponse, SetOrgCapabilityResult } from '@/types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -275,11 +275,31 @@ class ApiClient {
     return result;
   }
 
-  // Self-service organization signup (creates org + first ORG_ADMIN, immediate login).
+  /**
+   * Self-service organization signup (creates org + first ORG_ADMIN, immediate login).
+   *
+   * THE MINIMAL SET IS SIX FIELDS, matching registerOrganizationSchema server-side:
+   * organizationName, countryCode, firstName, lastName, email, password.
+   *
+   * `registrationNumber` and `type` are NO LONGER SENT. They are KYB data — the registration
+   * number is literally the input to AML screening — and they are collected at KYB submission
+   * instead, where the certificate that proves them is uploaded. The backend still ACCEPTS them
+   * (optional) for backward compatibility, and `kyb.service.submitOrgKyb` refuses a submission
+   * while the registration number is still null, so nothing is lost by deferring them.
+   *
+   * `countryCode` IS now sent, and that is the point of this change. It was never sent before,
+   * so the backend's `.default('KE')` made every self-signup organization Kenyan: a Ghanaian
+   * partner got KES pricing, Kenyan sum-insured bounds and the Kenya/IRA KYB checklist with no
+   * way to correct it. It picks the currency, the premium bounds, the payment provider and the
+   * KYB required-document set, so it is the one signup field with irreversible consequence.
+   *
+   * `country` (the free-text column) is deliberately NOT a parameter: the backend declares it
+   * `Joi.forbidden()` and derives it from `countryCode`, because a row whose country name and
+   * country code disagree is a row every market gate reads differently.
+   */
   async registerOrganization(data: {
     organizationName: string;
-    registrationNumber: string;
-    type: string;
+    countryCode: string;
     county?: string;
     firstName: string;
     lastName: string;
@@ -357,10 +377,21 @@ class ApiClient {
   // PLATFORM ADMIN - ORGANIZATIONS
   // ============================================
 
+  /**
+   * Platform-admin organization creation.
+   *
+   * `countryCode` is the market key. It was not a parameter here AND not in the backend's
+   * `registerOrgSchema`, which runs with stripUnknown — so there was no way for a platform admin
+   * to create an organization in any market but Kenya, and nothing reported the omission.
+   *
+   * `country` (the free-text column) is deliberately NOT a parameter: the backend forbids it and
+   * derives it from `countryCode`, so a row's country name and country code cannot disagree.
+   */
   async platformRegisterOrganization(data: {
     name: string;
     registrationNumber?: string;
     type: string;
+    countryCode: string;
     brandName?: string;
     contactPerson: string;
     contactEmail: string;
@@ -548,6 +579,45 @@ class ApiClient {
 
   async getMyOrganizationStats() {
     return this.request<OrganizationStats>('/organizations/me/stats');
+  }
+
+  /**
+   * The organization's OWN effective capability map — every capability the backend knows, with
+   * the effective answer computed by the same predicate the server's gates use.
+   *
+   * Reachable by every org role, deliberately: a Viewer who could not see which surfaces its
+   * organization has would be shown the dead controls this read exists to remove. The response
+   * carries no operator reason and no admin identity — that is the platform-admin read below.
+   */
+  async getMyCapabilities() {
+    return this.request<{ capabilities: OrgCapabilityStatus[] }>('/organizations/me/capabilities');
+  }
+
+  // ---- Platform-admin capability toggles -------------------------------------------
+  // Unlike the org-facing read above, these carry the operator reason, the admin who set it and
+  // the append-only change history.
+
+  async platformGetOrgCapabilities(orgId: string) {
+    return this.request<OrgCapabilitiesResponse>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/capabilities`,
+    );
+  }
+
+  /**
+   * Flip one capability. The reason is MANDATORY and must be at least 10 characters — the
+   * backend refuses a shorter one, in the validator and again in the service, because the audit
+   * row is only useful if it says why.
+   */
+  async platformSetOrgCapability(
+    orgId: string,
+    capability: OrgCapability,
+    enabled: boolean,
+    reason: string,
+  ) {
+    return this.request<SetOrgCapabilityResult>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/capabilities/${encodeURIComponent(capability)}`,
+      { method: 'PUT', body: JSON.stringify({ enabled, reason }) },
+    );
   }
 
   async updateOrganizationSettings(settings: {

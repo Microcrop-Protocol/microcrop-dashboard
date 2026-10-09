@@ -8,6 +8,7 @@
 import { apiClient } from './client';
 import type {
   DeterminationStatus,
+  OrgCapability,
   SettlementReportInput,
   OrgRole,
   User,
@@ -86,8 +87,12 @@ export const api = {
 
   registerOrganization: async (data: {
     organizationName: string;
-    registrationNumber: string;
-    type: string;
+    /**
+     * ISO 3166-1 alpha-2. Picks the currency, the premium bounds, the payment provider and the
+     * KYB required-document set — see apiClient.registerOrganization for why it is now sent and
+     * why registrationNumber/type are not.
+     */
+    countryCode: string;
     county?: string;
     firstName: string;
     lastName: string;
@@ -137,6 +142,20 @@ export const api = {
     return apiClient.reviewOrgKyb(orgId, decision, notes);
   },
 
+  // ---- Platform capability toggles ----
+  platformGetOrgCapabilities: async (orgId: string) => {
+    return apiClient.platformGetOrgCapabilities(orgId);
+  },
+
+  platformSetOrgCapability: async (
+    orgId: string,
+    capability: OrgCapability,
+    enabled: boolean,
+    reason: string,
+  ) => {
+    return apiClient.platformSetOrgCapability(orgId, capability, enabled, reason);
+  },
+
   refreshToken: async (refreshToken: string) => {
     return apiClient.refreshToken(refreshToken);
   },
@@ -182,6 +201,8 @@ export const api = {
     name: string;
     registrationNumber: string;
     type: OrganizationType;
+    /** ISO 3166-1 alpha-2. The market key — see apiClient.platformRegisterOrganization. */
+    countryCode: string;
     contactFirstName: string;
     contactLastName: string;
     contactEmail: string;
@@ -194,6 +215,7 @@ export const api = {
       name: data.name,
       registrationNumber: data.registrationNumber,
       type: data.type,
+      countryCode: data.countryCode,
       contactPerson: `${data.contactFirstName} ${data.contactLastName}`,
       contactEmail: data.contactEmail,
       contactPhone: data.contactPhone,
@@ -584,6 +606,11 @@ export const api = {
 
   getMyOrgStats: async () => {
     return apiClient.getMyOrganizationStats();
+  },
+
+  /** The org's own effective capability map. See lib/capability.ts for how it is read. */
+  getMyCapabilities: async () => {
+    return apiClient.getMyCapabilities();
   },
 
   updateOrgSettings: async (settings: {

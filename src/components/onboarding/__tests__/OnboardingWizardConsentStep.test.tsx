@@ -71,15 +71,27 @@ function renderWizard() {
   );
 }
 
+/**
+ * Fields are found by LABEL, not by placeholder.
+ *
+ * The phone placeholder and the two administrative-division labels are now derived from the
+ * organization's market, so a test that searched for the literal `+254712345678` was asserting
+ * a hardcoded Kenyan placeholder — the exact thing the market work removed. In this test the
+ * market never resolves (the api is mocked and no organization is fetched), so the phone
+ * placeholder is deliberately EMPTY rather than Kenyan, and the division labels fall back to the
+ * default market's wording.
+ *
+ * Labels are the stable handle: they are what a user reads and what a screen reader announces.
+ */
 async function registerAFarmer() {
   fireEvent.change(screen.getByPlaceholderText('Jane'), { target: { value: 'Wanjiku' } });
   fireEvent.change(screen.getByPlaceholderText('Mwangi'), { target: { value: 'Mwangi' } });
-  fireEvent.change(screen.getByPlaceholderText('+254712345678'), {
+  fireEvent.change(screen.getByLabelText(/phone number/i), {
     target: { value: '+254700000000' },
   });
   fireEvent.change(screen.getByPlaceholderText('30000001'), { target: { value: '12345678' } });
-  fireEvent.change(screen.getByPlaceholderText('Kiambu'), { target: { value: 'Nakuru' } });
-  fireEvent.change(screen.getByPlaceholderText('Kikuyu'), { target: { value: 'Njoro' } });
+  fireEvent.change(screen.getByLabelText(/^county/i), { target: { value: 'Nakuru' } });
+  fireEvent.change(screen.getByLabelText(/^sub-county/i), { target: { value: 'Njoro' } });
   fireEvent.click(screen.getByRole('button', { name: /register farmer/i }));
   await waitFor(() => expect(mocks.registerFarmer).toHaveBeenCalled());
 }

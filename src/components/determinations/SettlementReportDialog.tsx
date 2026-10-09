@@ -62,6 +62,7 @@ import {
   UnknownScaleError,
 } from '@/lib/money-minor';
 import { Loader2 } from 'lucide-react';
+import { useOrgMarket } from '@/hooks/useOrgMarket';
 import type {
   PartnerDetermination,
   PartnerSettlementMethod,
@@ -116,6 +117,9 @@ export function SettlementReportDialog({
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm);
+  // What to call the mobile-money reference in THIS market. Falls back to the neutral
+  // 'mobile money' rather than 'M-Pesa', which is a Safaricom product name.
+  const { mobileMoneyLabel } = useOrgMarket();
   const [error, setError] = useState<string | null>(null);
 
   const owed = determination.settlement.amountOwed;
@@ -299,9 +303,9 @@ export function SettlementReportDialog({
               autoComplete="off"
             />
             <p className="text-xs text-muted-foreground">
-              The reference from your own payment — the M-Pesa code, bank reference or receipt
-              number. Reporting the same reference again returns the record you already gave us
-              instead of recording the payment twice, so use the real one.
+              The reference from your own payment — the {mobileMoneyLabel} code, bank reference
+              or receipt number. Reporting the same reference again returns the record you
+              already gave us instead of recording the payment twice, so use the real one.
             </p>
           </div>
 

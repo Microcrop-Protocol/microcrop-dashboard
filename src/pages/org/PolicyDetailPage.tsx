@@ -10,11 +10,16 @@ import { formatDate } from "@/lib/utils";
 import { isSimulatedPayout, isSimulatedPolicy } from "@/lib/simulated";
 import { SimulatedBadge, SimulatedBanner } from "@/components/ui/simulated-badge";
 import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import { formatMoney } from "@/lib/market";
 
 export default function PolicyDetailPage() {
   const { policyId } = useParams();
   const { user } = useAuthStore();
   const orgId = user?.organizationId || "";
+  // This organization's own currency; null until it resolves, and formatMoney then renders the
+  // amount with no currency token rather than guessing at KES.
+  const { market } = useOrgMarket();
 
   const { data: policy, isLoading: policyLoading } = useQuery({
     queryKey: ["policy", policyId],
@@ -75,7 +80,7 @@ export default function PolicyDetailPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Sum Insured</p>
-            <p className="text-2xl font-bold">KES {policy.sumInsured != null ? Number(policy.sumInsured).toLocaleString() : 0}</p>
+            <p className="text-2xl font-bold">{formatMoney(policy.sumInsured ?? 0, market)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -119,7 +124,7 @@ export default function PolicyDetailPage() {
                 const determinationStatus = p.determination?.status ?? p.determinationStatus;
                 return (
                   <div key={p.id} className="flex items-center justify-between gap-2 border-b py-2 last:border-0">
-                    <span>KES {p.amount?.toLocaleString() ?? 0}</span>
+                    <span>{formatMoney(p.amount ?? 0, market)}</span>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {isSimulatedPayout(p) && <SimulatedBadge />}
                       {determinationStatus && <DeterminationStatusBadge status={determinationStatus} />}

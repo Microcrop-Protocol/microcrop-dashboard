@@ -697,9 +697,10 @@ describe('apiClient', () => {
       await apiClient.platformRegisterOrganization({
         name: 'Org',
         type: 'COOPERATIVE',
+        countryCode: 'GH',
         contactPerson: 'John',
         contactEmail: 'j@test.com',
-        contactPhone: '+254700000000',
+        contactPhone: '+233241234567',
       });
 
       const [, options] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -707,6 +708,10 @@ describe('apiClient', () => {
       const body = JSON.parse(options.body);
       expect(body.name).toBe('Org');
       expect(body.type).toBe('COOPERATIVE');
+      // The market key must actually reach the wire. The backend validates with stripUnknown,
+      // so a countryCode the client forgets to send is silently replaced by the Kenya default
+      // and the organization is created in the wrong market with no error anywhere.
+      expect(body.countryCode).toBe('GH');
     });
 
     it('platformDashboardOverview builds query string from params', async () => {

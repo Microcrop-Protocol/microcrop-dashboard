@@ -26,34 +26,44 @@ import type {
   Farmer, Plot, PolicyQuote, Policy, PaymentInstructions, GpsTrackResponse, CoverageType,
 } from '@/types';
 import {
-  farmerRegistrationSchema, plotCreationSchema, policyConfigSchema,
+  farmerRegistrationSchemaFor, plotCreationSchema, policyConfigSchema,
   CROP_TYPES,
   type FarmerRegistrationData, type PlotCreationData, type PolicyConfigData,
 } from '@/lib/validations/onboarding';
 import { BoundaryWalkStep } from './BoundaryWalkStep';
 import { BoundaryReviewMap } from './BoundaryReviewMap';
 import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
+import { useOrgMarket } from '@/hooks/useOrgMarket';
+import {
+  formatMoney as formatMarketMoney,
+  phoneHint,
+  withCurrencySuffix,
+  type Market,
+} from '@/lib/market';
 
 /**
- * Sums insured, premiums and fees in this wizard are LOCAL currency — what the
- * farmer is quoted and what M-Pesa collects. They are not USDC: the stablecoin
- * leg is settlement plumbing the field agent never sees. Kenya (KES) is the only
- * market this wizard is used in today, and the quote endpoint returns no currency
- * tag, so the label is fixed rather than guessed.
+ * Sums insured, premiums and fees in this wizard are LOCAL currency — what the farmer is quoted
+ * and what mobile money collects. They are not USDC: the stablecoin leg is settlement plumbing
+ * the field agent never sees.
+ *
+ * The currency COMES FROM THE ORGANIZATION'S MARKET. It used to be `const CURRENCY = 'KES'`,
+ * justified on the grounds that Kenya was the only market the wizard was used in and the quote
+ * endpoint returns no currency tag. The second half is still true — which is exactly why the
+ * label has to be derived from the organization rather than guessed: nothing in the response
+ * would contradict a wrong guess, so a Ghanaian field agent would be quoting GHS figures
+ * labelled KES with nothing anywhere to catch it.
+ *
+ * `makeFormatMoney` returns the renderer bound to a market. It keeps the original defensive
+ * shape: `undefined.toLocaleString()` throws, and a throw inside a step renderer is caught by
+ * the app-level ErrorBoundary, which unmounts the wizard and loses every step of state the field
+ * agent has collected. A dash is a far cheaper failure.
  */
-const CURRENCY = 'KES';
-
-/**
- * Render a money field without assuming the API sent it. `undefined.toLocaleString()`
- * throws, and a throw inside a step renderer is caught by the app-level
- * ErrorBoundary, which unmounts the wizard and loses every step of state the
- * field agent has collected. A dash is a far cheaper failure.
- */
-function formatMoney(value: number | string | null | undefined): string {
-  const amount = Number(value);
-  return value != null && Number.isFinite(amount)
-    ? `${CURRENCY} ${amount.toLocaleString()}`
-    : `${CURRENCY} —`;
+function makeFormatMoney(market: Market | null) {
+  return (value: number | string | null | undefined): string => {
+    const amount = Number(value);
+    if (value == null || !Number.isFinite(amount)) return market ? `${market.currency} —` : '—';
+    return formatMarketMoney(amount, market);
+  };
 }
 
 /**
@@ -124,12 +134,21 @@ export function OnboardingWizard() {
   const parsedAmountDue = Number(paymentInstructions?.amount ?? quote?.totalCost);
   const amountDue = Number.isFinite(parsedAmountDue) && parsedAmountDue > 0 ? parsedAmountDue : null;
 
+  // The organization's market: its currency, its phone format, what its administrative divisions
+  // are called, and what to call the mobile-money prompt.
+  const { market, level1Label, level2Label, mobileMoneyLabel } = useOrgMarket();
+  const formatMoney = makeFormatMoney(market);
+
   // ── Forms ──────────────────────────────────────────────
 
   const farmerForm = useForm<FarmerRegistrationData>({
-    resolver: zodResolver(farmerRegistrationSchema),
+    // Market-driven: the phone is validated against THIS organization's market and the two
+    // administrative-division messages use its own labels. See lib/validations/onboarding.
+    resolver: zodResolver(farmerRegistrationSchemaFor(market)),
     defaultValues: {
-      phoneNumber: '+254',
+      // Seeded from the market so a field agent is not handed a Kenyan dialling code to delete.
+      // Empty while the market resolves, rather than wrong.
+      phoneNumber: '',
       nationalId: '',
       firstName: '',
       lastName: '',
@@ -270,11 +289,17 @@ export function OnboardingWizard() {
       // Replay guard: the backend returned the EXISTING transaction and sent no
       // second STK prompt. Polling still applies — it is the same reference.
       if (simulated) {
-        notifySuccess('Test payment started', 'No M-Pesa prompt was sent and no money will be charged.');
+        notifySuccess(
+          'Test payment started',
+          `No ${mobileMoneyLabel} prompt was sent and no money will be charged.`,
+        );
       } else if (result.alreadyPending) {
         notifySuccess('Payment prompt already pending', result.instructions);
       } else {
-        notifySuccess('Payment request sent', "Check the farmer's phone for the M-Pesa prompt.");
+        notifySuccess(
+          'Payment request sent',
+          `Check the farmer's phone for the ${mobileMoneyLabel} prompt.`,
+        );
       }
     },
     onError: (error) => {
@@ -296,7 +321,10 @@ export function OnboardingWizard() {
       if (cancelled || attempts >= maxAttempts) {
         if (!cancelled && attempts >= maxAttempts) {
           setPaymentStatus('failed');
-          notifyError(null, "Payment confirmation timed out. Check the farmer's M-Pesa messages.");
+          notifyError(
+            null,
+            `Payment confirmation timed out. Check the farmer's ${mobileMoneyLabel} messages.`,
+          );
         }
         return;
       }
@@ -326,7 +354,11 @@ export function OnboardingWizard() {
     poll();
 
     return () => { cancelled = true; };
-  }, [paymentStatus, paymentRef, queryClient]);
+    // `mobileMoneyLabel` is in the deps because the timeout message names it. It is a stable
+    // string derived from the organization's market, so including it does not restart the poll
+    // in practice — but leaving it out would be a stale-closure bug the day the market resolves
+    // mid-poll, which is exactly the window a slow first page load creates.
+  }, [paymentStatus, paymentRef, queryClient, mobileMoneyLabel]);
 
   // ── Unsaved changes warning ────────────────────────────
 
@@ -445,8 +477,10 @@ export function OnboardingWizard() {
             <FormField control={farmerForm.control} name="phoneNumber" render={({ field }) => (
               <FormItem>
                 <FormLabel>Phone Number <span className="text-destructive">*</span></FormLabel>
-                <FormControl><Input placeholder="+254712345678" autoComplete="off" {...field} /></FormControl>
-                <FormDescription>Kenyan phone number in +254 format</FormDescription>
+                <FormControl>
+                  <Input placeholder={market?.phoneExample ?? ''} autoComplete="off" {...field} />
+                </FormControl>
+                <FormDescription>{phoneHint(market)}</FormDescription>
                 <FormMessage />
               </FormItem>
             )} />
@@ -462,15 +496,15 @@ export function OnboardingWizard() {
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField control={farmerForm.control} name="county" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>County <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input placeholder="Kiambu" {...field} /></FormControl>
+                  <FormLabel>{level1Label} <span className="text-destructive">*</span></FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={farmerForm.control} name="subCounty" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Sub-County <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input placeholder="Kikuyu" {...field} /></FormControl>
+                  <FormLabel>{level2Label} <span className="text-destructive">*</span></FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -568,7 +602,7 @@ export function OnboardingWizard() {
               <div><span className="text-muted-foreground">Name:</span> {farmer.firstName} {farmer.lastName}</div>
               <div><span className="text-muted-foreground">Phone:</span> {farmer.phoneNumber}</div>
               <div><span className="text-muted-foreground">National ID:</span> {farmer.nationalId}</div>
-              <div><span className="text-muted-foreground">County:</span> {farmer.county}</div>
+              <div><span className="text-muted-foreground">{level1Label}:</span> {farmer.county}</div>
             </div>
           </div>
         )}
@@ -791,7 +825,7 @@ export function OnboardingWizard() {
           >
             <FormField control={quoteForm.control} name="sumInsured" render={({ field }) => (
               <FormItem>
-                <FormLabel>Sum Insured ({CURRENCY}) <span className="text-destructive">*</span></FormLabel>
+                <FormLabel>{withCurrencySuffix('Sum Insured', market)} <span className="text-destructive">*</span></FormLabel>
                 <FormControl>
                   <Input
                     type="number"
@@ -934,23 +968,23 @@ export function OnboardingWizard() {
     );
   };
 
-  // ── Step: M-Pesa Payment ───────────────────────────────
+  // ── Step: mobile-money payment ─────────────────────────
 
   const renderPaymentStep = () => {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>M-Pesa Payment</CardTitle>
+          <CardTitle>{mobileMoneyLabel} payment</CardTitle>
           <CardDescription>
             {paymentStatus === 'completed'
               ? 'Payment confirmed! The policy is now active.'
-              : "Send an M-Pesa payment request to the farmer's phone"}
+              : `Send a ${mobileMoneyLabel} payment request to the farmer's phone`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {paymentSimulated && (
             <SimulatedBanner>
-              This was a test payment. No M-Pesa prompt was sent to the farmer, no money was
+              This was a test payment. No {mobileMoneyLabel} prompt was sent to the farmer, no money was
               charged, and the policy it activates is test data — the farmer is not covered.
             </SimulatedBanner>
           )}
@@ -966,7 +1000,7 @@ export function OnboardingWizard() {
                   <Input 
                     value={paymentPhone} 
                     onChange={(e) => setPaymentPhone(e.target.value)} 
-                    placeholder="+254700000000"
+                    placeholder={market?.phoneExample ?? ''}
                     className="max-w-[200px]"
                   />
                 </div>
@@ -988,7 +1022,7 @@ export function OnboardingWizard() {
               >
                 {paymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 <Smartphone className="mr-2 h-4 w-4" />
-                Send M-Pesa Request
+                Send {mobileMoneyLabel} request
               </Button>
             </>
           )}
@@ -1001,7 +1035,7 @@ export function OnboardingWizard() {
                 <p className="text-sm text-muted-foreground mt-1">
                   {paymentSimulated
                     ? 'No prompt was sent to the farmer — there is nothing for them to confirm. Waiting for the test payment to settle.'
-                    : "The farmer should see an M-Pesa prompt on their phone. Ask them to enter their PIN to confirm."}
+                    : `The farmer should see a ${mobileMoneyLabel} prompt on their phone. Ask them to enter their PIN to confirm.`}
                 </p>
               </div>
             </div>
