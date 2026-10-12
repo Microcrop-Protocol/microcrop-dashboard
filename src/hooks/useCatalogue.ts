@@ -92,10 +92,29 @@ export function useCatalogue(): OrgCatalogueInfo {
  * confirmed. Ghana is the live case: the line is hidden there, not merely unsold.
  */
 export function useLivestockNotOffered(): string | null {
-  const { state: marketState, market } = useOrgMarket();
-  const { livestockOffered, market: catalogue } = useCatalogue();
+  return useLivestockGate().notOfferedIn;
+}
 
-  if (marketState === 'known' && market && !market.livestockEnabled) return market.countryName;
-  if (catalogue && livestockOffered === false) return catalogue.countryName;
-  return null;
+export interface LivestockGate {
+  /**
+   * True once both the organization's market and its catalogue have answered (known, or failed).
+   * A livestock screen must not request herds or alerts before this: in Ghana that request is
+   * one the page is about to replace with "not offered" — a wasted call against a product the
+   * market does not have, and a flash of an empty herd table.
+   */
+  resolved: boolean;
+  /** As useLivestockNotOffered: the country's name when livestock is KNOWN not to be offered. */
+  notOfferedIn: string | null;
+}
+
+/** The livestock screens' gate: whether to ask for livestock data yet, and whether to at all. */
+export function useLivestockGate(): LivestockGate {
+  const { state: marketState, market } = useOrgMarket();
+  const { state: catalogueState, livestockOffered, market: catalogue } = useCatalogue();
+
+  if (marketState === 'known' && market && !market.livestockEnabled) {
+    return { resolved: true, notOfferedIn: market.countryName };
+  }
+  if (catalogue && livestockOffered === false) return { resolved: true, notOfferedIn: catalogue.countryName };
+  return { resolved: marketState !== 'loading' && catalogueState !== 'loading', notOfferedIn: null };
 }

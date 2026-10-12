@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney, withCurrencySuffix, type Market } from "@/lib/market";
-import { useCatalogue, useLivestockNotOffered } from "@/hooks/useCatalogue";
+import { useCatalogue, useLivestockGate } from "@/hooks/useCatalogue";
 import { productLabel } from "@/lib/catalogue";
 import { LivestockNotOffered } from "@/components/catalogue/LivestockNotOffered";
 import type { CatalogueMarket } from "@/types/catalogue";
@@ -74,14 +74,17 @@ export default function HerdsPage() {
   const { market: catalogue } = useCatalogue();
   const columns = useMemo(() => buildColumns(market, catalogue), [market, catalogue]);
   // In a market with no livestock line the page says so rather than rendering empty herd totals,
-  // which would imply herds could be registered here. The query stops once that is known.
-  const notOfferedIn = useLivestockNotOffered();
+  // which would imply herds could be registered here. Herds are not requested until the market
+  // and catalogue have answered — before that, a Ghanaian organization would fire a herds request
+  // the page is about to replace with "not offered".
+  const { resolved: marketResolved, notOfferedIn } = useLivestockGate();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: herdsLoading } = useQuery({
     queryKey: ["herds", orgId],
     queryFn: () => api.getHerds(),
-    enabled: !!orgId && !notOfferedIn,
+    enabled: !!orgId && marketResolved && !notOfferedIn,
   });
+  const isLoading = herdsLoading || (!marketResolved && !notOfferedIn);
 
   const toArray = <T,>(value: unknown): T[] => {
     if (Array.isArray(value)) return value;

@@ -96,10 +96,22 @@ describe('in Ghana', () => {
     expect(screen.queryByText('Total Herds')).not.toBeInTheDocument();
   });
 
+  it('herds never asks for herds — it waits for the market, which says there are none', async () => {
+    renderPage(<HerdsPage />);
+    await screen.findByText('Livestock cover is not offered in Ghana');
+    expect(mocks.getHerds).not.toHaveBeenCalled();
+  });
+
   it('forage alerts says the same instead of "No forage alerts"', async () => {
     renderPage(<ForageAlertsPage />);
     expect(await screen.findByText('Livestock cover is not offered in Ghana')).toBeInTheDocument();
     expect(screen.queryByText('No forage alerts')).not.toBeInTheDocument();
+  });
+
+  it('forage alerts never asks for alerts before the market resolves', async () => {
+    renderPage(<ForageAlertsPage />);
+    await screen.findByText('Livestock cover is not offered in Ghana');
+    expect(mocks.getForageAlerts).not.toHaveBeenCalled();
   });
 
   it('hides the livestock entries from the nav', async () => {
@@ -111,9 +123,38 @@ describe('in Ghana', () => {
   });
 });
 
+describe('while the market is resolving', () => {
+  beforeEach(() => {
+    mocks.country = 'KE';
+    mocks.getMyOrganization.mockReset().mockReturnValue(new Promise(() => {}));
+  });
+
+  it('herds sends no request and shows no empty totals yet', async () => {
+    renderPage(<HerdsPage />);
+    await waitFor(() => expect(mocks.getMyOrganization).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.getCatalogue).toHaveBeenCalled());
+    expect(mocks.getHerds).not.toHaveBeenCalled();
+  });
+
+  it('forage alerts sends no request and does not claim there are no alerts', async () => {
+    renderPage(<ForageAlertsPage />);
+    await waitFor(() => expect(mocks.getMyOrganization).toHaveBeenCalled());
+    expect(mocks.getForageAlerts).not.toHaveBeenCalled();
+    expect(screen.queryByText('No forage alerts')).not.toBeInTheDocument();
+  });
+});
+
 describe('in Kenya', () => {
   beforeEach(() => {
     mocks.country = 'KE';
+  });
+
+  it('herds and forage alerts ask for their data once the market resolves', async () => {
+    renderPage(<HerdsPage />);
+    await waitFor(() => expect(mocks.getHerds).toHaveBeenCalled());
+    renderPage(<ForageAlertsPage />);
+    await waitFor(() => expect(mocks.getForageAlerts).toHaveBeenCalled());
+    expect(await screen.findByText('No forage alerts')).toBeInTheDocument();
   });
 
   it('livestock onboarding reaches the wizard', async () => {

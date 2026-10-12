@@ -23,7 +23,7 @@ vi.mock('@/stores/authStore', () => ({
   },
 }));
 
-import { useCatalogue, useLivestockNotOffered } from '@/hooks/useCatalogue';
+import { useCatalogue, useLivestockGate, useLivestockNotOffered } from '@/hooks/useCatalogue';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -101,5 +101,26 @@ describe('useLivestockNotOffered', () => {
     expect(result.current).toBeNull();
     await waitFor(() => expect(mocks.getCatalogue).toHaveBeenCalled());
     expect(result.current).toBeNull();
+  });
+});
+
+describe('useLivestockGate', () => {
+  it('is unresolved while the market or the catalogue is loading', () => {
+    mocks.getCatalogue.mockReturnValue(new Promise(() => {}));
+    mocks.getMyOrganization.mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useLivestockGate(), { wrapper });
+    expect(result.current).toEqual({ resolved: false, notOfferedIn: null });
+  });
+
+  it('resolves in Kenya with livestock offered, and in Ghana with it not offered', async () => {
+    mocks.getCatalogue.mockResolvedValue({ markets: [KE_CATALOGUE] });
+    mocks.getMyOrganization.mockResolvedValue({ id: 'org-1', countryCode: 'KE' });
+    const ke = renderHook(() => useLivestockGate(), { wrapper });
+    await waitFor(() => expect(ke.result.current).toEqual({ resolved: true, notOfferedIn: null }));
+
+    mocks.getCatalogue.mockResolvedValue({ markets: [GH_CATALOGUE] });
+    mocks.getMyOrganization.mockResolvedValue({ id: 'org-1', countryCode: 'GH' });
+    const gh = renderHook(() => useLivestockGate(), { wrapper });
+    await waitFor(() => expect(gh.result.current).toEqual({ resolved: true, notOfferedIn: 'Ghana' }));
   });
 });
