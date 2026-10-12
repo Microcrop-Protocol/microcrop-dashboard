@@ -12,6 +12,8 @@ import { SimulatedBadge, SimulatedBanner } from "@/components/ui/simulated-badge
 import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney } from "@/lib/market";
+import { useCatalogue } from "@/hooks/useCatalogue";
+import { productLabel, soldUnderLabel } from "@/lib/catalogue";
 
 export default function PolicyDetailPage() {
   const { policyId } = useParams();
@@ -20,6 +22,7 @@ export default function PolicyDetailPage() {
   // This organization's own currency; null until it resolves, and formatMoney then renders the
   // amount with no currency token rather than guessing at KES.
   const { market } = useOrgMarket();
+  const { market: catalogue } = useCatalogue();
 
   const { data: policy, isLoading: policyLoading } = useQuery({
     queryKey: ["policy", policyId],
@@ -60,7 +63,14 @@ export default function PolicyDetailPage() {
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{policy.policyNumber}</h1>
-          <p className="text-muted-foreground">{policy.farmerName} • {policy.plotName}</p>
+          <p className="text-muted-foreground">
+            {policy.farmerName} • {policy.plotName}
+            {policy.cropType ? ` • ${productLabel(catalogue, "CROP", policy.cropType)}` : ""}
+          </p>
+          {/* Frozen at purchase: what this policy was sold as, whatever the crop's status today. */}
+          {soldUnderLabel(policy.catalogueStatus) && (
+            <p className="text-sm text-muted-foreground">Sold as: {soldUnderLabel(policy.catalogueStatus)}</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {simulated && <SimulatedBadge />}

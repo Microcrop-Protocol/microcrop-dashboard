@@ -7,6 +7,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
 import type { ForageAlert, ForageAlertStatus } from "@/types";
+import { useLivestockNotOffered } from "@/hooks/useCatalogue";
+import { LivestockNotOffered } from "@/components/catalogue/LivestockNotOffered";
 
 // ForageAlertStatus -> StatusBadge variant (reuse the shared status palette).
 const statusVariant = (status: ForageAlertStatus) => {
@@ -86,11 +88,25 @@ const columns: ColumnDef<ForageAlert>[] = [
 ];
 
 export default function ForageAlertsPage() {
+  // Forage alerts are an IBLI (livestock) surface. In a market with no livestock line there are
+  // no insurance units to alert on, and an empty "No forage alerts" table would imply there could
+  // be — so the page says what is true instead, and stops asking for alerts once that is known.
+  const notOfferedIn = useLivestockNotOffered();
   const { data, isLoading, error } = useQuery({
     queryKey: ["forage-alerts"],
     queryFn: () => api.getForageAlerts(),
     retry: 1,
+    enabled: !notOfferedIn,
   });
+
+  if (notOfferedIn) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">Forage Alerts</h1>
+        <LivestockNotOffered countryName={notOfferedIn} />
+      </div>
+    );
+  }
 
   const alerts = data?.data ?? [];
   const active = alerts.filter((a) => a.status === "TRIGGERED" || a.status === "PROCESSING").length;

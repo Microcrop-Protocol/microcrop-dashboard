@@ -10,11 +10,14 @@ import { FarmerConsentCard } from "@/components/farmers/FarmerConsentPanel";
 import { SimulatedBadge } from "@/components/ui/simulated-badge";
 import { isSimulatedPolicy } from "@/lib/simulated";
 import { ArrowLeft, Phone, MapPin, Loader2 } from "lucide-react";
+import { useCatalogue } from "@/hooks/useCatalogue";
+import { productLabel } from "@/lib/catalogue";
 
 export default function FarmerDetailPage() {
   const { farmerId } = useParams();
   const { user } = useAuthStore();
   const orgId = user?.organizationId || "";
+  const { market: catalogue } = useCatalogue();
 
   const { data: farmer, isLoading: farmerLoading } = useQuery({
     queryKey: ["farmer", farmerId],
@@ -82,7 +85,7 @@ export default function FarmerDetailPage() {
                 <div key={plot.id} className="flex justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{plot.name}</p>
-                    <p className="text-sm text-muted-foreground">{plot.cropType} • {plot.acreage} acres</p>
+                    <p className="text-sm text-muted-foreground">{productLabel(catalogue, "CROP", plot.cropType)} • {plot.acreage} acres</p>
                   </div>
                 </div>
               ))

@@ -18,6 +18,19 @@ import { useCapability } from "@/hooks/useCapabilities";
 import { CAPABILITY } from "@/lib/capability";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney as formatMarketMoney, withCurrencySuffix } from "@/lib/market";
+import { useCatalogue } from "@/hooks/useCatalogue";
+import {
+  findCatalogueItem,
+  notSellableReason,
+  productLabel,
+  soldUnderLabel,
+} from "@/lib/catalogue";
+import { getErrorMessage } from "@/lib/error-messages";
+import {
+  CatalogueItemDetails,
+  CatalogueStatusBadge,
+  CatalogueUnknownNote,
+} from "@/components/catalogue/CatalogueOptions";
 import type { Farmer, Plot, CoverageType, Policy, PaymentInstructions } from "@/types";
 
 const STEP_TITLES = ["Configure Policy", "Review & Create", "Collect Premium"];
@@ -32,6 +45,9 @@ export default function NewPolicyPage() {
   // while it resolves or if the country is unrecognised, and formatMoney then renders the number
   // with NO currency rather than asserting KES over a Ghanaian partner's premiums.
   const { market, mobileMoneyLabel } = useOrgMarket();
+  // The market's product catalogue decides which plots can be quoted here: a plot whose crop is
+  // coming soon, or a legacy crop the market never listed, stays registered but cannot be sold.
+  const catalogue = useCatalogue();
 
   /**
    * Render a money field without assuming the API sent it, and without assuming it arrived as a
@@ -83,10 +99,15 @@ export default function NewPolicyPage() {
   const approvedFarmers = farmers.filter((f) => f.kycStatus === 'APPROVED');
   const farmerPlots = plots.filter((p) => p.farmerId === formData.farmerId);
   const selectedFarmer = farmers.find((f) => f.id === formData.farmerId);
+  const selectedPlot = farmerPlots.find((p) => p.id === formData.plotId);
+  const selectedCrop = findCatalogueItem(catalogue.market, "CROP", selectedPlot?.cropType);
+  // Null while the catalogue is not known — the quote below then waits rather than guessing.
+  const cropReason = notSellableReason(catalogue.market, "CROP", selectedPlot?.cropType);
+  const cropSellable = catalogue.state === "known" && Boolean(selectedPlot) && !cropReason;
 
   // Fetch a real premium quote from the pricing endpoint once the policy is
   // configured. We never present a fabricated figure as the quote.
-  const { data: quote, isFetching: quoteLoading } = useQuery({
+  const { data: quote, isFetching: quoteLoading, error: quoteError } = useQuery({
     queryKey: [
       "policy-quote",
       formData.farmerId,
@@ -103,7 +124,11 @@ export default function NewPolicyPage() {
         coverageType: formData.coverageType as CoverageType,
         durationDays: formData.duration,
       }),
-    enabled: !!formData.farmerId && !!formData.plotId && formData.sumInsured > 0,
+    // Only for a crop the market SELLS. Quoting a coming-soon crop is a refusal we can predict,
+    // and it is said beside the plot picker instead of as a failed request.
+    enabled: !!formData.farmerId && !!formData.plotId && formData.sumInsured > 0 && cropSellable,
+    // A catalogue refusal (PRODUCT_NOT_OFFERED, PRICING_NOT_CONFIGURED) will not change on retry.
+    retry: false,
   });
 
   const premium = quote?.premium ?? null;
@@ -234,10 +259,32 @@ export default function NewPolicyPage() {
                 <SelectTrigger><SelectValue placeholder="Select plot" /></SelectTrigger>
                 <SelectContent>
                   {farmerPlots.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} · {productLabel(catalogue.market, "CROP", p.cropType)}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedPlot && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Crop:</span>
+                    <span>{productLabel(catalogue.market, "CROP", selectedPlot.cropType)}</span>
+                    <CatalogueStatusBadge status={selectedCrop?.status} />
+                  </div>
+                  {cropReason ? (
+                    <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">{cropReason}</p>
+                  ) : (
+                    <CatalogueItemDetails
+                      item={selectedCrop}
+                      countryName={catalogue.market?.countryName ?? ""}
+                    />
+                  )}
+                </div>
+              )}
+              {catalogue.state === "unknown" && (
+                <CatalogueUnknownNote className="mt-2" onRetry={catalogue.refetch} />
+              )}
             </div>
 
             <div>
@@ -297,9 +344,15 @@ export default function NewPolicyPage() {
                     <span>{formatMoney(total ?? premium)}</span>
                   </div>
                 </>
+              ) : quoteError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {getErrorMessage(quoteError, "Couldn't calculate a quote for this plot.")}
+                </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Select a farmer and plot to calculate the premium quote.
+                  {cropReason
+                    ? "This plot's crop can't be quoted in your market."
+                    : "Select a farmer and plot to calculate the premium quote."}
                 </p>
               )}
             </div>
@@ -307,7 +360,7 @@ export default function NewPolicyPage() {
             <Button
               onClick={() => setStep(2)}
               className="w-full"
-              disabled={!formData.farmerId || !formData.plotId}
+              disabled={!formData.farmerId || !formData.plotId || !cropSellable}
             >
               Continue
             </Button>
@@ -334,7 +387,7 @@ export default function NewPolicyPage() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setStep(1)} disabled={purchaseMutation.isPending}>Back</Button>
-              <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending}>
+              <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || !cropSellable}>
                 {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Policy
               </Button>
@@ -348,6 +401,11 @@ export default function NewPolicyPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-4">
               <div>
                 <p className="font-medium">{policy?.policyNumber ?? "Policy created"}</p>
+                {soldUnderLabel(policy?.catalogueStatus) && (
+                  <p className="text-xs text-muted-foreground">
+                    Sold as: {soldUnderLabel(policy?.catalogueStatus)}
+                  </p>
+                )}
                 <p className="text-sm text-muted-foreground">
                   {paymentInstructions?.message ??
                     "Please complete premium payment to activate this policy."}

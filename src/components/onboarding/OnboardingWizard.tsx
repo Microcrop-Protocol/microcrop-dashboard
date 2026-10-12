@@ -26,8 +26,7 @@ import type {
   Farmer, Plot, PolicyQuote, Policy, PaymentInstructions, GpsTrackResponse, CoverageType,
 } from '@/types';
 import {
-  farmerRegistrationSchemaFor, plotCreationSchema, policyConfigSchema,
-  CROP_TYPES,
+  farmerRegistrationSchemaFor, plotCreationSchemaFor, policyConfigSchemaFor,
   type FarmerRegistrationData, type PlotCreationData, type PolicyConfigData,
 } from '@/lib/validations/onboarding';
 import { BoundaryWalkStep } from './BoundaryWalkStep';
@@ -40,6 +39,14 @@ import {
   withCurrencySuffix,
   type Market,
 } from '@/lib/market';
+import { marketSamples } from '@/lib/market-samples';
+import { useCatalogue } from '@/hooks/useCatalogue';
+import {
+  findCatalogueItem, notSellableReason, productLabel, soldUnderLabel,
+} from '@/lib/catalogue';
+import {
+  CatalogueItemDetails, CatalogueSelectItems, CatalogueStatusBadge, CatalogueUnknownNote,
+} from '@/components/catalogue/CatalogueOptions';
 
 /**
  * Sums insured, premiums and fees in this wizard are LOCAL currency — what the farmer is quoted
@@ -138,6 +145,14 @@ export function OnboardingWizard() {
   // are called, and what to call the mobile-money prompt.
   const { market, level1Label, level2Label, mobileMoneyLabel } = useOrgMarket();
   const formatMoney = makeFormatMoney(market);
+  // Placeholder examples from the organization's own market; empty until it resolves.
+  const samples = marketSamples(market);
+
+  // The market's CROP line. The plot step offers only its sellable crops — this wizard registers
+  // the plot in order to quote it a few steps later — and shows coming-soon crops disabled.
+  const catalogue = useCatalogue();
+  const catalogueMarket = catalogue.market;
+  const countryName = catalogueMarket?.countryName ?? market?.countryName ?? 'your market';
 
   // ── Forms ──────────────────────────────────────────────
 
@@ -161,7 +176,8 @@ export function OnboardingWizard() {
   });
 
   const plotForm = useForm<PlotCreationData>({
-    resolver: zodResolver(plotCreationSchema),
+    // `null` until the catalogue is known: the schema then accepts no crop rather than any.
+    resolver: zodResolver(plotCreationSchemaFor(catalogue.state === 'known' ? catalogue.crops : null)),
     defaultValues: {
       name: '',
       latitude: 0,
@@ -174,7 +190,8 @@ export function OnboardingWizard() {
   });
 
   const quoteForm = useForm<PolicyConfigData>({
-    resolver: zodResolver(policyConfigSchema),
+    // Sum-insured bounds are the market's (a hint — the server enforces them at purchase).
+    resolver: zodResolver(policyConfigSchemaFor(market)),
     defaultValues: {
       sumInsured: 10000,
       coverageType: 'DROUGHT',
@@ -468,7 +485,7 @@ export function OnboardingWizard() {
               <FormField control={farmerForm.control} name="lastName" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Last Name <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input placeholder="Mwangi" autoComplete="off" {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.lastName ?? ''} autoComplete="off" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -497,14 +514,14 @@ export function OnboardingWizard() {
               <FormField control={farmerForm.control} name="county" render={({ field }) => (
                 <FormItem>
                   <FormLabel>{level1Label} <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.level1 ?? ''} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={farmerForm.control} name="subCounty" render={({ field }) => (
                 <FormItem>
                   <FormLabel>{level2Label} <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.level2 ?? ''} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -514,14 +531,14 @@ export function OnboardingWizard() {
               <FormField control={farmerForm.control} name="ward" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Ward <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
-                  <FormControl><Input placeholder="Kinoo" {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.ward ?? ''} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={farmerForm.control} name="village" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Village <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
-                  <FormControl><Input placeholder="Kinoo Village" {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.village ?? ''} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -667,7 +684,7 @@ export function OnboardingWizard() {
                       <Input
                         type="number"
                         step="0.000001"
-                        placeholder="-1.286389"
+                        placeholder={samples?.latitude ?? ''}
                         value={field.value || ''}
                         onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                       />
@@ -682,7 +699,7 @@ export function OnboardingWizard() {
                       <Input
                         type="number"
                         step="0.000001"
-                        placeholder="36.817223"
+                        placeholder={samples?.longitude ?? ''}
                         value={field.value || ''}
                         onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                       />
@@ -712,20 +729,36 @@ export function OnboardingWizard() {
               <FormField control={plotForm.control} name="cropType" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Crop Type <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={catalogue.state !== 'known'}
+                  >
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select crop" /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={catalogue.state === 'loading' ? 'Loading crops…' : 'Select crop'}
+                        />
+                      </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {CROP_TYPES.map(({ value, label }) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
+                      <CatalogueSelectItems
+                        items={catalogue.crops}
+                        countryName={countryName}
+                        emptyMessage={`No crops are offered in ${countryName}`}
+                      />
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )} />
             </div>
+
+            {catalogue.state === 'unknown' && <CatalogueUnknownNote onRetry={catalogue.refetch} />}
+            <CatalogueItemDetails
+              item={findCatalogueItem(catalogueMarket, 'CROP', plotForm.watch('cropType'))}
+              countryName={countryName}
+            />
 
             <FormField control={plotForm.control} name="plantingDate" render={({ field }) => (
               <FormItem>
@@ -811,6 +844,14 @@ export function OnboardingWizard() {
 
   // ── Step: Premium Quote ────────────────────────────────
 
+  /**
+   * Why this plot's crop cannot be quoted, or null. The picker only offers sellable crops, so this
+   * is reached when the catalogue changed between the plot step and now — and it is said here,
+   * before the quote request, instead of as a refused quote.
+   */
+  const plotCropReason = notSellableReason(catalogueMarket, 'CROP', plot?.cropType);
+  const plotCropItem = findCatalogueItem(catalogueMarket, 'CROP', plot?.cropType);
+
   const renderQuoteStep = () => (
     <Card>
       <CardHeader>
@@ -818,6 +859,12 @@ export function OnboardingWizard() {
         <CardDescription>Configure the policy and get a premium quote</CardDescription>
       </CardHeader>
       <CardContent>
+        {plotCropReason && (
+          <div role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
+            {plotCropReason}
+          </div>
+        )}
+        <CatalogueItemDetails item={plotCropItem} countryName={countryName} className="mb-4" />
         <Form {...quoteForm}>
           <form
             onSubmit={quoteForm.handleSubmit((data) => quoteMutation.mutate(data))}
@@ -830,12 +877,17 @@ export function OnboardingWizard() {
                   <Input
                     type="number"
                     step="1000"
-                    min="1000"
+                    min={market?.minSumInsuredLocal}
+                    max={market?.maxSumInsuredLocal}
                     value={field.value || ''}
                     onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                   />
                 </FormControl>
-                <FormDescription>Minimum {formatMoney(1000)}</FormDescription>
+                {market && (
+                  <FormDescription>
+                    Between {formatMoney(market.minSumInsuredLocal)} and {formatMoney(market.maxSumInsuredLocal)}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )} />
@@ -898,11 +950,11 @@ export function OnboardingWizard() {
             )}
 
             <div className="flex gap-3">
-              <Button type="submit" variant={quote ? 'outline' : 'default'} disabled={quoteMutation.isPending} className={quote ? '' : 'w-full'}>
+              <Button type="submit" variant={quote ? 'outline' : 'default'} disabled={quoteMutation.isPending || Boolean(plotCropReason)} className={quote ? '' : 'w-full'}>
                 {quoteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 {quote ? 'Recalculate' : 'Get Quote'}
               </Button>
-              {quote && (
+              {quote && !plotCropReason && (
                 <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))}>
                   Continue to Purchase
                 </Button>
@@ -934,8 +986,10 @@ export function OnboardingWizard() {
             <div className="p-4">
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Plot</h4>
               <p className="font-medium">{plot?.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {plot?.cropType} &middot; {plot?.acreage} acres
+              <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+                {productLabel(catalogueMarket, 'CROP', plot?.cropType)}
+                <CatalogueStatusBadge status={plotCropItem?.status} />
+                &middot; {plot?.acreage} acres
                 {boundaryResult && ` \u00B7 ${Number(boundaryResult.plot.areaHectares).toFixed(2)} ha (measured)`}
               </p>
             </div>
@@ -958,7 +1012,7 @@ export function OnboardingWizard() {
             <Button variant="outline" onClick={() => setCurrentStep(stepIndex('quote'))} disabled={purchaseMutation.isPending}>
               Back
             </Button>
-            <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending}>
+            <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Boolean(plotCropReason)}>
               {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
               Purchase Policy
             </Button>
@@ -995,6 +1049,12 @@ export function OnboardingWizard() {
                   <span className="text-muted-foreground">Policy</span>
                   <span className="font-mono">{policy?.policyNumber}</span>
                 </div>
+                {soldUnderLabel(policy?.catalogueStatus) && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sold as</span>
+                    <span>{soldUnderLabel(policy?.catalogueStatus)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Phone Number</span>
                   <Input 

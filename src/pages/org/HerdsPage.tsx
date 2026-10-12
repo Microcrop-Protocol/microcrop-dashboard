@@ -11,21 +11,26 @@ import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney, withCurrencySuffix, type Market } from "@/lib/market";
+import { useCatalogue, useLivestockNotOffered } from "@/hooks/useCatalogue";
+import { productLabel } from "@/lib/catalogue";
+import { LivestockNotOffered } from "@/components/catalogue/LivestockNotOffered";
+import type { CatalogueMarket } from "@/types/catalogue";
 
 /**
  * A FUNCTION of the market, because the value column renders money. As a module-level constant
  * it was evaluated at import time and so could not depend on the organization — which is what
  * made `header: "Value (KES)"` the only option.
  */
-const buildColumns = (market: Market | null): ColumnDef<Herd>[] => [
+const buildColumns = (market: Market | null, catalogue: CatalogueMarket | null): ColumnDef<Herd>[] => [
   { accessorKey: "name", header: "Herd Name" },
   { accessorKey: "farmerName", header: "Pastoralist" },
   { 
     accessorKey: "livestockType", 
     header: "Type",
+    // The catalogue's label when the type is listed; a legacy type (poultry) still renders a name.
     cell: ({ row }) => (
-      <Badge variant="outline" className="capitalize">
-        {((row.getValue("livestockType") as string | null) ?? "").toLowerCase()}
+      <Badge variant="outline">
+        {productLabel(catalogue, "LIVESTOCK", row.getValue("livestockType") as string | null)}
       </Badge>
     )
   },
@@ -66,12 +71,16 @@ export default function HerdsPage() {
   const { user } = useAuthStore();
   const orgId = user?.organizationId || "";
   const { market } = useOrgMarket();
-  const columns = useMemo(() => buildColumns(market), [market]);
+  const { market: catalogue } = useCatalogue();
+  const columns = useMemo(() => buildColumns(market, catalogue), [market, catalogue]);
+  // In a market with no livestock line the page says so rather than rendering empty herd totals,
+  // which would imply herds could be registered here. The query stops once that is known.
+  const notOfferedIn = useLivestockNotOffered();
 
   const { data, isLoading } = useQuery({
     queryKey: ["herds", orgId],
     queryFn: () => api.getHerds(),
-    enabled: !!orgId,
+    enabled: !!orgId && !notOfferedIn,
   });
 
   const toArray = <T,>(value: unknown): T[] => {
@@ -114,6 +123,15 @@ export default function HerdsPage() {
 
   const totalTlu = herds.reduce((sum, h) => sum + Number(h.tluCount), 0);
   const totalValue = herds.reduce((sum, h) => sum + (h.headCount * Number(h.estimatedValue)), 0);
+
+  if (notOfferedIn) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">Herds</h1>
+        <LivestockNotOffered countryName={notOfferedIn} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -174,7 +192,7 @@ export default function HerdsPage() {
             <div className="mt-4 space-y-2">
               {livestockDistribution.map((livestock) => (
                 <div key={livestock.name} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground capitalize">{(livestock.name ?? "").toLowerCase()}</span>
+                  <span className="text-muted-foreground">{productLabel(catalogue, "LIVESTOCK", livestock.name)}</span>
                   <span className="font-medium">{livestock.count} herds • {livestock.value.toLocaleString()} heads</span>
                 </div>
               ))}
@@ -196,7 +214,7 @@ export default function HerdsPage() {
             <div className="mt-4 space-y-2">
               {tluDistribution.map((livestock) => (
                 <div key={livestock.name} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground capitalize">{(livestock.name ?? "").toLowerCase()}</span>
+                  <span className="text-muted-foreground">{productLabel(catalogue, "LIVESTOCK", livestock.name)}</span>
                   <span className="font-medium">{livestock.value.toFixed(2)} TLU</span>
                 </div>
               ))}

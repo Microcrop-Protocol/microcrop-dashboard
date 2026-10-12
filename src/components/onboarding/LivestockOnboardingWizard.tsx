@@ -26,12 +26,19 @@ import type {
   Farmer, Herd, LivestockPolicyQuote, Policy, PaymentInstructions, IBLISeason, CoverageType,
 } from '@/types';
 import {
-  pastoralistRegistrationSchemaFor, herdRegistrationSchema, livestockPolicyConfigSchema,
-  LIVESTOCK_TYPES, calculateTLU,
+  pastoralistRegistrationSchemaFor, herdRegistrationSchemaFor, livestockPolicyConfigSchema,
   type PastoralistRegistrationData, type HerdRegistrationData, type LivestockPolicyConfigData,
 } from '@/lib/validations/livestock-onboarding';
 import { useOrgMarket } from '@/hooks/useOrgMarket';
 import { formatMoney as formatMarketMoney, phoneHint, type Market } from '@/lib/market';
+import { marketSamples } from '@/lib/market-samples';
+import { useCatalogue } from '@/hooks/useCatalogue';
+import {
+  findCatalogueItem, notSellableReason, productLabel, soldUnderLabel, tluFor,
+} from '@/lib/catalogue';
+import {
+  CatalogueItemDetails, CatalogueSelectItems, CatalogueStatusBadge, CatalogueUnknownNote,
+} from '@/components/catalogue/CatalogueOptions';
 
 /**
  * IBLI premiums, herd values and fees are LOCAL currency — the backend prices livestock per TLU
@@ -96,13 +103,17 @@ export function LivestockOnboardingWizard() {
   // showing it this step claims an STK prompt was sent that never was.
   const [paymentSimulated, setPaymentSimulated] = useState(false);
   const [paymentPhone, setPaymentPhone] = useState('');
-  // Multi-country: narrow the insurance-unit list by country (units carry an ISO country).
-  const [unitCountry, setUnitCountry] = useState<string>('all');
 
   // The organization's market: its currency, its phone format and what its administrative
   // divisions are called.
   const { market, level1Label, level2Label, mobileMoneyLabel } = useOrgMarket();
   const formatMoney = makeFormatMoney(market);
+  const samples = marketSamples(market);
+
+  // The market's LIVESTOCK line: which species may be insured here, with their TLU factors.
+  const catalogue = useCatalogue();
+  const catalogueMarket = catalogue.market;
+  const countryName = catalogueMarket?.countryName ?? market?.countryName ?? 'your market';
 
   // Sync paymentPhone when farmer is registered
   useEffect(() => {
@@ -123,10 +134,17 @@ export function LivestockOnboardingWizard() {
 
   // ── Queries ──────────────────────────────────────────────
 
+  /**
+   * The ORGANIZATION'S market's units only. This used to fetch every active unit and offer an
+   * "All countries" filter, which let a herd be attached to a unit in a market the organization
+   * does not operate in. Not fetched until the market is known, so the list cannot briefly hold
+   * another country's units.
+   */
   const { data: insuranceUnits } = useQuery({
-    queryKey: ['insurance-units', 'active'],
-    queryFn: () => api.getActiveInsuranceUnits(),
+    queryKey: ['insurance-units', 'active', market?.countryCode ?? null],
+    queryFn: () => api.getActiveInsuranceUnits(market?.countryCode),
     select: (res) => res.data,
+    enabled: Boolean(market),
   });
 
   // ── Forms ──────────────────────────────────────────────
@@ -151,10 +169,15 @@ export function LivestockOnboardingWizard() {
   });
 
   const herdForm = useForm<HerdRegistrationData>({
-    resolver: zodResolver(herdRegistrationSchema),
+    // `null` until the catalogue is known: the schema then accepts no species rather than any.
+    resolver: zodResolver(
+      herdRegistrationSchemaFor(catalogue.state === 'known' ? catalogue.livestock : null),
+    ),
     defaultValues: {
       name: '',
-      livestockType: 'CATTLE',
+      // No pre-selected species: the default was CATTLE, a value from a global list rather than
+      // from this market's catalogue.
+      livestockType: '',
       headCount: 1,
       estimatedValue: 15000,
       insuranceUnitId: '',
@@ -441,7 +464,7 @@ export function LivestockOnboardingWizard() {
               <FormField control={farmerForm.control} name="lastName" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Last Name <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input placeholder="Mwangi" autoComplete="off" {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.lastName ?? ''} autoComplete="off" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -470,14 +493,14 @@ export function LivestockOnboardingWizard() {
               <FormField control={farmerForm.control} name="county" render={({ field }) => (
                 <FormItem>
                   <FormLabel>{level1Label} <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input placeholder="Turkana" autoComplete="off" {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.pastoralLevel1 ?? ''} autoComplete="off" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={farmerForm.control} name="subCounty" render={({ field }) => (
                 <FormItem>
                   <FormLabel>{level2Label} <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input placeholder="Turkana Central" autoComplete="off" {...field} /></FormControl>
+                  <FormControl><Input placeholder={samples?.pastoralLevel2 ?? ''} autoComplete="off" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -590,16 +613,12 @@ export function LivestockOnboardingWizard() {
     const livestockType = herdForm.watch('livestockType');
     const estimatedValue = herdForm.watch('estimatedValue');
     
-    const tlu = calculateTLU(livestockType, headCount);
+    // TLU from the catalogue's factor for the chosen species. Null (rendered as a dash) until a
+    // species is chosen — never a zero that reads as a worthless herd.
+    const selectedItem = findCatalogueItem(catalogueMarket, 'LIVESTOCK', livestockType);
+    const tlu = tluFor(selectedItem, headCount);
     const totalValue = headCount * estimatedValue;
-
-    // Countries available across the active units (for the multi-country filter).
-    const countries = Array.from(
-      new Set((insuranceUnits ?? []).map((u) => u.country).filter(Boolean)),
-    ).sort();
-    const visibleUnits = (insuranceUnits ?? []).filter(
-      (u) => unitCountry === 'all' || u.country === unitCountry,
-    );
+    const visibleUnits = insuranceUnits ?? [];
 
     return (
       <Card>
@@ -617,36 +636,6 @@ export function LivestockOnboardingWizard() {
                   <FormMessage />
                 </FormItem>
               )} />
-
-              {countries.length > 1 && (
-                <FormItem>
-                  <FormLabel>Country</FormLabel>
-                  <Select
-                    value={unitCountry}
-                    onValueChange={(v) => {
-                      setUnitCountry(v);
-                      // Clear the unit if it no longer matches the chosen country.
-                      const current = insuranceUnits?.find((u) => u.id === herdForm.getValues('insuranceUnitId'));
-                      if (current && v !== 'all' && current.country !== v) {
-                        herdForm.setValue('insuranceUnitId', '');
-                      }
-                    }}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="All countries" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="all">All countries</SelectItem>
-                      {countries.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>Filter coverage regions by country.</FormDescription>
-                </FormItem>
-              )}
 
               <FormField control={herdForm.control} name="insuranceUnitId" render={({ field }) => (
                 <FormItem>
@@ -668,7 +657,9 @@ export function LivestockOnboardingWizard() {
                       )}
                     </SelectContent>
                   </Select>
-                  <FormDescription>Livestock insurance covers forage failure in a specific county region.</FormDescription>
+                  <FormDescription>
+                    Livestock insurance covers forage failure across a whole insurance unit, not an individual herd.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -677,16 +668,24 @@ export function LivestockOnboardingWizard() {
                 <FormField control={herdForm.control} name="livestockType" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Livestock Type <span className="text-destructive">*</span></FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={catalogue.state !== 'known'}
+                    >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
+                          <SelectValue
+                            placeholder={catalogue.state === 'loading' ? 'Loading types…' : 'Select type'}
+                          />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {LIVESTOCK_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                        ))}
+                        <CatalogueSelectItems
+                          items={catalogue.livestock}
+                          countryName={countryName}
+                          emptyMessage={`No livestock is offered in ${countryName}`}
+                        />
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -704,6 +703,9 @@ export function LivestockOnboardingWizard() {
                 )} />
               </div>
 
+              {catalogue.state === 'unknown' && <CatalogueUnknownNote onRetry={catalogue.refetch} />}
+              <CatalogueItemDetails item={selectedItem} countryName={countryName} />
+
               <FormField control={herdForm.control} name="estimatedValue" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Estimated value per head{market ? ` in ${market.currency}` : ''} <span className="text-destructive">*</span></FormLabel>
@@ -717,7 +719,7 @@ export function LivestockOnboardingWizard() {
               <div className="rounded-lg bg-muted/50 p-4 border grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-muted-foreground">Calculated TLU</div>
-                  <div className="text-2xl font-bold">{Number(tlu).toFixed(2)}</div>
+                  <div className="text-2xl font-bold">{tlu == null ? '—' : tlu.toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">Tropical Livestock Units</div>
                 </div>
                 <div>
@@ -739,6 +741,10 @@ export function LivestockOnboardingWizard() {
 
   // ── Step: Get Quote ─────────────────────────────────────
 
+  /** Why this herd's species cannot be quoted, or null. See the crop wizard's plotCropReason. */
+  const herdReason = notSellableReason(catalogueMarket, 'LIVESTOCK', herd?.livestockType);
+  const herdItem = findCatalogueItem(catalogueMarket, 'LIVESTOCK', herd?.livestockType);
+
   const renderQuoteStep = () => {
     // Determine the current season dynamically
     const currentMonth = new Date().getMonth() + 1; // 1-12
@@ -751,6 +757,12 @@ export function LivestockOnboardingWizard() {
           <CardDescription>Configure livestock IBLI coverage</CardDescription>
         </CardHeader>
         <CardContent>
+          {herdReason && (
+            <div role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
+              {herdReason}
+            </div>
+          )}
+          <CatalogueItemDetails item={herdItem} countryName={countryName} className="mb-4" />
           <Form {...quoteForm}>
             <form onSubmit={quoteForm.handleSubmit((data) => quoteMutation.mutate(data))} className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -793,7 +805,7 @@ export function LivestockOnboardingWizard() {
               </div>
 
               {!quote ? (
-                <Button type="submit" className="w-full" disabled={quoteMutation.isPending}>
+                <Button type="submit" className="w-full" disabled={quoteMutation.isPending || Boolean(herdReason)}>
                   {quoteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Calculate Premium
                 </Button>
@@ -832,7 +844,7 @@ export function LivestockOnboardingWizard() {
                     <Button variant="outline" className="flex-1" onClick={() => setQuote(null)} type="button">
                       Recalculate
                     </Button>
-                    <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))} type="button">
+                    <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))} type="button" disabled={Boolean(herdReason)}>
                       Proceed to Purchase
                     </Button>
                   </div>
@@ -868,7 +880,10 @@ export function LivestockOnboardingWizard() {
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Herd</h4>
                 <p className="font-medium">{herd.name}</p>
-                <p className="text-sm">{herd.headCount} {herd.livestockType}</p>
+                <p className="flex flex-wrap items-center gap-1 text-sm">
+                  {herd.headCount} × {productLabel(catalogueMarket, 'LIVESTOCK', herd.livestockType)}
+                  <CatalogueStatusBadge status={herdItem?.status} />
+                </p>
               </div>
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Coverage</h4>
@@ -882,7 +897,7 @@ export function LivestockOnboardingWizard() {
             className="w-full"
             size="lg"
             onClick={() => purchaseMutation.mutate()}
-            disabled={purchaseMutation.isPending}
+            disabled={purchaseMutation.isPending || Boolean(herdReason)}
           >
             {purchaseMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Create Policy
@@ -917,6 +932,11 @@ export function LivestockOnboardingWizard() {
               <p className="text-muted-foreground mt-2">
                 Policy <span className="font-medium text-foreground">{policy.policyNumber}</span> is now active.
               </p>
+              {soldUnderLabel(policy.catalogueStatus) && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Sold as: {soldUnderLabel(policy.catalogueStatus)}
+                </p>
+              )}
             </div>
             <div className="mt-6 flex w-full gap-4">
               <Button variant="outline" className="flex-1" onClick={() => navigate('/org/policies')}>View Policies</Button>
