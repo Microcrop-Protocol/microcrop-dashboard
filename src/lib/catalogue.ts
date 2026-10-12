@@ -214,6 +214,35 @@ export function productLabel(
 }
 
 /**
+ * The crop code a policy covers. `GET /policies` carries it on the included plot
+ * (`plot.cropType`) — the Policy row has no crop column — with a flat `cropType` read only as a
+ * fallback for an older payload. Null when the policy has no crop (a livestock policy).
+ */
+export function policyCropCode(policy: {
+  plot?: { cropType?: string | null } | null;
+  cropType?: string | null;
+}): string | null {
+  const fromPlot = policy.plot?.cropType;
+  if (typeof fromPlot === 'string' && fromPlot.trim()) return fromPlot.trim();
+  const flat = policy.cropType;
+  return typeof flat === 'string' && flat.trim() ? flat.trim() : null;
+}
+
+/**
+ * What a policy row calls its crop: the catalogue's label when the market lists the code, else
+ * the RAW code (the catalogue may not have loaded, or the crop may be legacy) — never blank. "—"
+ * only when the payload carries no crop at all.
+ */
+export function policyCropLabel(
+  market: CatalogueMarket | null | undefined,
+  policy: Parameters<typeof policyCropCode>[0],
+): string {
+  const code = policyCropCode(policy);
+  if (!code) return '—';
+  return findCatalogueItem(market, 'CROP', code)?.label ?? code;
+}
+
+/**
  * Tropical Livestock Units for a herd, from the catalogue's factor. Null — not 0 — when the item
  * or its factor is missing: a zero TLU reads as "this herd is worth nothing", which is a claim,
  * while a dash is merely incomplete.

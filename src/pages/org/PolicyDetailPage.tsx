@@ -13,7 +13,7 @@ import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStat
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney } from "@/lib/market";
 import { useCatalogue } from "@/hooks/useCatalogue";
-import { productLabel, soldUnderLabel } from "@/lib/catalogue";
+import { policyCropCode, policyCropLabel, soldUnderLabel } from "@/lib/catalogue";
 
 export default function PolicyDetailPage() {
   const { policyId } = useParams();
@@ -65,7 +65,8 @@ export default function PolicyDetailPage() {
           <h1 className="text-2xl font-bold">{policy.policyNumber}</h1>
           <p className="text-muted-foreground">
             {policy.farmerName} • {policy.plotName}
-            {policy.cropType ? ` • ${productLabel(catalogue, "CROP", policy.cropType)}` : ""}
+            {/* The plot's crop, from the payload's `plot.cropType`, labelled or as its raw code. */}
+            {policyCropCode(policy) ? ` • ${policyCropLabel(catalogue, policy)}` : ""}
           </p>
           {/* Frozen at purchase: what this policy was sold as, whatever the crop's status today. */}
           {soldUnderLabel(policy.catalogueStatus) && (

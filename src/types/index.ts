@@ -556,7 +556,16 @@ export interface Policy {
   plotName: string;
   status: PolicyStatus;
   coverageType: CoverageType;
-  cropType: string;
+  /**
+   * Legacy flat field. The Policy row has no crop column, so `GET /policies` never sent it; the
+   * crop is the PLOT's, under `plot.cropType`. Read through `policyCropCode` in lib/catalogue.
+   */
+  cropType?: string | null;
+  /**
+   * The insured plot as `GET /policies` includes it: `{ name, cropType }` on the list, the whole
+   * plot row on `GET /policies/:id`. Null on a livestock policy.
+   */
+  plot?: { name?: string | null; cropType?: string | null } | null;
   sumInsured: DecimalString;
   premium: DecimalString;
   platformFee: DecimalString;

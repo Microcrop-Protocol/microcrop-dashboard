@@ -16,7 +16,7 @@ import { Plus } from "lucide-react";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney, type Market } from "@/lib/market";
 import { useCatalogue } from "@/hooks/useCatalogue";
-import { productLabel } from "@/lib/catalogue";
+import { policyCropLabel } from "@/lib/catalogue";
 import { CatalogueStatusBadge } from "@/components/catalogue/CatalogueOptions";
 import type { CatalogueMarket } from "@/types/catalogue";
 
@@ -47,13 +47,15 @@ const buildColumns = (market: Market | null, catalogue: CatalogueMarket | null):
   { accessorKey: "plotName", header: "Plot" },
   { accessorKey: "coverageType", header: "Coverage" },
   {
-    accessorKey: "cropType",
+    id: "cropType",
     header: "Crop",
-    // The label from the catalogue, and the status the policy was SOLD UNDER (frozen at purchase)
-    // — so a pilot sale stays marked as one after the crop graduates.
+    // The crop is the PLOT's (`plot.cropType`; the policy row has none), labelled from the
+    // catalogue, else shown as its raw code — never blank. Beside it, the status the policy was
+    // SOLD UNDER (frozen at purchase), so a pilot sale stays marked as one after it graduates.
+    accessorFn: (policy) => policyCropLabel(catalogue, policy),
     cell: ({ row }) => (
       <span className="inline-flex flex-wrap items-center gap-1">
-        {productLabel(catalogue, "CROP", row.original.cropType)}
+        {policyCropLabel(catalogue, row.original)}
         <CatalogueStatusBadge status={row.original.catalogueStatus} />
       </span>
     ),
