@@ -1,6 +1,7 @@
 import { ApiError, type ApiErrorDetail } from "@/lib/api/client";
 import { getErrorMessage } from "@/lib/error-messages";
 import { PRODUCT_NOT_IN_MARKET } from "@/lib/catalogue";
+import { marketOrNull } from "@/lib/market";
 
 export interface ImportIssue {
   row?: number;
@@ -49,6 +50,37 @@ export function parseBackendDetails(details: ApiErrorDetail[] | undefined): Impo
     }
     return { field: d.field, message };
   });
+}
+
+/**
+ * Per-row issues from a PRODUCT_NOT_IN_MARKET bulk refusal: `details.rows` is
+ * `[{ row, cropType }]` with 1-based rows (farmer.service.bulkImportPlots). Rows without a usable
+ * number are skipped; with no `rows` at all, each code in `details.items` becomes one row-less line.
+ */
+export function catalogueRefusalRows(context: unknown): ImportIssue[] {
+  if (!context || typeof context !== "object" || Array.isArray(context)) return [];
+  const d = context as Record<string, unknown>;
+  // Same wording as the pre-upload check in preparePlotRows, so both reports read alike.
+  const countryName = marketOrNull(d.countryCode)?.countryName;
+  const list = countryName ? `the ${countryName} crop list` : "your market's crop list";
+  const describe = (code: unknown) =>
+    typeof code === "string" && code.trim()
+      ? `"${code.trim()}" is not in ${list}`
+      : `A blank crop is not in ${list}`;
+
+  if (Array.isArray(d.rows)) {
+    return d.rows.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const { row, cropType } = entry as { row?: unknown; cropType?: unknown };
+      const n = typeof row === "number" ? row : Number(row);
+      // formatIssue prints `row + 1`, so the server's 1-based row is stored 0-based.
+      return Number.isInteger(n) && n >= 1 ? [{ row: n - 1, field: "cropType", message: describe(cropType) }] : [];
+    });
+  }
+  if (Array.isArray(d.items)) {
+    return d.items.map((code) => ({ field: "cropType", message: describe(code) }));
+  }
+  return [];
 }
 
 function cleanJoiMessage(msg: string): string {
@@ -106,13 +138,16 @@ export function buildErrorReport(error: unknown, label: string): ImportReport {
       raw.map((i) => i.row).filter((r): r is number => r !== undefined),
     ).size;
     // A catalogue refusal of the whole file (a crop the market does not list) is a product
-    // boundary with its own wording; the raw backend message is not shown in its place.
+    // boundary with its own wording; the raw backend message is not shown in its place. The
+    // refusal's OBJECT details carry `rows: [{ row, cropType }]` (1-based) naming every
+    // offending row — kept here, so the report says which rows to fix, not just that some exist.
     if (error.code === PRODUCT_NOT_IN_MARKET) {
+      const refusedRows = catalogueRefusalRows(error.context);
       return {
         tone: "error",
         title: "Not in your market's product list",
         summary: getErrorMessage(error),
-        issues: cap(grouped),
+        issues: cap(refusedRows.length > 0 ? summarizeIssues(refusedRows) : grouped),
       };
     }
     const summary =

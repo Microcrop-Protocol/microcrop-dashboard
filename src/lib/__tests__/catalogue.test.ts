@@ -17,7 +17,9 @@ import {
   isListed,
   isSellable,
   lineOffered,
+  catalogueReasonLabel,
   matchCatalogueItem,
+  notSellableNote,
   notSellableReason,
   productLabel,
   resolveCatalogueState,
@@ -86,6 +88,48 @@ describe('isSellable', () => {
   it('denies a sellable flag paired with a status that is not sold', () => {
     const wheat = findCatalogueItem(KE_CATALOGUE, 'CROP', 'WHEAT') as CatalogueItem;
     expect(isSellable({ ...wheat, sellable: true })).toBe(false);
+  });
+
+  it("honours the SERVER's sellable: false on a PILOT or AVAILABLE item it has not priced", () => {
+    const maize = findCatalogueItem(KE_CATALOGUE, 'CROP', 'MAIZE') as CatalogueItem;
+    expect(isSellable({ ...maize, sellable: false, reason: 'PRICING_NOT_CONFIGURED' })).toBe(false);
+    const sorghum = findCatalogueItem(KE_CATALOGUE, 'CROP', 'SORGHUM') as CatalogueItem;
+    expect(isSellable({ ...sorghum, sellable: false })).toBe(false);
+  });
+});
+
+describe('the server\'s reason for a not-sellable item', () => {
+  const maize = findCatalogueItem(KE_CATALOGUE, 'CROP', 'MAIZE') as CatalogueItem;
+  const unpriced: CatalogueItem = { ...maize, sellable: false, reason: 'PRICING_NOT_CONFIGURED' };
+  const wheat = findCatalogueItem(KE_CATALOGUE, 'CROP', 'WHEAT') as CatalogueItem;
+
+  it('words PRICING_NOT_CONFIGURED, and a code it does not know generically', () => {
+    expect(catalogueReasonLabel('PRICING_NOT_CONFIGURED')).toBe('Pricing not configured yet');
+    expect(catalogueReasonLabel('SOMETHING_NEW')).toBe('Not available to sell yet');
+    expect(catalogueReasonLabel(null)).toBeNull();
+    expect(catalogueReasonLabel('')).toBeNull();
+  });
+
+  it('notes a not-sellable item by purpose — and nothing for a sellable one', () => {
+    expect(notSellableNote(maize, 'Kenya', 'sell')).toBeNull();
+    expect(notSellableNote(unpriced, 'Kenya', 'sell')).toBe('Pricing not configured yet');
+    expect(notSellableNote(unpriced, 'Kenya', 'register')).toBe('Pricing not configured yet — cannot be insured yet');
+    expect(notSellableNote(wheat, 'Kenya', 'sell')).toMatch(/Wheat cover is coming soon in Kenya/);
+    expect(notSellableNote(wheat, 'Kenya', 'register')).toBe('Coming soon — cannot be insured yet');
+  });
+
+  it("explains an existing plot's unpriced crop with the server's reason, not as unlisted", () => {
+    const market = { ...KE_CATALOGUE, lines: { ...KE_CATALOGUE.lines, CROP: [unpriced] } };
+    const reason = notSellableReason(market, 'CROP', 'MAIZE');
+    expect(reason).toBe('Maize cannot be quoted or sold in Kenya yet — pricing not configured yet.');
+    expect(reason).not.toMatch(/not in the Kenya product catalogue/);
+  });
+
+  it('says a listed, unsellable item without a reason is listed — not missing', () => {
+    const market = { ...KE_CATALOGUE, lines: { ...KE_CATALOGUE.lines, CROP: [{ ...maize, sellable: false }] } };
+    expect(notSellableReason(market, 'CROP', 'MAIZE')).toBe(
+      'Maize is listed in Kenya but cannot be quoted or sold yet.',
+    );
   });
 });
 
@@ -215,9 +259,31 @@ describe('catalogueRefusalMessage', () => {
   it('words PRODUCT_NOT_IN_MARKET for the record being created', () => {
     expect(
       catalogueRefusalMessage('PRODUCT_NOT_IN_MARKET', {
-        countryCode: 'GH', line: 'LIVESTOCK', item: 'CATTLE',
+        countryCode: 'GH', line: 'CROP', item: 'TEA',
       }),
-    ).toMatch(/Cattle is not in the product list in Ghana, so a new herd cannot be registered/);
+    ).toBe('Tea is not in the product list in Ghana, so a new plot cannot be registered with it. Choose one from the list.');
+    expect(
+      catalogueRefusalMessage('PRODUCT_NOT_IN_MARKET', {
+        countryCode: 'KE', line: 'LIVESTOCK', item: 'POULTRY',
+      }),
+    ).toMatch(/Poultry is not in the product list in Kenya, so a new herd cannot be registered/);
+  });
+
+  it('does not say "Choose one from the list" in a market with no livestock list', () => {
+    const message = catalogueRefusalMessage('PRODUCT_NOT_IN_MARKET', {
+      countryCode: 'GH', line: 'LIVESTOCK', item: 'CATTLE',
+    });
+    expect(message).toBe('Livestock cover is not offered in Ghana, so no herd can be registered there.');
+    expect(message).not.toMatch(/Choose/);
+  });
+
+  it('names every crop of a bulk refusal, not only the first', () => {
+    expect(
+      catalogueRefusalMessage('PRODUCT_NOT_IN_MARKET', {
+        countryCode: 'GH', line: 'CROP', item: 'TEA', items: ['TEA', 'CASSAVA'],
+        rows: [{ row: 1, cropType: 'TEA' }, { row: 3, cropType: 'CASSAVA' }],
+      }),
+    ).toBe('Tea, Cassava are not in the product list in Ghana, so plots cannot be registered with them. Choose from the list.');
   });
 
   it('words PRICING_NOT_CONFIGURED without implying a fault in the request', () => {

@@ -206,7 +206,7 @@ export default function FarmerImportPage() {
   // sample number rather than a Kenyan one in that window. The catalogue supplies the sample crop
   // and the list of crop codes a plots file may carry.
   const { market } = useOrgMarket();
-  const { market: catalogue } = useCatalogue();
+  const { market: catalogue, state: catalogueState } = useCatalogue();
   const crops = importableCrops(catalogue);
 
   const importFarmersMutation = useMutation({
@@ -305,7 +305,7 @@ export default function FarmerImportPage() {
         longitude: p.longitude ? parseFloat(p.longitude) : undefined,
         acreage: p.acreage ? parseFloat(p.acreage) : undefined,
       }));
-      const { plots, blocking } = preparePlotRows(parsed, catalogue);
+      const { plots, blocking } = preparePlotRows(parsed, catalogue, catalogueState);
       if (blocking) {
         setPlotsReport(blocking);
         notifyError(undefined, blocking.summary);
@@ -338,7 +338,7 @@ export default function FarmerImportPage() {
         return showPlotsClientError("Invalid format", "Input must be a JSON array.");
       }
       // The same crop check and field mapping as the CSV path: a pasted array is the same rows.
-      const { plots, blocking } = preparePlotRows(parsed, catalogue);
+      const { plots, blocking } = preparePlotRows(parsed, catalogue, catalogueState);
       if (blocking) {
         setPlotsReport(blocking);
         notifyError(undefined, blocking.summary);
@@ -571,15 +571,17 @@ export default function FarmerImportPage() {
                         </span>
                       ))}
                     </p>
-                    {crops.comingSoon.length > 0 && (
+                    {crops.notInsurableYet.length > 0 && (
                       <p className="mt-2">
-                        Coming soon — can be registered, but cannot be insured yet:{" "}
-                        <span className="font-mono">{crops.comingSoon.map((c) => c.code).join(", ")}</span>
+                        Can be registered, but cannot be insured yet:{" "}
+                        <span className="font-mono">{crops.notInsurableYet.map((c) => c.code).join(", ")}</span>
                       </p>
                     )}
                   </>
+                ) : catalogueState === "loading" ? (
+                  <p>Your market&apos;s crop list is still loading.</p>
                 ) : (
-                  <p>Your market&apos;s crop list hasn&apos;t loaded yet.</p>
+                  <p>We couldn&apos;t load your market&apos;s crop list. Reload the page to try again.</p>
                 )}
               </div>
             </CardContent>

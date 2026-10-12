@@ -1,11 +1,11 @@
 import type { Market } from "@/lib/market";
 import { marketSamples } from "@/lib/market-samples";
 import {
-  CATALOGUE_STATUS,
   catalogueItems,
   exampleItem,
   isSellable,
   matchCatalogueItem,
+  type CatalogueState,
 } from "@/lib/catalogue";
 import type { CatalogueItem, CatalogueMarket } from "@/types/catalogue";
 import { summarizeIssues, type ImportIssue, type ImportReport } from "./importIssues";
@@ -66,15 +66,20 @@ export function csvToJsonExample(csv: string): string {
   return `[{${entries.join(", ")}}]`;
 }
 
-/** The crop codes a plots file may carry, grouped for the help text under the upload. */
+/**
+ * The crop codes a plots file may carry, grouped for the help text under the upload. Every LISTED
+ * crop may be imported; the split is by what the SERVER says is sellable — so a coming-soon crop
+ * and a pilot crop the server has not priced both land in `notInsurableYet`, rather than the
+ * second vanishing from both lists.
+ */
 export function importableCrops(catalogue: CatalogueMarket | null): {
   sellable: CatalogueItem[];
-  comingSoon: CatalogueItem[];
+  notInsurableYet: CatalogueItem[];
 } {
   const crops = catalogueItems(catalogue, "CROP");
   return {
     sellable: crops.filter((c) => isSellable(c)),
-    comingSoon: crops.filter((c) => c.status === CATALOGUE_STATUS.COMING_SOON),
+    notInsurableYet: crops.filter((c) => !isSellable(c)),
   };
 }
 
@@ -97,20 +102,25 @@ export interface PreparedPlots {
  *            backend validator requires. Sending `name` failed every row.
  *
  * With no catalogue there is nothing to check against, and the file is held rather than sent
- * unchecked.
+ * unchecked — and the hold says WHICH of two things happened: the list is still on its way
+ * (`state: 'loading'`, a wait, not a fault) or it failed to load. Saying "couldn't load" during
+ * an ordinary first-second load told partners something had broken when nothing had.
  */
 export function preparePlotRows(
   rows: Record<string, unknown>[],
   catalogue: CatalogueMarket | null,
+  state: CatalogueState = catalogue ? "known" : "unknown",
 ): PreparedPlots {
   if (!catalogue) {
+    const loading = state === "loading";
     return {
       plots: [],
       blocking: {
-        tone: "error",
-        title: "Crop list unavailable",
-        summary:
-          "We couldn't load your market's crop list, so the file can't be checked. Try again in a moment.",
+        tone: loading ? "warning" : "error",
+        title: loading ? "Crop list still loading" : "Crop list unavailable",
+        summary: loading
+          ? "Your market's crop list is still loading, so the file can't be checked yet. Import again in a moment — nothing was uploaded."
+          : "We couldn't load your market's crop list, so the file can't be checked. Try again in a moment.",
         issues: [],
       },
     };

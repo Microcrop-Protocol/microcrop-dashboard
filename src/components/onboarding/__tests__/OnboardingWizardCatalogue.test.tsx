@@ -1,7 +1,9 @@
 /**
  * The field-onboarding wizard for a GHANAIAN organization: Ghanaian examples on the form, and a
  * crop picker drawn from Ghana's catalogue — its pilot crops selectable and badged, its
- * coming-soon crops disabled, and nothing from the old global list (tea, cassava, green grams).
+ * coming-soon crops SELECTABLE for the plot (the backend registers a plot for any listed crop) but
+ * labelled "Coming soon — cannot be insured yet", and nothing from the old global list (tea,
+ * cassava, green grams).
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -86,6 +88,8 @@ describe('OnboardingWizard in Ghana', () => {
     const soybean = screen.getByRole('option', { name: /Soybean/ });
     expect(soybean).toHaveTextContent('Pilot');
     expect(soybean).not.toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByRole('option', { name: /Cowpea/ })).toHaveAttribute('aria-disabled', 'true');
+    const cowpea = screen.getByRole('option', { name: /Cowpea/ });
+    expect(cowpea).not.toHaveAttribute('aria-disabled', 'true');
+    expect(cowpea).toHaveTextContent('Coming soon — cannot be insured yet');
   });
 });

@@ -45,10 +45,25 @@ describe('templates', () => {
     );
   });
 
-  it('groups the importable crop codes into sellable and coming soon', () => {
-    const { sellable, comingSoon } = importableCrops(GH_CATALOGUE);
+  it('groups the importable crop codes into sellable and not insurable yet', () => {
+    const { sellable, notInsurableYet } = importableCrops(GH_CATALOGUE);
     expect(sellable.map((c) => c.code)).toEqual(['MAIZE', 'SOYBEAN', 'SORGHUM', 'GROUNDNUT']);
-    expect(comingSoon.map((c) => c.code)).toEqual(['MILLET', 'COWPEA', 'RICE']);
+    expect(notInsurableYet.map((c) => c.code)).toEqual(['MILLET', 'COWPEA', 'RICE']);
+  });
+
+  it("files a pilot crop the SERVER has not priced as not insurable yet, not as sellable", () => {
+    const catalogue = {
+      ...GH_CATALOGUE,
+      lines: {
+        ...GH_CATALOGUE.lines,
+        CROP: GH_CATALOGUE.lines.CROP.map((c) =>
+          c.code === 'GROUNDNUT' ? { ...c, sellable: false, reason: 'PRICING_NOT_CONFIGURED' } : c,
+        ),
+      },
+    };
+    const { sellable, notInsurableYet } = importableCrops(catalogue);
+    expect(sellable.map((c) => c.code)).not.toContain('GROUNDNUT');
+    expect(notInsurableYet.map((c) => c.code)).toContain('GROUNDNUT');
   });
 });
 
@@ -100,6 +115,16 @@ describe('preparePlotRows', () => {
     const { plots, blocking } = preparePlotRows([row('MAIZE')], null);
     expect(plots).toEqual([]);
     expect(blocking?.title).toBe('Crop list unavailable');
+    expect(preparePlotRows([row('MAIZE')], null, 'unknown').blocking?.summary).toMatch(/couldn't load/);
+  });
+
+  it('says the list is still LOADING while it loads — not that it failed', () => {
+    const { plots, blocking } = preparePlotRows([row('MAIZE')], null, 'loading');
+    expect(plots).toEqual([]);
+    expect(blocking?.title).toBe('Crop list still loading');
+    expect(blocking?.tone).toBe('warning');
+    expect(blocking?.summary).toMatch(/still loading/);
+    expect(blocking?.summary).not.toMatch(/couldn't load/);
   });
 });
 
@@ -111,6 +136,28 @@ describe('import report for catalogue refusals', () => {
     const report = buildErrorReport(err, 'plots');
     expect(report.title).toBe("Not in your market's product list");
     expect(report.summary).toMatch(/Tea is not in the product list in Kenya/);
+  });
+
+  it("keeps the bulk refusal's per-row detail (details.rows) in the report", () => {
+    // farmer.service.bulkImportPlots refuses the whole file and names every row, 1-based.
+    const err = new ApiError('Not in market', 400, 'PRODUCT_NOT_IN_MARKET', undefined, {
+      countryCode: 'GH', line: 'CROP', item: 'TEA', status: null,
+      items: ['TEA', 'CASSAVA'],
+      rows: [{ row: 2, cropType: 'TEA' }, { row: 5, cropType: 'TEA' }, { row: 7, cropType: 'CASSAVA' }],
+    });
+    const report = buildErrorReport(err, 'plots');
+    expect(report.summary).toMatch(/Tea, Cassava are not in the product list in Ghana/);
+    expect(report.issues).toEqual([
+      '2 rows · cropType: "TEA" is not in the Ghana crop list',
+      'Row 7 · cropType: "CASSAVA" is not in the Ghana crop list',
+    ]);
+  });
+
+  it('falls back to one line per refused code when the refusal names no rows', () => {
+    const err = new ApiError('Not in market', 400, 'PRODUCT_NOT_IN_MARKET', undefined, {
+      countryCode: 'KE', line: 'CROP', item: 'TEA', items: ['TEA'],
+    });
+    expect(buildErrorReport(err, 'plots').issues).toEqual(['cropType: "TEA" is not in the Kenya crop list']);
   });
 
   it('does not throw on an object-shaped details', () => {

@@ -104,6 +104,25 @@ describe('CataloguePage', () => {
     expect(within(ke).getByText('2 crop · 1 livestock · 2 sellable · 1 coming soon')).toBeInTheDocument();
   });
 
+  it("shows the server's reason a pilot item is not sellable", async () => {
+    mocks.getCatalogue.mockResolvedValue({
+      markets: [
+        {
+          ...CATALOGUE.markets[1],
+          lines: {
+            CROP: [item({ code: 'SOYBEAN', label: 'Soybean', status: 'PILOT', sellable: false, reason: 'PRICING_NOT_CONFIGURED' })],
+            LIVESTOCK: [],
+          },
+        },
+      ],
+    });
+    renderAt();
+    const gh = await screen.findByTestId('catalogue-GH');
+    const soybean = within(gh).getByText('Soybean').closest('tr') as HTMLElement;
+    expect(within(soybean).getByText('No')).toBeInTheDocument();
+    expect(within(soybean).getByText('Pricing not configured yet')).toBeInTheDocument();
+  });
+
   it("says plainly that Ghana offers no livestock", async () => {
     renderAt();
     const gh = await screen.findByTestId('catalogue-GH');

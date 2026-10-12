@@ -21,6 +21,7 @@ import {
   sortCatalogueItems,
   summarizeCatalogueMarket,
 } from "@/lib/platform-catalogue";
+import { catalogueReasonLabel } from "@/lib/catalogue";
 import type { CatalogueItem, CatalogueLine, CatalogueMarket } from "@/types/catalogue";
 
 function CatalogueLineTable({
@@ -70,7 +71,13 @@ function CatalogueLineTable({
                   {catalogueStatusLabel(item.status)}
                 </StatusBadge>
               </TableCell>
-              <TableCell>{item.sellable ? "Yes" : "No"}</TableCell>
+              <TableCell>
+                {item.sellable ? "Yes" : "No"}
+                {/* The server's reason a PILOT/AVAILABLE item is not sellable (e.g. unpriced). */}
+                {!item.sellable && catalogueReasonLabel(item.reason) && (
+                  <div className="text-xs text-muted-foreground">{catalogueReasonLabel(item.reason)}</div>
+                )}
+              </TableCell>
               <TableCell className="min-w-[10rem] text-sm">{item.peril}</TableCell>
               <TableCell className="min-w-[12rem] text-sm">{item.index}</TableCell>
               <TableCell className="text-sm">{item.coverPeriod}</TableCell>

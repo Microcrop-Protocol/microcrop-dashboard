@@ -21,9 +21,18 @@
  *                  plot or herd (PRODUCT_NOT_IN_MARKET). Existing rows with an unlisted legacy
  *                  code stay valid — they are displayed, never re-validated.
  *
- * Pickers offer only SELLABLE items as choices and show COMING_SOON disabled with the reason: the
- * onboarding flows register a plot or herd in order to sell cover on it in the same sitting, and
- * a field agent who registers a coming-soon crop would reach the quote step and be refused.
+ * Pickers have two purposes, matching the backend's two gates:
+ *
+ *   'sell'      choosing what to QUOTE or SELL. Only sellable items are choices; the rest are shown
+ *               disabled with the reason (coming soon, pricing not configured yet).
+ *   'register'  choosing the crop of a NEW plot. Every LISTED item is a choice — the backend's
+ *               plot gate is PRODUCT_NOT_IN_MARKET (any status), so a coming-soon crop can be
+ *               registered ahead of launch — and a not-yet-sellable one is labelled "Coming soon —
+ *               cannot be insured yet" so nobody registers it expecting to quote it.
+ *
+ * SELLABLE COMES FROM THE SERVER. `item.sellable` is the server's answer and may be false for a
+ * PILOT or AVAILABLE item it has not priced, with `item.reason` saying why. The dashboard never
+ * re-derives sellability from `status` alone.
  *
  * FAIL-CLOSED, THE SAME WAY lib/capability.ts IS. Every condition is written in the positive. A
  * missing catalogue, a missing item, `sellable: 'true'`, or a status this build does not know all
@@ -123,6 +132,44 @@ export function findCatalogueItem(
 /** May this item be quoted and purchased? `=== true`, never `!== false`. */
 export function isSellable(item: CatalogueItem | null | undefined): boolean {
   return item != null && item.sellable === true && SELLABLE_STATUSES.includes(item.status);
+}
+
+/** The reason codes the server may put on a not-sellable PILOT/AVAILABLE item. */
+export const CATALOGUE_REASON = {
+  PRICING_NOT_CONFIGURED,
+} as const;
+
+/**
+ * Short copy for a not-sellable item's `reason`, or null when there is none. An unrecognised code
+ * gets a generic line rather than the raw enum, and never a guess at what it means.
+ */
+export function catalogueReasonLabel(reason: string | null | undefined): string | null {
+  if (typeof reason !== 'string' || !reason.trim()) return null;
+  if (reason === PRICING_NOT_CONFIGURED) return 'Pricing not configured yet';
+  return 'Not available to sell yet';
+}
+
+/**
+ * The one line a picker shows under a NOT-sellable item, by purpose. Null for a sellable item.
+ *
+ *   sell      COMING_SOON → the coming-soon sentence; a server `reason` → its label; else
+ *             "Not offered in {country}."
+ *   register  "Coming soon — cannot be insured yet" for COMING_SOON; "{reason} — cannot be
+ *             insured yet" for a priced-out item; the item stays selectable.
+ */
+export function notSellableNote(
+  item: CatalogueItem,
+  countryName: string,
+  purpose: 'sell' | 'register',
+): string | null {
+  if (isSellable(item)) return null;
+  const reason = catalogueReasonLabel(item.reason);
+  if (purpose === 'register') {
+    if (item.status === CATALOGUE_STATUS.COMING_SOON) return 'Coming soon — cannot be insured yet';
+    return `${reason ?? 'Not available to sell yet'} — cannot be insured yet`;
+  }
+  if (item.status === CATALOGUE_STATUS.COMING_SOON) return comingSoonReason(item.label, countryName);
+  return reason ?? `Not offered in ${countryName}.`;
 }
 
 /** Is the code in the market catalogue at all — the server's test for a NEW plot or herd. */
@@ -252,13 +299,24 @@ export function notSellableReason(
   const item = findCatalogueItem(market, line, code);
   if (isSellable(item)) return null;
   const label = item?.label ?? humanizeProductCode(code);
-  if (item?.status === CATALOGUE_STATUS.COMING_SOON) return comingSoonReason(label, market.countryName);
-  return `${label} is not in the ${market.countryName} product catalogue, so it cannot be quoted or sold.`;
+  if (!item) {
+    return `${label} is not in the ${market.countryName} product catalogue, so it cannot be quoted or sold.`;
+  }
+  if (item.status === CATALOGUE_STATUS.COMING_SOON) return comingSoonReason(label, market.countryName);
+  // Listed as PILOT/AVAILABLE, but the server says it cannot be sold — say the server's reason,
+  // not "not in the catalogue", which would be false.
+  const reason = catalogueReasonLabel(item.reason);
+  return reason
+    ? `${label} cannot be quoted or sold in ${market.countryName} yet — ${reason.toLowerCase()}.`
+    : `${label} is listed in ${market.countryName} but cannot be quoted or sold yet.`;
 }
 
 /** The picker could not be filled because the catalogue did not load. */
 export const CATALOGUE_UNKNOWN_MESSAGE =
   "We couldn't load your market's product list, so there is nothing to choose from yet. Try again in a moment.";
+
+/** The catalogue is still on its way — not a failure, and not worded as one. */
+export const CATALOGUE_LOADING_MESSAGE = "Your market's product list is still loading.";
 
 /** A policy's frozen catalogue status, for a detail row. */
 export function soldUnderLabel(status: CatalogueStatus | string | null | undefined): string | null {
@@ -307,6 +365,20 @@ export function catalogueRefusalMessage(code: string | undefined, details: unkno
 
   if (code === PRODUCT_NOT_IN_MARKET) {
     const record = isLivestock ? 'herd' : 'plot';
+    // A market with no livestock line (Ghana) has no list to choose from: "Choose one from the
+    // list" would send the partner looking for a picker that does not exist.
+    const market = marketOrNull(d.countryCode);
+    if (isLivestock && market && !market.livestockEnabled) {
+      return `Livestock cover is not offered in ${market.countryName}, so no herd can be registered there.`;
+    }
+    // A bulk refusal names every offending code in `items`; `item` is only the first of them.
+    const items = Array.isArray(d.items) ? d.items.filter((i): i is string => typeof i === 'string') : [];
+    if (items.length > 1) {
+      return (
+        `${items.map((i) => humanizeProductCode(i)).join(', ')} are not in the product list ${where}, ` +
+        `so ${record}s cannot be registered with them. Choose from the list.`
+      );
+    }
     return `${what} is not in the product list ${where}, so a new ${record} cannot be registered with it. Choose one from the list.`;
   }
 

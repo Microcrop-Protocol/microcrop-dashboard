@@ -42,7 +42,7 @@ import {
 import { marketSamples } from '@/lib/market-samples';
 import { useCatalogue } from '@/hooks/useCatalogue';
 import {
-  findCatalogueItem, notSellableReason, productLabel, soldUnderLabel,
+  findCatalogueItem, notSellableNote, notSellableReason, productLabel, soldUnderLabel,
 } from '@/lib/catalogue';
 import {
   CatalogueItemDetails, CatalogueSelectItems, CatalogueStatusBadge, CatalogueUnknownNote,
@@ -148,8 +148,9 @@ export function OnboardingWizard() {
   // Placeholder examples from the organization's own market; empty until it resolves.
   const samples = marketSamples(market);
 
-  // The market's CROP line. The plot step offers only its sellable crops — this wizard registers
-  // the plot in order to quote it a few steps later — and shows coming-soon crops disabled.
+  // The market's CROP line. The plot step offers every LISTED crop — the backend registers a plot
+  // for a crop of any catalogue status — and labels the ones that cannot be insured yet, so a
+  // field agent who picks one knows the quote step will not quote it.
   const catalogue = useCatalogue();
   const catalogueMarket = catalogue.market;
   const countryName = catalogueMarket?.countryName ?? market?.countryName ?? 'your market';
@@ -651,6 +652,10 @@ export function OnboardingWizard() {
 
   // ── Step: Create Plot ──────────────────────────────────
 
+  // The crop picked on the plot step, and — when it cannot be insured yet — the line that says so.
+  const chosenCrop = findCatalogueItem(catalogueMarket, 'CROP', plotForm.watch('cropType'));
+  const chosenCropNote = chosenCrop ? notSellableNote(chosenCrop, countryName, 'register') : null;
+
   const renderPlotStep = () => (
     <Card>
       <CardHeader>
@@ -746,6 +751,7 @@ export function OnboardingWizard() {
                         items={catalogue.crops}
                         countryName={countryName}
                         emptyMessage={`No crops are offered in ${countryName}`}
+                        purpose="register"
                       />
                     </SelectContent>
                   </Select>
@@ -755,10 +761,12 @@ export function OnboardingWizard() {
             </div>
 
             {catalogue.state === 'unknown' && <CatalogueUnknownNote onRetry={catalogue.refetch} />}
-            <CatalogueItemDetails
-              item={findCatalogueItem(catalogueMarket, 'CROP', plotForm.watch('cropType'))}
-              countryName={countryName}
-            />
+            {chosenCropNote && (
+              <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+                {chosenCropNote}. The plot can be registered, but no policy can be quoted on it yet.
+              </p>
+            )}
+            <CatalogueItemDetails item={chosenCrop} countryName={countryName} />
 
             <FormField control={plotForm.control} name="plantingDate" render={({ field }) => (
               <FormItem>
@@ -845,8 +853,8 @@ export function OnboardingWizard() {
   // ── Step: Premium Quote ────────────────────────────────
 
   /**
-   * Why this plot's crop cannot be quoted, or null. The picker only offers sellable crops, so this
-   * is reached when the catalogue changed between the plot step and now — and it is said here,
+   * Why this plot's crop cannot be quoted, or null. Reached for a coming-soon crop registered at
+   * the plot step (which the backend allows), and when the catalogue changed since — said here,
    * before the quote request, instead of as a refused quote.
    */
   const plotCropReason = notSellableReason(catalogueMarket, 'CROP', plot?.cropType);

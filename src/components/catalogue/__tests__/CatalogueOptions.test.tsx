@@ -13,7 +13,15 @@ import {
 import { GH_CATALOGUE, KE_CATALOGUE } from '@/test/catalogue-fixtures';
 import type { CatalogueItem } from '@/types/catalogue';
 
-function Picker({ items, countryName }: { items: CatalogueItem[]; countryName: string }) {
+function Picker({
+  items,
+  countryName,
+  purpose,
+}: {
+  items: CatalogueItem[];
+  countryName: string;
+  purpose?: 'sell' | 'register';
+}) {
   const [value, setValue] = useState('');
   return (
     <Select value={value} onValueChange={setValue}>
@@ -21,7 +29,7 @@ function Picker({ items, countryName }: { items: CatalogueItem[]; countryName: s
         <SelectValue placeholder="Select crop" />
       </SelectTrigger>
       <SelectContent>
-        <CatalogueSelectItems items={items} countryName={countryName} emptyMessage="Nothing offered" />
+        <CatalogueSelectItems items={items} countryName={countryName} emptyMessage="Nothing offered" purpose={purpose} />
       </SelectContent>
     </Select>
   );
@@ -54,6 +62,30 @@ describe('CatalogueSelectItems', () => {
     expect(wheat).toHaveAttribute('aria-disabled', 'true');
     expect(wheat).toHaveTextContent('Coming soon');
     expect(wheat).toHaveTextContent('Wheat cover is coming soon in Kenya');
+  });
+
+  it("disables a PILOT item the SERVER marks unsellable, with the server's reason", async () => {
+    const items = KE_CATALOGUE.lines.CROP.map((c) =>
+      c.code === 'SORGHUM' ? { ...c, sellable: false, reason: 'PRICING_NOT_CONFIGURED' } : c,
+    );
+    render(<Picker items={items} countryName="Kenya" />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Crop' }));
+
+    const sorghum = await screen.findByRole('option', { name: /Sorghum/ });
+    expect(sorghum).toHaveAttribute('aria-disabled', 'true');
+    expect(sorghum).toHaveTextContent('Pricing not configured yet');
+    expect(sorghum).not.toHaveTextContent(/Not offered in Kenya/);
+  });
+
+  it('lets a coming-soon crop be chosen for a NEW PLOT, labelled as not insurable yet', async () => {
+    render(<Picker items={KE_CATALOGUE.lines.CROP} countryName="Kenya" purpose="register" />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Crop' }));
+
+    const wheat = await screen.findByRole('option', { name: /Wheat/ });
+    expect(wheat).not.toHaveAttribute('aria-disabled', 'true');
+    expect(wheat).toHaveTextContent('Coming soon — cannot be insured yet');
+    fireEvent.click(wheat);
+    expect(screen.getByRole('combobox', { name: 'Crop' })).toHaveTextContent(/^Wheat$/);
   });
 
   it('shows only the label in the closed trigger once chosen', async () => {

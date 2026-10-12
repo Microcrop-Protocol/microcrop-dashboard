@@ -10,7 +10,6 @@ import {
   SUPPORTED_COUNTRY_CODES,
   type Market,
 } from '@/lib/market';
-import { isSellable } from '@/lib/catalogue';
 import type { CatalogueItem } from '@/types/catalogue';
 
 /**
@@ -66,9 +65,11 @@ export type FarmerRegistrationData = z.infer<typeof farmerRegistrationSchema>;
  *
  * `cropType` was `z.enum([...])` over all fourteen values of the Prisma enum, which made tea,
  * cassava and banana valid plot crops in every market. The server now refuses a crop that is not
- * in the organization's market catalogue (PRODUCT_NOT_IN_MARKET), and the onboarding wizard
- * registers the plot in order to quote it in the same sitting — so the client accepts exactly
- * what the picker offers: a SELLABLE item of the market's CROP line.
+ * in the organization's market catalogue (PRODUCT_NOT_IN_MARKET) — and ONLY that: its plot gate
+ * is "listed", any status, so a COMING_SOON crop can be registered ahead of launch. The client
+ * matches it exactly: any LISTED item of the market's CROP line. Whether the crop can then be
+ * QUOTED is a separate question, answered at the quote step (and the picker labels a
+ * not-yet-sellable crop "Coming soon — cannot be insured yet").
  *
  * `crops === null` is the not-yet-known case. It accepts nothing, with a message that says why,
  * rather than accepting anything and letting the server refuse it.
@@ -92,7 +93,8 @@ export const plotCreationSchemaFor = (crops: readonly CatalogueItem[] | null) =>
     cropType: z.string({ required_error: 'Select a crop' })
       .min(1, 'Select a crop')
       .refine(
-        (code) => Boolean(crops?.some((item) => item.code === code && isSellable(item))),
+        // Listed, any status — the backend's plot gate. NOT isSellable: that is the quote gate.
+        (code) => Boolean(crops?.some((item) => item.code === code)),
         {
           message: crops
             ? "Choose a crop offered in your organization's market."

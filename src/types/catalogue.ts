@@ -22,8 +22,17 @@ export interface CatalogueItem {
   code: string;
   label: string;
   status: CatalogueStatus;
-  /** Derived server-side from `status`. */
+  /**
+   * The server's answer to "may this be quoted and sold?". Derived server-side — from `status`,
+   * and now also from whether the product is priced in the market, so a PILOT or AVAILABLE item
+   * can arrive `sellable: false`. The dashboard reads THIS, never its own derivation.
+   */
   sellable: boolean;
+  /**
+   * Why a PILOT/AVAILABLE item is not sellable, when the server says (e.g.
+   * "PRICING_NOT_CONFIGURED"). Optional: absent on a sellable item and on an older backend.
+   */
+  reason?: string | null;
   peril: string;
   index: string;
   coverPeriod: string;

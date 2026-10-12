@@ -7,8 +7,14 @@
  *   AVAILABLE    a plain choice.
  *   PILOT        a choice, badged "Pilot" — the policy records that it was sold under the pilot,
  *                and a partner selling it should know that before the farmer does.
- *   COMING_SOON  listed, DISABLED, with the reason inline. Hiding it would make a partner ask why
- *                the crop it was told about is missing; offering it would end in a refused quote.
+ *   COMING_SOON  listed, with the reason inline. For SELLING (`purpose="sell"`, the default) it is
+ *                DISABLED: hiding it would make a partner ask why the crop it was told about is
+ *                missing; offering it would end in a refused quote. For REGISTERING a plot
+ *                (`purpose="register"`) it is a CHOICE, labelled "Coming soon — cannot be insured
+ *                yet": the backend accepts a listed crop of any status on a new plot.
+ *
+ * A PILOT/AVAILABLE item the SERVER marks `sellable: false` is treated like COMING_SOON, with the
+ * server's `reason` ("Pricing not configured yet") as its note.
  *
  * The option's ItemText holds only the label, so the closed trigger reads "Sorghum" rather than
  * "Sorghum Pilot Sorghum is a pilot product…". Built on the Radix primitive for that reason — the
@@ -23,8 +29,8 @@ import {
   CATALOGUE_STATUS,
   CATALOGUE_UNKNOWN_MESSAGE,
   catalogueStatusLabel,
-  comingSoonReason,
   isSellable,
+  notSellableNote,
   pilotNote,
 } from '@/lib/catalogue';
 import type { CatalogueItem, CatalogueStatus } from '@/types/catalogue';
@@ -56,10 +62,16 @@ export function CatalogueSelectItems({
   items,
   countryName,
   emptyMessage,
+  purpose = 'sell',
 }: {
   items: readonly CatalogueItem[];
   countryName: string;
   emptyMessage: string;
+  /**
+   * 'sell' (default): only sellable items can be chosen. 'register': every listed item can be
+   * chosen — the picker for a NEW plot, which the backend accepts in any catalogue status.
+   */
+  purpose?: 'sell' | 'register';
 }) {
   if (items.length === 0) {
     return (
@@ -77,11 +89,14 @@ export function CatalogueSelectItems({
     <>
       {items.map((item) => {
         const sellable = isSellable(item);
+        const note = notSellableNote(item, countryName, purpose);
+        // In a register picker the note already says "Coming soon", so the badge would repeat it.
+        const showBadge = !(purpose === 'register' && item.status === CATALOGUE_STATUS.COMING_SOON);
         return (
           <SelectPrimitive.Item
             key={item.code}
             value={item.code}
-            disabled={!sellable}
+            disabled={purpose === 'sell' && !sellable}
             className={cn(
               'relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none',
               'focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none',
@@ -96,15 +111,9 @@ export function CatalogueSelectItems({
               <span className={cn(!sellable && 'text-muted-foreground')}>
                 <SelectPrimitive.ItemText>{item.label}</SelectPrimitive.ItemText>
               </span>
-              <CatalogueStatusBadge status={item.status} />
+              {showBadge && <CatalogueStatusBadge status={item.status} />}
             </span>
-            {!sellable && (
-              <span className="mt-0.5 text-xs text-muted-foreground">
-                {item.status === CATALOGUE_STATUS.COMING_SOON
-                  ? comingSoonReason(item.label, countryName)
-                  : `Not offered in ${countryName}.`}
-              </span>
-            )}
+            {note && <span className="mt-0.5 text-xs text-muted-foreground">{note}</span>}
           </SelectPrimitive.Item>
         );
       })}

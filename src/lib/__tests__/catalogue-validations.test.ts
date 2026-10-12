@@ -1,9 +1,10 @@
 /**
  * The plot, herd and policy schemas are functions of the organization's market and catalogue.
  *
- * Pinned: a crop or species is accepted only when the market SELLS it (the picker offers exactly
- * that), nothing is accepted while the catalogue is unknown, and the sum-insured messages name
- * the market's own bounds and currency — never "USDC", and never Kenya's ceiling in Ghana.
+ * Pinned: a plot's crop is accepted when the market LISTS it, in any status — the backend's plot
+ * gate — while a herd's species must be SELLABLE (the livestock wizard registers the herd to
+ * insure it). Nothing is accepted while the catalogue is unknown, and the sum-insured messages
+ * name the market's own bounds and currency — never "USDC", and never Kenya's ceiling in Ghana.
  */
 import { describe, expect, it } from 'vitest';
 import { plotCreationSchemaFor, policyConfigSchemaFor } from '@/lib/validations/onboarding';
@@ -28,8 +29,16 @@ describe('plotCreationSchemaFor', () => {
     expect(gh.safeParse({ ...PLOT, cropType: 'SOYBEAN' }).success).toBe(true);
   });
 
-  it('refuses a coming-soon crop, which the picker shows disabled', () => {
-    expect(firstMessage(ke.safeParse({ ...PLOT, cropType: 'WHEAT' }))).toMatch(/offered in your organization's market/);
+  it('accepts a coming-soon crop — the backend registers a plot for any LISTED crop', () => {
+    expect(ke.safeParse({ ...PLOT, cropType: 'WHEAT' }).success).toBe(true);
+    expect(gh.safeParse({ ...PLOT, cropType: 'COWPEA' }).success).toBe(true);
+  });
+
+  it('accepts a listed crop the server has not priced', () => {
+    const unpriced = KE_CATALOGUE.lines.CROP.map((c) =>
+      c.code === 'MAIZE' ? { ...c, sellable: false, reason: 'PRICING_NOT_CONFIGURED' } : c,
+    );
+    expect(plotCreationSchemaFor(unpriced).safeParse({ ...PLOT, cropType: 'MAIZE' }).success).toBe(true);
   });
 
   it("refuses another market's crop and a crop no market lists", () => {
@@ -48,6 +57,24 @@ describe('herdRegistrationSchemaFor', () => {
     const ke = herdRegistrationSchemaFor(KE_CATALOGUE.lines.LIVESTOCK);
     expect(ke.safeParse({ ...HERD, livestockType: 'CAMEL' }).success).toBe(true);
     expect(ke.safeParse({ ...HERD, livestockType: 'POULTRY' }).success).toBe(false);
+  });
+
+  it('refuses a listed species the server says is not sellable — the herd is registered to be insured', () => {
+    const livestock = KE_CATALOGUE.lines.LIVESTOCK.map((item) =>
+      item.code === 'CAMEL' ? { ...item, sellable: false, reason: 'PRICING_NOT_CONFIGURED' } : item,
+    );
+    const ke = herdRegistrationSchemaFor(livestock);
+    expect(firstMessage(ke.safeParse({ ...HERD, livestockType: 'CAMEL' }))).toMatch(
+      /offered in your organization's market/,
+    );
+    expect(ke.safeParse({ ...HERD, livestockType: 'CATTLE' }).success).toBe(true);
+  });
+
+  it('refuses a coming-soon species', () => {
+    const livestock = KE_CATALOGUE.lines.LIVESTOCK.map((item) =>
+      item.code === 'GOAT' ? { ...item, status: 'COMING_SOON' as const, sellable: false } : item,
+    );
+    expect(herdRegistrationSchemaFor(livestock).safeParse({ ...HERD, livestockType: 'GOAT' }).success).toBe(false);
   });
 
   it('accepts no species in a market whose livestock line is empty (Ghana)', () => {
