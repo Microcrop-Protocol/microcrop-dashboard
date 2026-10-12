@@ -33,6 +33,7 @@ import {
   Code2,
   Sprout,
   Settings,
+  PackageSearch,
 } from "lucide-react";
 import { docsUrl } from "@/lib/docs";
 import {
@@ -63,6 +64,7 @@ const platformNavItems: NavItem[] = [
   { title: "Dashboard", href: "/platform/dashboard", icon: LayoutDashboard },
   { title: "Organizations", href: "/platform/organizations", icon: Building2 },
   { title: "Insurance Units", href: "/platform/insurance-units", icon: MapPin },
+  { title: "Product Catalogue", href: "/platform/catalogue", icon: PackageSearch },
   { title: "Treasury", href: "/platform/treasury", icon: Landmark },
   { title: "KYB Review", href: "/platform/kyb-review", icon: ClipboardCheck },
   { title: "Invitations", href: "/platform/invitations", icon: Mail },
