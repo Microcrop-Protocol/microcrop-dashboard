@@ -3,90 +3,116 @@ import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { BarChart } from "@/components/charts/BarChart";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { GranularitySelect } from "@/components/ui/granularity-select";
-import { DollarSign, TrendingUp, Wallet, ArrowDownUp } from "lucide-react";
+import { AnalyticsHeader } from "@/components/platform/AnalyticsHeader";
+import { UnconfirmedCurrencyNotice } from "@/components/platform/UnconfirmedCurrencyNotice";
+import { Card, CardContent } from "@/components/ui/card";
+import { DollarSign, Wallet, ArrowDownUp, Percent } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { Granularity } from "@/types";
+import { useMarketFilter } from "@/hooks/useMarketFilter";
+import { formatMoneyCompact, withCurrencySuffix } from "@/lib/market";
+import {
+  confirmedMarket,
+  dateRangeParams,
+  defaultAnalyticsRange,
+  formatRatio,
+  formatUsdcCompact,
+} from "@/lib/platform-analytics";
 
+/**
+ * Revenue for ONE market at a time. Premiums and fees are local money, so "All markets" is not
+ * offered: adding KES to GHS produces a number with no unit. Payouts are USDC and are shown beside
+ * the local figures, never netted against them — there is deliberately no "net revenue" tile.
+ */
 export default function RevenueAnalyticsPage() {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    to: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultAnalyticsRange);
   const [granularity, setGranularity] = useState<Granularity>("daily");
+  const marketFilter = useMarketFilter("single");
+  const { countryCode } = marketFilter;
+  const range = dateRangeParams(dateRange);
 
-  const { data } = useQuery({
-    queryKey: ["revenueAnalytics", dateRange, granularity],
-    queryFn: () => api.getRevenueAnalytics(),
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["revenueAnalytics", countryCode, range.startDate, range.endDate, granularity],
+    queryFn: () => api.getRevenueAnalytics({ countryCode, granularity, ...range }),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  // Labelled only when the server confirms the figures are for the market asked for.
+  const market = data ? confirmedMarket(data, countryCode) : null;
+  const money = (v: number) => (isLoading ? "—" : formatMoneyCompact(v, market));
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Revenue Analytics</h1>
-          <p className="text-muted-foreground">Track platform revenue and financial performance</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <GranularitySelect value={granularity} onChange={setGranularity} />
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
-        </div>
-      </div>
+      <AnalyticsHeader
+        title="Revenue Analytics"
+        description={`Premiums and platform fees in ${marketFilter.market?.countryName ?? "the selected market"}`}
+        mode="single"
+        marketFilter={marketFilter}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        granularity={granularity}
+        onGranularityChange={setGranularity}
+      />
+
+      {isError && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            We couldn't load revenue analytics. Please try again.
+          </CardContent>
+        </Card>
+      )}
+      {data && !market && marketFilter.market && (
+        <UnconfirmedCurrencyNotice requested={marketFilter.market.countryName} />
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Fees"
-          value={formatCurrency(data?.totalFees ?? 0)}
-          icon={DollarSign}
-        />
-        <StatCard
-          title="Total Premiums"
-          value={formatCurrency(data?.totalPremiums ?? 0)}
+          title={withCurrencySuffix("Total Premiums", market)}
+          value={money(data?.totals.premiums ?? 0)}
           icon={Wallet}
         />
         <StatCard
-          title="Total Payouts"
-          value={formatCurrency(data?.totalPayouts ?? 0)}
+          title={withCurrencySuffix("Platform Fees", market)}
+          value={money(data?.totals.fees ?? 0)}
+          icon={DollarSign}
+        />
+        <StatCard
+          title="Payouts (USDC)"
+          value={isLoading ? "—" : formatUsdcCompact(data?.totals.payoutsUsdc ?? 0)}
+          subtitle="Settled on-chain in USDC"
           icon={ArrowDownUp}
         />
         <StatCard
-          title="Net Revenue"
-          value={formatCurrency(data?.netRevenue ?? 0)}
-          icon={TrendingUp}
+          title="Loss Ratio"
+          value={isLoading ? "—" : formatRatio(data?.totals.lossRatio ?? null)}
+          subtitle={
+            data && data.totals.lossRatio === null
+              ? "Needs USDC-denominated premiums"
+              : "USDC payouts ÷ USDC premiums"
+          }
+          icon={Percent}
         />
       </div>
 
-      {/* Charts */}
+      {/* Local money only — USDC payouts would need a second axis and a second unit. */}
       <AreaChart
         data={data?.timeSeries ?? []}
         xKey="date"
         yKeys={[
-          { key: "premiums", name: "Premiums", color: "hsl(var(--chart-1))" },
-          { key: "payouts", name: "Payouts", color: "hsl(var(--chart-2))" },
-          { key: "fees", name: "Fees", color: "hsl(var(--chart-3))" },
+          { key: "premiums", name: withCurrencySuffix("Premiums", market), color: "hsl(var(--chart-1))" },
+          { key: "fees", name: withCurrencySuffix("Fees", market), color: "hsl(var(--chart-3))" },
         ]}
-        title="Revenue Over Time"
-        stacked
-        formatYAxis={(v) => formatCurrency(v)}
+        title="Premiums and Fees Over Time"
+        formatYAxis={(v) => formatMoneyCompact(v, market)}
         height={350}
       />
 
       <BarChart
-        data={data?.byOrganization ?? []}
+        data={(data?.byOrganization ?? []).map((org) => ({ name: org.name, value: org.fees }))}
         xKey="name"
-        title="Revenue by Organization"
+        title={withCurrencySuffix("Platform Fees by Organization", market)}
+        formatYAxis={(v) => formatMoneyCompact(v, market)}
         horizontal
         height={300}
       />
