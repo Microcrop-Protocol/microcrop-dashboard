@@ -4,23 +4,33 @@ import { Upload, X, FileText, Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import type { KYBDocumentType } from '@/types';
 import { documentTypeLabels } from '@/lib/validations/kyb';
+
+/**
+ * A document's type is the per-market CODE, which is `string` and not `KYBDocumentType`.
+ *
+ * It was typed as the Prisma enum, which was true only while every market's documents happened
+ * to be enum members. The backend's three-layer model (code / category / role) exists precisely
+ * so a new market reuses a GENERIC enum member and carries its own code — `NG_NAICOM_LICENSE`
+ * stored as `OTHER` — so a code is not an enum value and narrowing it here would make a new
+ * market's checklist a type error in the one component that has to render it.
+ */
+type DocumentCode = string;
 
 interface UploadedDocument {
   file: File;
-  type: KYBDocumentType;
+  type: DocumentCode;
   preview?: string;
 }
 
 interface KYBDocumentUploadProps {
   documents: UploadedDocument[];
   onDocumentsChange: (documents: UploadedDocument[]) => void;
-  requiredTypes?: KYBDocumentType[];
-  /** Doc types already on file from a previous submission — shown as satisfied; uploading replaces them. */
-  satisfiedTypes?: KYBDocumentType[];
+  requiredTypes?: DocumentCode[];
+  /** Doc codes already on file from a previous submission — shown as satisfied; uploading replaces them. */
+  satisfiedTypes?: DocumentCode[];
   /** Per-market labels from the backend checklist; falls back to documentTypeLabels. */
-  labels?: Partial<Record<KYBDocumentType, string>>;
+  labels?: Record<string, string>;
   maxFileSize?: number;
   disabled?: boolean;
 }
@@ -49,7 +59,7 @@ export function KYBDocumentUpload({
   disabled = false,
 }: KYBDocumentUploadProps) {
   const [error, setError] = useState<string | null>(null);
-  const [activeType, setActiveType] = useState<KYBDocumentType | null>(null);
+  const [activeType, setActiveType] = useState<DocumentCode | null>(null);
 
   const onDrop = useCallback(
     (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
@@ -92,7 +102,7 @@ export function KYBDocumentUpload({
     disabled: disabled || !activeType,
   });
 
-  const removeDocument = (type: KYBDocumentType) => {
+  const removeDocument = (type: DocumentCode) => {
     const doc = documents.find(d => d.type === type);
     if (doc?.preview) {
       URL.revokeObjectURL(doc.preview);
@@ -100,7 +110,7 @@ export function KYBDocumentUpload({
     onDocumentsChange(documents.filter(d => d.type !== type));
   };
 
-  const getDocumentForType = (type: KYBDocumentType) => {
+  const getDocumentForType = (type: DocumentCode) => {
     return documents.find(d => d.type === type);
   };
 

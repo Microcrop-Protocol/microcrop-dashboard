@@ -256,7 +256,10 @@ describe('payouts list', () => {
 
     const note = await screen.findByRole('note');
     expect(note).toHaveTextContent(/1 of these 2 payouts is test data/i);
-    expect(note).toHaveTextContent(/KES 8,000/);
+    // No currency token: this test renders the page with no organization resolved, so the
+    // market is unknown and the amount is deliberately shown WITHOUT a currency rather than
+    // being labelled KES on a partner whose currency has not been confirmed. See lib/market.
+    expect(note).toHaveTextContent(/worth 8,000/);
     expect(note).toHaveTextContent(/no money reached any farmer/i);
   });
 

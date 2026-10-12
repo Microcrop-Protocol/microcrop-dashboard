@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import { formatMoneyCompact } from "@/lib/market";
 import { useAuthStore } from "@/stores/authStore";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -28,14 +30,11 @@ export default function OrgDashboard() {
     queryFn: () => api.getMyKyb(),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  // This organization's own currency. `market` is null while the org resolves or if its country
+  // is unrecognised, and the market formatters then render the number with NO currency token
+  // rather than asserting Kenyan shillings — see lib/market.
+  const { market } = useOrgMarket();
+  const formatCurrency = (value: number) => formatMoneyCompact(value, market);
 
   return (
     <div className="space-y-6">
@@ -72,7 +71,7 @@ export default function OrgDashboard() {
             </div>
             {kyb.kybStatus !== "PENDING_REVIEW" && (
               <Button asChild className="shrink-0">
-                <Link to="/org/kyb">
+                <Link to="/org/settings/verification">
                   Complete KYB
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>

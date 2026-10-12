@@ -32,6 +32,7 @@ import {
   Newspaper,
   Code2,
   Sprout,
+  Settings,
 } from "lucide-react";
 import { docsUrl } from "@/lib/docs";
 import {
@@ -84,7 +85,6 @@ const platformNavItems: NavItem[] = [
 
 const orgNavItems: NavItem[] = [
   { title: "Dashboard", href: "/org/dashboard", icon: LayoutDashboard, permission: "dashboard:read" },
-  { title: "Verification", href: "/org/kyb", icon: ClipboardCheck, adminOnly: true },
   { title: "Field Onboarding", href: "/org/onboard", icon: ClipboardPlus, permission: "farmer:create" },
   { title: "Livestock Onboarding", href: "/org/livestock-onboard", icon: ClipboardPlus, permission: "herd:create" },
   { title: "Farmers", href: "/org/farmers", icon: Users, permission: "farmer:read" },
@@ -100,6 +100,11 @@ const orgNavItems: NavItem[] = [
   { title: "Developers", href: "/org/developers", icon: Code2, adminOnly: true },
   { title: "Export", href: "/org/export", icon: Download, can: "exportData" },
   { title: "Activity", href: "/org/activity", icon: Activity, permission: "dashboard:read" },
+  // Verification (KYB) is a TAB inside Settings now — see pages/org/SettingsPage for why it
+  // stopped being a top-level, signup-shaped step. Discovery for an unverified org does not
+  // depend on this item: KybGatingBanner sits on every gated page and the dashboard carries a
+  // direct CTA, both pointing at /org/settings/verification.
+  { title: "Settings", href: "/org/settings", icon: Settings, adminOnly: true },
 ];
 
 /**

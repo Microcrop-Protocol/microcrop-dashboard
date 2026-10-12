@@ -115,6 +115,23 @@ export interface Organization {
   payoutsCount: number;
   usersCount: number;
   createdAt: string;
+  /**
+   * ISO 3166-1 alpha-2 country code. THE MARKET KEY — it picks the currency, the sum-insured
+   * bounds, the payment provider and the KYB required-document set, all server-side. `GET
+   * /organizations/me` returns the whole org row, so it reaches the dashboard.
+   *
+   * Optional because a legacy row may carry none, and because an older backend may not send it.
+   * ABSENT MEANS UNKNOWN, NOT KENYA, anywhere money is being labelled — see `@/lib/market`.
+   */
+  countryCode?: string | null;
+  /**
+   * The company registration number. Nullable since it moved from signup to KYB submission:
+   * a brand-new organization legitimately has none, and `kyb.service.submitOrgKyb` is what
+   * makes it mandatory.
+   */
+  registrationNumber?: string | null;
+  /** Level-1 administrative division. The column is `county`; its LABEL is per-market. */
+  county?: string | null;
   // KYB fields
   kybStatus?: KYBStatus;
   kybVerificationId?: string;
@@ -140,10 +157,27 @@ export type KYBDocumentType =
   | 'GHANA_TIN'
   | 'OTHER';
 
-// Per-market KYB checklist served by GET /organizations/me/kyb (backend
-// buildKybChecklist). Drives which upload slots and license fields the form renders.
+/**
+ * Per-market KYB checklist served by GET /organizations/me/kyb (backend buildKybChecklist).
+ *
+ * THE SERVER IS THE AUTHORITY ON WHAT MUST BE UPLOADED, and the dashboard must not keep a second
+ * answer. buildKybChecklist resolves the list from the organization's own `countryCode` through
+ * markets.js, and submitOrgKyb enforces exactly that list — so a dashboard-side document table
+ * would be a list the partner could satisfy and still be refused by the submit.
+ *
+ * `documentType` is the market CODE (what the upload field maps to and what is stored in
+ * KYBDocument.documentCode). `category` is the coarse KYBDocumentType enum member the row lands
+ * on, surfaced for a client that still switches on the enum; `role` is what the document DOES.
+ * New clients should treat the code as opaque and render `label`.
+ */
 export interface KybChecklistItem {
-  documentType: KYBDocumentType;
+  documentType: KYBDocumentType | string;
+  /** Same as `documentType`; present since the backend added per-market codes. */
+  documentCode?: string;
+  /** The KYBDocumentType enum member the row is stored as. */
+  category?: KYBDocumentType;
+  /** What the document does — e.g. BUSINESS_REGISTRATION, REGULATOR_LICENSE, SUPPORTING. */
+  role?: string;
   label: string;
   required: boolean;
   satisfied: boolean;
@@ -152,8 +186,19 @@ export interface KybChecklist {
   countryCode: string;
   regulator: string; // 'IRA' (KE) / 'NIC' (GH)
   regulatorLicenseRequired: boolean;
-  regulatorLicenseDocType: KYBDocumentType | null;
+  regulatorLicenseDocType: KYBDocumentType | string | null;
   livestockEnabled?: boolean;
+  /**
+   * Per-market presentation data the dashboard used to hardcode as Kenya. These come from the
+   * same markets.js entry the server enforces against, so they are the authoritative answer for
+   * this organization — preferred over the dashboard's own mirror in lib/market.ts wherever a
+   * checklist is already in hand.
+   */
+  currency?: string;
+  currencySymbol?: string;
+  adminDivisionLabels?: { level1: string; level2: string };
+  /** The beneficial-ownership threshold this market screens on. Display only — no capture yet. */
+  uboThresholdPercent?: number;
   requiredDocuments: KybChecklistItem[];
   optionalDocuments: KybChecklistItem[];
 }
@@ -170,23 +215,65 @@ export type VerificationStatus =
 export interface OrgKybDocument {
   id: string;
   documentType: 'BUSINESS_REGISTRATION' | 'TAX_CERTIFICATE' | string;
+  /** The per-market code the document was submitted as. Null on rows predating the column. */
+  documentCode?: string | null;
   fileName: string;
   fileUrl: string;
   fileSize: number;
   mimeType: string;
   uploadedAt: string;
+  /** Per-document review outcome. Actionable for the partner, unlike the AML verdict. */
+  isVerified?: boolean;
+  rejectionReason?: string | null;
 }
+
+/**
+ * THE ORG-FACING KYB verification, as returned to the organization being screened.
+ *
+ * THE SUMSUB VERDICT IS NOT IN THIS TYPE, and that is the contract — not an omission. The
+ * backend's `toOrgFacingVerification` is an ALLOW-LIST projection built precisely so a sanctioned
+ * or PEP-flagged partner cannot read its own AML hit (`sumsubReviewAnswer: 'RED'`, the
+ * `rejectLabels`, the internal `screeningOverrideReason`) off its own dashboard. Declaring those
+ * fields here would invite a component to render a value the API no longer sends, which is how a
+ * screening indicator silently becomes dead code — exactly what happened to this page's old
+ * `screeningInProgress` flag.
+ *
+ * The one thing a screened party may learn from a RED is that it is FIXABLE, and the backend
+ * forwards that as `documentsResubmissionRequired` plus the moderator's applicant-facing
+ * `resubmissionNote`. A FINAL rejection (sanctions, PEP, fraud) forwards neither.
+ *
+ * The platform-admin review surface reads `OrgKybReviewVerification` instead, which does carry
+ * the verdict.
+ */
 export interface OrgKybVerification {
   id: string;
   status: string;
+  /** True when the screening said "resubmit" rather than "refused". Drives the resubmit prompt. */
+  documentsResubmissionRequired?: boolean;
+  /** The moderator's applicant-facing comment. Only ever present on the retryable branch. */
+  resubmissionNote?: string | null;
   verifierNotes?: string | null;
   verifiedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   documents: OrgKybDocument[];
   // Insurance-regulator operating license (required for KE/IRA and GH/NIC markets).
   regulator?: string | null;
   regulatorLicenseNumber?: string | null;
   licenseExpiresAt?: string | null;
-  // Sumsub KYB/AML screening (advisory; RED blocks platform-admin approval).
+  // Per-document checklist booleans the reviewer ticks.
+  businessRegistrationVerified?: boolean;
+  taxCertificateVerified?: boolean;
+  directorIdVerified?: boolean;
+  proofOfAddressVerified?: boolean;
+  bankStatementVerified?: boolean;
+}
+
+/**
+ * The PLATFORM-ADMIN view of a KYB verification, from GET /platform/organizations/kyb-reviews.
+ * Carries the screening verdict, which the reviewer needs and the screened party must not see.
+ */
+export interface OrgKybReviewVerification extends OrgKybVerification {
   sumsubApplicantId?: string | null;
   sumsubReviewStatus?: string | null;
   sumsubReviewAnswer?: 'GREEN' | 'RED' | null;
@@ -204,14 +291,82 @@ export interface OrgKybReview {
   id: string;
   name: string;
   type: string;
-  registrationNumber: string;
+  /** Nullable: the registration number moved from signup to KYB submission. */
+  registrationNumber: string | null;
   contactPerson?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
   county?: string | null;
   kybStatus: KYBStatus;
   createdAt: string;
-  kybVerification: OrgKybVerification | null;
+  kybVerification: OrgKybReviewVerification | null;
+}
+
+// ---------------------------------------------------------------------------
+// ORG CAPABILITIES — per-organization feature toggles
+//
+// Mirrors the Prisma `OrgCapability` enum. See lib/capability.ts for the fail-closed predicate
+// and the reasons the enum deliberately contains no settlement/payout/determination member.
+// ---------------------------------------------------------------------------
+export type OrgCapability =
+  | 'CROP_UNDERWRITING'
+  | 'LIVESTOCK_UNDERWRITING'
+  | 'BULK_IMPORT'
+  | 'DATA_EXPORT'
+  | 'PARTNER_WEBHOOKS'
+  | 'PARTNER_API_ACCESS'
+  | 'SANDBOX_SIMULATION';
+
+/**
+ * The ORG-FACING capability entry (GET /organizations/me/capabilities). The effective answer and
+ * nothing else — no operator reason, no admin identity. Complete over every capability, so an
+ * absent entry means this build and the backend disagree about the enum, not "unknown".
+ */
+export interface OrgCapabilityStatus {
+  capability: OrgCapability;
+  label: string;
+  enabled: boolean;
+}
+
+/**
+ * The PLATFORM-ADMIN capability entry (GET /platform/organizations/:orgId/capabilities).
+ *
+ * `enabled` is the effective answer; `granted` says whether a row exists at all. The two differ
+ * in a way an operator needs: `granted: false` is IMPLICIT deny (never decided), while
+ * `enabled: false, granted: true` is someone having explicitly switched it off, with a reason.
+ */
+export interface OrgCapabilityAdminStatus extends OrgCapabilityStatus {
+  granted: boolean;
+  reason?: string | null;
+  grantedByUserId?: string | null;
+  updatedAt?: string | null;
+}
+
+/** One row of the append-only capability audit trail. `fromEnabled: null` = was implicit deny. */
+export interface OrgCapabilityChange {
+  id: string;
+  organizationId: string;
+  capability: OrgCapability;
+  fromEnabled: boolean | null;
+  toEnabled: boolean;
+  reason: string;
+  changedByUserId: string;
+  createdAt: string;
+}
+
+export interface OrgCapabilitiesResponse {
+  organization: { id: string; name: string };
+  capabilities: OrgCapabilityAdminStatus[];
+  history: OrgCapabilityChange[];
+}
+
+export interface SetOrgCapabilityResult {
+  organization: { id: string; name: string };
+  capability: OrgCapability;
+  enabled: boolean;
+  /** False when the value already matched — no audit row is written for a no-op. */
+  changed: boolean;
+  fromEnabled?: boolean | null;
 }
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
 export type ApplicationStatus =

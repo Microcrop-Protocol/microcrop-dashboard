@@ -35,6 +35,7 @@ import {
   type AdminCreateOrganizationFormData,
   organizationTypeLabels,
 } from '@/lib/validations/kyb';
+import { countryOptions, marketOrNull, phoneHint } from '@/lib/market';
 
 interface CreateOrganizationDialogProps {
   onSubmit: (data: AdminCreateOrganizationFormData) => Promise<void>;
@@ -59,9 +60,17 @@ export function CreateOrganizationDialog({
       contactLastName: '',
       contactEmail: '',
       contactPhone: '',
+      // NO country default. The backend defaults a missing countryCode to KE for backward
+      // compatibility, and a pre-selected "Kenya" here would reproduce that silent default
+      // while making it look like a deliberate choice.
+      countryCode: undefined,
       verifyImmediately: false,
     },
   });
+
+  // The chosen market, for the currency hint and the phone placeholder. Null until a country is
+  // picked, and the hint then names the supported markets rather than guessing at one.
+  const selectedMarket = marketOrNull(form.watch('countryCode'));
 
   const handleSubmit = async (data: AdminCreateOrganizationFormData) => {
     await onSubmit(data);
@@ -116,6 +125,42 @@ export function CreateOrganizationDialog({
                     <FormControl>
                       <Input placeholder="e.g., PVT-2024-12345" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/*
+                The market. Deliberately next to the registration number rather than buried
+                with the contact details: it decides the currency every figure on this
+                organization will be denominated in, and it cannot be changed afterwards
+                without re-reading every historical premium.
+              */}
+              <FormField
+                control={form.control}
+                name="countryCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Country of operation</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {countryOptions().map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {selectedMarket
+                        ? `Currency ${selectedMarket.currency} · premiums via ${selectedMarket.mobileMoneyLabel} · ${selectedMarket.regulator} licence required at KYB.`
+                        : 'Sets the currency, premium limits, payment provider and KYB document set.'}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -202,8 +247,13 @@ export function CreateOrganizationDialog({
                   <FormItem>
                     <FormLabel>Phone Number</FormLabel>
                     <FormControl>
-                      <Input type="tel" placeholder="+254712345678" {...field} />
+                      <Input
+                        type="tel"
+                        placeholder={selectedMarket?.phoneExample ?? ''}
+                        {...field}
+                      />
                     </FormControl>
+                    <FormDescription>{phoneHint(selectedMarket)}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

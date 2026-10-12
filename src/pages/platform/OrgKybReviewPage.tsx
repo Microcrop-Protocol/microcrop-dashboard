@@ -8,14 +8,18 @@ import { Badge } from '@/components/ui/badge';
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { resolveFileUrl } from '@/lib/utils';
 import { FileText, Loader2, ShieldCheck, ShieldAlert, ExternalLink, ScanSearch } from 'lucide-react';
-import type { OrgKybVerification } from '@/types';
+// The PLATFORM-ADMIN verification type. The org-facing `OrgKybVerification` deliberately does
+// not declare the Sumsub verdict — the backend withholds it from the screened party — and this
+// page is the surface that is entitled to it. Using the org-facing type here would make the
+// reviewer's screening badge a type error, which is the correct signal in the other direction.
+import type { OrgKybReviewVerification } from '@/types';
 
 /**
  * Sumsub KYB/AML screening verdict. Advisory context for the reviewer — GREEN means
  * the automated checks passed, RED blocks approval (backend enforces it too), and a
  * pending status means checks are still running. Absent when screening never ran.
  */
-function ScreeningBadge({ verification }: { verification: OrgKybVerification | null }) {
+function ScreeningBadge({ verification }: { verification: OrgKybReviewVerification | null }) {
   if (!verification) return null;
   const answer = verification.sumsubReviewAnswer;
   if (answer === 'GREEN') {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
@@ -9,8 +9,15 @@ import { Herd } from "@/types";
 import { PieChart } from "@/components/charts/PieChart";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import { formatMoney, withCurrencySuffix, type Market } from "@/lib/market";
 
-const columns: ColumnDef<Herd>[] = [
+/**
+ * A FUNCTION of the market, because the value column renders money. As a module-level constant
+ * it was evaluated at import time and so could not depend on the organization — which is what
+ * made `header: "Value (KES)"` the only option.
+ */
+const buildColumns = (market: Market | null): ColumnDef<Herd>[] => [
   { accessorKey: "name", header: "Herd Name" },
   { accessorKey: "farmerName", header: "Pastoralist" },
   { 
@@ -37,11 +44,11 @@ const columns: ColumnDef<Herd>[] = [
   },
   { 
     accessorKey: "estimatedValue", 
-    header: "Value (KES)",
+    header: withCurrencySuffix("Value", market),
     cell: ({ row }) => {
       const headCount = row.getValue("headCount") as number;
       const valuePerHead = Number(row.getValue("estimatedValue"));
-      return (headCount * valuePerHead).toLocaleString();
+      return formatMoney(headCount * valuePerHead, market);
     }
   },
   { 
@@ -58,6 +65,8 @@ const columns: ColumnDef<Herd>[] = [
 export default function HerdsPage() {
   const { user } = useAuthStore();
   const orgId = user?.organizationId || "";
+  const { market } = useOrgMarket();
+  const columns = useMemo(() => buildColumns(market), [market]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["herds", orgId],
@@ -145,7 +154,7 @@ export default function HerdsPage() {
             <CardTitle className="text-sm font-medium">Estimated Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES {totalValue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{formatMoney(totalValue, market)}</div>
           </CardContent>
         </Card>
       </div>

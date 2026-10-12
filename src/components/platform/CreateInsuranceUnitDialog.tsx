@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +21,21 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DEFAULT_COUNTRY_CODE,
+  SUPPORTED_COUNTRY_CODES,
+  countryOptions,
+  level1Label,
+  level2Label,
+  marketOrNull,
+} from "@/lib/market";
 
 // Optional numeric coordinate — empty input becomes undefined so the whole
 // bounding box stays optional.
@@ -31,10 +46,18 @@ const optionalCoord = z
 
 const createInsuranceUnitSchema = z
   .object({
-    county: z.string().min(2, "County is required"),
+    // The COLUMN names stay `county` / `subCounty` in every market — renaming live columns is
+    // destructive and buys nothing. Only the LABELS are per-market (Kenya: County/Sub-County,
+    // Ghana: Region/District), so the validation messages are built from the market too.
+    county: z.string().min(2),
     subCounty: z.string().optional(),
-    unitCode: z.string().min(2, "Unit Code is required (e.g., KE-47)"),
-    country: z.string().min(2, "Country Code is required (e.g., KE)").max(2, "Must be 2 letters"),
+    unitCode: z.string().min(2, "Unit Code is required (e.g., TURKANA or GH-AS-01)"),
+    /**
+     * A SELECT, not free text. It was `z.string().min(2).max(2)`, which accepted "XX" — and
+     * since the backend now validates it against the market registry, a typo'd code is a 400
+     * the operator has no way to anticipate from a bare text box.
+     */
+    country: z.enum(SUPPORTED_COUNTRY_CODES as unknown as [string, ...string[]]),
     bboxMinLon: optionalCoord,
     bboxMinLat: optionalCoord,
     bboxMaxLon: optionalCoord,
@@ -113,7 +136,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
       county: "",
       subCounty: "",
       unitCode: "",
-      country: "KE",
+      country: DEFAULT_COUNTRY_CODE,
       bboxMinLon: undefined,
       bboxMinLat: undefined,
       bboxMaxLon: undefined,
@@ -124,9 +147,32 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
       strikeLevelSRSD: 0.35,
       premiumRateLRLD: 1500,
       premiumRateSRSD: 1500,
+      /**
+       * 15000 IS A KES FIGURE, and it is only defaulted for the Kenyan market.
+       *
+       * The backend made the same change for the same reason: defaulting it into a GHS unit
+       * would price a herd roughly 11x wrong, silently, with a number nobody typed. Switching
+       * the country away from Kenya clears it (see the effect below) so the operator has to
+       * state it — which is also what the backend now requires outside the default market.
+       */
       valuePerTLU: 15000,
     },
   });
+
+  const selectedCountry = form.watch("country");
+  const market = marketOrNull(selectedCountry);
+  // Null market cannot happen here — the field is a select over the registry — but the helper
+  // is written to tolerate it, and falling back to the code keeps the label honest either way.
+  const currencyCode = market?.currency ?? "local currency";
+
+  useEffect(() => {
+    // Clear the Kenya-specific TLU default when the operator picks another market, rather than
+    // carrying a KES figure into a GHS unit. Only the DEFAULT value is cleared: a figure the
+    // operator typed themselves is theirs to keep.
+    if (selectedCountry !== DEFAULT_COUNTRY_CODE && form.getValues("valuePerTLU") === 15000) {
+      form.resetField("valuePerTLU", { defaultValue: undefined as unknown as number });
+    }
+  }, [selectedCountry, form]);
 
   const handleSubmit = async (data: FormData) => {
     const { bboxMinLon, bboxMinLat, bboxMaxLon, bboxMaxLat, ...rest } = data;
@@ -171,10 +217,21 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                 name="country"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Country Code (ISO 2)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="KE" {...field} />
-                    </FormControl>
+                    <FormLabel>Country</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {countryOptions().map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -200,9 +257,9 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                 name="county"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>County / Region</FormLabel>
+                    <FormLabel>{level1Label(market)}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Turkana" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -213,9 +270,9 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                 name="subCounty"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Sub-County (Optional)</FormLabel>
+                    <FormLabel>{level2Label(market)} (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Turkana Central" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -344,7 +401,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                   name="premiumRateLRLD"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Premium Rate (KES/TLU)</FormLabel>
+                      <FormLabel>Premium rate ({currencyCode}/TLU)</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                       </FormControl>
@@ -387,7 +444,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                   name="premiumRateSRSD"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Premium Rate (KES/TLU)</FormLabel>
+                      <FormLabel>Premium rate ({currencyCode}/TLU)</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                       </FormControl>
@@ -403,7 +460,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
               name="valuePerTLU"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Value Per TLU (KES)</FormLabel>
+                  <FormLabel>Value per TLU ({currencyCode})</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                   </FormControl>

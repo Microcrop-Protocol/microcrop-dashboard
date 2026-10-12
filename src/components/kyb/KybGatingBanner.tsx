@@ -37,7 +37,7 @@ export function KybGatingBanner({ feature }: KybGatingBannerProps) {
             : `${feature} is available once your organization is verified. Complete verification to unlock it.`}
         </span>
         <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link to="/org/kyb">{underReview ? "View status" : "Complete verification"}</Link>
+          <Link to="/org/settings/verification">{underReview ? "View status" : "Complete verification"}</Link>
         </Button>
       </AlertDescription>
     </Alert>

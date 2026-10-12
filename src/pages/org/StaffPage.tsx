@@ -11,6 +11,7 @@ import { User, OrgRole, ORG_ROLES, ORG_ROLE_LABELS } from "@/types";
 import { UserPlus, Loader2, Send, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { notifySuccess, notifyError } from "@/lib/notify";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
 import {
   Dialog,
   DialogContent,
@@ -75,6 +76,9 @@ export default function StaffPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phone: "", role: "ORG_FIELD_AGENT" as OrgRole });
+  // A staff member's phone belongs to the ORGANIZATION's market, which is what the backend's
+  // staff validator now checks. Empty placeholder while it resolves, rather than a Kenyan one.
+  const { market } = useOrgMarket();
 
   const { data: staff, isLoading } = useQuery({
     queryKey: ["staff"],
@@ -201,7 +205,7 @@ export default function StaffPage() {
               </div>
               <div className="space-y-2">
                 <Label>Phone (Optional)</Label>
-                <Input value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="+254712345678" />
+                <Input value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} placeholder={market?.phoneExample ?? ""} />
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>

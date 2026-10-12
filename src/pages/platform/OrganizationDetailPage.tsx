@@ -24,6 +24,9 @@ import { formatDate } from "@/lib/utils";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import { isSimulatedPayout, isSimulatedPolicy } from "@/lib/simulated";
 import { SimulatedBadge } from "@/components/ui/simulated-badge";
+import { useMarketFor } from "@/hooks/useOrgMarket";
+import { formatMoney, formatMoneyCompact } from "@/lib/market";
+import { OrgCapabilitiesCard } from "@/components/platform/OrgCapabilitiesCard";
 import type { Policy, Payout, OnboardingStep } from "@/types";
 
 // Keys MUST match the backend OnboardingStep enum; labels are human-friendly.
@@ -136,14 +139,13 @@ export default function OrganizationDetailPage() {
   const recentPolicies = policies.slice(0, 5);
   const recentPayouts = payouts.slice(0, 5);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  // This organization's OWN currency, from its countryCode. The old call hardcoded
+  // `en-KE`/`KES`, so a Ghanaian partner's premiums and payouts were displayed to the operator
+  // in Kenyan shillings. `market` is null when the code is absent or unrecognised, and
+  // formatMoneyCompact then renders the number with NO currency rather than guessing — a wrong
+  // currency on a money figure is a false statement, an unlabelled one is merely incomplete.
+  const market = useMarketFor(org);
+  const formatCurrency = (value: number) => formatMoneyCompact(value, market);
 
   const currentStepIndex = onboardingSteps.findIndex(s => s.key === org?.onboardingStep);
 
@@ -335,6 +337,9 @@ export default function OrganizationDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Per-org capability toggles. Platform-admin only; the whole page already is. */}
+      {orgId && <OrgCapabilitiesCard orgId={orgId} />}
+
       {/* Charts Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <PieChart data={policyStatusData} title="Policies by Status" height={250} />
@@ -388,7 +393,7 @@ export default function OrganizationDetailPage() {
                       <p className="text-sm text-muted-foreground">{payout.farmerName}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1 text-right">
-                      <p className="font-medium">KES {Number(payout.amount ?? 0).toLocaleString()}</p>
+                      <p className="font-medium">{formatMoney(payout.amount, market)}</p>
                       {isSimulatedPayout(payout) && <SimulatedBadge />}
                       <StatusBadge variant={getStatusVariant(payout.status)}>
                         {payout.status}

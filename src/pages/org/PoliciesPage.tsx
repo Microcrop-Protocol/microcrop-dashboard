@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -12,8 +13,19 @@ import { formatDate } from "@/lib/utils";
 import { isSimulatedPolicy } from "@/lib/simulated";
 import { SimulatedBadge, SimulatedBanner } from "@/components/ui/simulated-badge";
 import { Plus } from "lucide-react";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import { formatMoney, type Market } from "@/lib/market";
 
-const columns: ColumnDef<Policy>[] = [
+/**
+ * The columns are now a FUNCTION of the market, because one of them renders money.
+ *
+ * It was a module-level constant with `KES ${...}` inlined, which is the shape that made the
+ * hardcoding invisible: a constant evaluated at import time cannot depend on the organization,
+ * so there was nowhere for the currency to come from. Built per render instead, and memoised in
+ * the component so the table is not handed a new column array on every keystroke in the search
+ * box — DataTable would otherwise reset its sort and pagination.
+ */
+const buildColumns = (market: Market | null): ColumnDef<Policy>[] => [
   {
     accessorKey: "policyNumber",
     header: "Policy #",
@@ -31,7 +43,11 @@ const columns: ColumnDef<Policy>[] = [
   { accessorKey: "plotName", header: "Plot" },
   { accessorKey: "coverageType", header: "Coverage" },
   { accessorKey: "cropType", header: "Crop" },
-  { accessorKey: "sumInsured", header: "Sum Insured", cell: ({ row }) => `KES ${Number(row.getValue("sumInsured")).toLocaleString()}` },
+  {
+    accessorKey: "sumInsured",
+    header: "Sum Insured",
+    cell: ({ row }) => formatMoney(row.getValue("sumInsured"), market),
+  },
   { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("status"))}>{row.getValue("status")}</StatusBadge> },
   { accessorKey: "endDate", header: "Expires", cell: ({ row }) => formatDate(row.getValue("endDate")) },
 ];
@@ -41,6 +57,8 @@ export default function PoliciesPage() {
   const { user } = useAuthStore();
   const { can } = usePermissions();
   const orgId = user?.organizationId || "";
+  const { market } = useOrgMarket();
+  const columns = useMemo(() => buildColumns(market), [market]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["policies", orgId],

@@ -1,10 +1,26 @@
+/**
+ * Create account — self-service organization signup.
+ *
+ * SHAPE. The design's sign-up screen mirrors sign-in: one email field and a Continue
+ * button. Signup here needs rather more than an email — organization name, registration
+ * number, type, the admin's name and a password — so the email is step one, exactly as the
+ * design shows, and the remaining details follow on step two. One POST, unchanged.
+ *
+ * WHAT THIS DOES NOT DO. It does not collect KYB documents, and it must not start. KYB is
+ * post-signup by design: auth.service registerOrganization sets kybStatus=NOT_STARTED and
+ * onboardingStep=KYB_VERIFICATION, and the organization stays gated until a platform admin
+ * verifies it from the dashboard. This page's job ends at creating the account and handing
+ * the user to Settings -> Verification.
+ *
+ * The field set and its validation live in lib/validations/kyb.ts (orgSignupSchema) and are
+ * untouched here — this change is the surface, not the contract.
+ */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -13,23 +29,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import { notifySuccess, notifyError } from '@/lib/notify';
-import { orgSignupSchema, orgTypeLabels, type OrgSignupFormData } from '@/lib/validations/kyb';
+import { cn } from '@/lib/utils';
+import { orgSignupSchemaFor, type OrgSignupFormData } from '@/lib/validations/kyb';
+import {
+  countryOptions,
+  level1Label,
+  marketOrNull,
+  normalizePhoneForMarket,
+  phoneHint,
+} from '@/lib/market';
+import { AuthLayout } from '@/components/auth/AuthLayout';
+import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
+import { AuthField, AuthPrimaryButton, AuthAltAction, OrDivider } from '@/components/auth/AuthFormParts';
+import {
+  authInlineLinkClass,
+  authInputClass,
+  authLabelClass,
+  authQuietLinkClass,
+} from '@/components/auth/auth-styles';
 
-// Backend expects +254XXXXXXXXX; accept 07.../01... and normalise.
-function normalizePhone(phone?: string): string | undefined {
-  if (!phone) return undefined;
-  const p = phone.trim();
-  if (!p) return undefined;
-  if (p.startsWith('+254')) return p;
-  if (p.startsWith('0')) return `+254${p.slice(1)}`;
-  return p;
-}
 
 export default function RegisterOrganizationPage() {
+  const [step, setStep] = useState<'email' | 'details'>('email');
+  // See the note in LoginPage: the activated control is unmounted by the step change, so
+  // each step claims focus on mount — other than the first paint.
+  const [autoFocusEmail, setAutoFocusEmail] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuthStore();
   const navigate = useNavigate();
@@ -39,32 +66,59 @@ export default function RegisterOrganizationPage() {
     handleSubmit,
     setValue,
     watch,
+    trigger,
+    getValues,
     formState: { errors },
   } = useForm<OrgSignupFormData>({
-    resolver: zodResolver(orgSignupSchema),
+    /*
+      The schema is a FUNCTION of the chosen country, so the optional phone is validated against
+      that market's format. A static schema could only accept "any supported market", which
+      would let a Kenyan organization store a Ghanaian number — the exact mismatch the backend's
+      service layer refuses after the fact.
+
+      It reads the country off the VALUES the resolver is handed rather than off `watch`:
+      referencing `watch` here would be referencing the useForm return value inside its own
+      initializer. This way the schema is also always built from the values being validated,
+      with no stale-closure window after the country changes.
+    */
+    resolver: (values, context, options) =>
+      zodResolver(orgSignupSchemaFor((values as OrgSignupFormData).countryCode))(
+        values,
+        context,
+        options,
+      ),
   });
-  const type = watch('type');
+  const countryCode = watch('countryCode');
+  const market = marketOrNull(countryCode);
+
+  const goToDetailsStep = async () => {
+    const ok = await trigger('email');
+    if (ok) setStep('details');
+  };
 
   const onSubmit = async (data: OrgSignupFormData) => {
     setIsLoading(true);
     try {
       const { user, tokens } = await api.registerOrganization({
         organizationName: data.organizationName,
-        registrationNumber: data.registrationNumber,
-        type: data.type,
+        // The one field with irreversible downstream consequence: it picks the currency, the
+        // premium bounds, the payment provider and the KYB document set.
+        countryCode: data.countryCode,
         county: data.county || undefined,
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
         password: data.password,
-        phone: normalizePhone(data.phone),
+        // Normalised against the CHOSEN market, so a Ghanaian admin's 024... becomes +23324...
+        // rather than being prefixed +254 by a hardcoded Kenyan normaliser.
+        phone: normalizePhoneForMarket(data.phone, marketOrNull(data.countryCode)),
       });
       login(user, tokens);
       notifySuccess(
         'Welcome to MicroCrop',
-        'Your account is ready. Complete KYB verification to start underwriting.',
+        'Your account is ready. Complete verification in Settings to start underwriting.',
       );
-      navigate('/org/kyb', { replace: true });
+      navigate('/org/settings/verification', { replace: true });
     } catch (error) {
       notifyError(error, "Couldn't create your account. Please try again.");
     } finally {
@@ -73,105 +127,239 @@ export default function RegisterOrganizationPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-background">
-      <div className="container mx-auto max-w-2xl px-4 py-8">
-        <div className="mb-8 text-center">
-          <Link to="/" className="inline-flex items-center gap-2 mb-6">
-            <img src="/microcropsymb.png" alt="MicroCrop" width={40} height={40} className="h-10 w-10 object-contain" loading="lazy" />
-            <span className="text-xl font-bold">MicroCrop</span>
-          </Link>
-          <h1 className="text-2xl font-bold">Create your organization account</h1>
-          <p className="mt-2 text-muted-foreground">
-            Sign up to get started — you can complete KYB verification from your dashboard afterwards.
-          </p>
-        </div>
+    <AuthLayout
+      heading="Create account"
+      subtitle={
+        step === 'email'
+          ? 'Get started with MicroCrop. Verification comes later, from your dashboard.'
+          : 'A few details about your organization and the first admin user.'
+      }
+      wide={step === 'details'}
+    >
+      <form
+        noValidate
+        onSubmit={
+          step === 'email'
+            ? (event) => {
+                event.preventDefault();
+                void goToDetailsStep();
+              }
+            : handleSubmit(onSubmit)
+        }
+      >
+        {/* Keyed so the step change remounts the subtree and `autoFocus` actually fires —
+            see the longer note on the same lines in LoginPage. */}
+        {step === 'email' ? (
+          <div key="step-email" className="space-y-5">
+            <GoogleAuthButton label="Sign up with Google" />
+            <OrDivider />
+            <AuthField
+              id="email"
+              label="Email address"
+              type="email"
+              inputMode="email"
+              placeholder="hello@app.com"
+              autoComplete="email"
+              autoFocus={autoFocusEmail}
+              spellCheck={false}
+              error={errors.email?.message}
+              {...register('email')}
+            />
+            <AuthPrimaryButton type="submit">Continue</AuthPrimaryButton>
+          </div>
+        ) : (
+          <div key="step-details" className="space-y-5">
+            <input
+              type="text"
+              value={getValues('email') ?? ''}
+              readOnly
+              tabIndex={-1}
+              aria-hidden="true"
+              autoComplete="username"
+              className="sr-only"
+            />
 
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Organization</CardTitle>
-              <CardDescription>Details about your organization.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Label htmlFor="organizationName">Organization name</Label>
-                <Input id="organizationName" {...register('organizationName')} placeholder="Acme Cooperative" />
-                {errors.organizationName && <p className="mt-1 text-sm text-destructive">{errors.organizationName.message}</p>}
-              </div>
+            {/*
+              Section headings are h2 so the document outline reads h1 "Create account" →
+              h2 "Organization" → h2 "Your account". They replace the two Cards the old page
+              used; the design calls for no card borders on this panel.
+            */}
+            <section className="space-y-5">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-[#8a8d95]">
+                Organization
+              </h2>
+
+              <AuthField
+                id="organizationName"
+                label="Organization name"
+                placeholder="Acme Cooperative"
+                autoFocus
+                error={errors.organizationName?.message}
+                {...register('organizationName')}
+              />
+
               <div>
-                <Label htmlFor="registrationNumber">Registration number</Label>
-                <Input id="registrationNumber" {...register('registrationNumber')} placeholder="CPR/2024/0001" />
-                {errors.registrationNumber && <p className="mt-1 text-sm text-destructive">{errors.registrationNumber.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="type">Type</Label>
-                <Select value={type} onValueChange={(v) => setValue('type', v as OrgSignupFormData['type'], { shouldValidate: true })}>
-                  <SelectTrigger id="type"><SelectValue placeholder="Select type" /></SelectTrigger>
+                {/*
+                  Radix Select renders a button, not a <select>, so htmlFor cannot bind to it.
+                  Label + SelectTrigger share an id/aria-labelledby pair instead, which is the
+                  association Radix documents.
+
+                  NO DEFAULT VALUE, on purpose. The backend defaults a missing countryCode to KE
+                  for backward compatibility, and relying on that is how every self-signup
+                  organization silently became Kenyan. A pre-selected "Kenya" would reproduce the
+                  same wrong data while making it look like the partner chose it.
+                */}
+                <Label htmlFor="countryCode" id="countryCode-label" className={authLabelClass}>
+                  Country of operation
+                </Label>
+                <Select
+                  // `?? ''` keeps it controlled from first paint: RHF has no default here, so a
+                  // bare value is undefined on mount and Radix logs "changing from uncontrolled
+                  // to controlled" the moment a country is picked. The empty string matches no
+                  // SelectItem, so the placeholder shows and the form state stays undefined —
+                  // which is what the schema's required_error message depends on.
+                  value={countryCode ?? ''}
+                  onValueChange={(v) =>
+                    setValue('countryCode', v as OrgSignupFormData['countryCode'], {
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    id="countryCode"
+                    aria-labelledby="countryCode-label countryCode"
+                    aria-invalid={errors.countryCode ? true : undefined}
+                    aria-describedby={
+                      errors.countryCode ? 'countryCode-error' : 'countryCode-hint'
+                    }
+                    className={cn(authInputClass, 'justify-between text-left')}
+                  >
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(orgTypeLabels).map(([v, label]) => (
-                      <SelectItem key={v} value={v}>{label}</SelectItem>
+                    {countryOptions().map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.type && <p className="mt-1 text-sm text-destructive">{errors.type.message}</p>}
+                {errors.countryCode ? (
+                  <p id="countryCode-error" role="alert" className="mt-1.5 text-xs text-[#f0646f]">
+                    {errors.countryCode.message}
+                  </p>
+                ) : (
+                  <p id="countryCode-hint" className="mt-1.5 text-xs text-[#8a8d95]">
+                    {market
+                      ? `Sets your currency (${market.currency}), how premiums are collected (${market.mobileMoneyLabel}) and which regulator's licence your verification needs (${market.regulator}).`
+                      : 'Sets your currency, how premiums are collected and which documents your verification needs.'}
+                  </p>
+                )}
               </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="county">County <span className="text-muted-foreground">(optional)</span></Label>
-                <Input id="county" {...register('county')} placeholder="Nakuru" />
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Admin account</CardTitle>
-              <CardDescription>This becomes the organization's first admin user.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="firstName">First name</Label>
-                <Input id="firstName" {...register('firstName')} />
-                {errors.firstName && <p className="mt-1 text-sm text-destructive">{errors.firstName.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="lastName">Last name</Label>
-                <Input id="lastName" {...register('lastName')} />
-                {errors.lastName && <p className="mt-1 text-sm text-destructive">{errors.lastName.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" {...register('email')} />
-                {errors.email && <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone <span className="text-muted-foreground">(optional)</span></Label>
-                <Input id="phone" {...register('phone')} placeholder="0712345678" />
-                {errors.phone && <p className="mt-1 text-sm text-destructive">{errors.phone.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" {...register('password')} />
-                {errors.password && <p className="mt-1 text-sm text-destructive">{errors.password.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="confirmPassword">Confirm password</Label>
-                <Input id="confirmPassword" type="password" {...register('confirmPassword')} />
-                {errors.confirmPassword && <p className="mt-1 text-sm text-destructive">{errors.confirmPassword.message}</p>}
-              </div>
-            </CardContent>
-          </Card>
+              <AuthField
+                id="county"
+                // The column is `county`; what it is CALLED is per-market (Kenya: County,
+                // Ghana: Region). Before a country is chosen there is no market, so the label
+                // falls back to the default market's — a label is the one place guessing is
+                // acceptable, and the field is optional.
+                label={level1Label(market)}
+                hint="Optional."
+                error={errors.county?.message}
+                {...register('county')}
+              />
 
-          <Button type="submit" className="mt-6 w-full" disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Create account
-          </Button>
-        </form>
+              <p className="text-xs text-[#8a8d95]">
+                Your company registration number, documents and regulator licence are collected
+                after you sign up, in Settings &rarr; Verification.
+              </p>
+            </section>
 
-        <div className="mt-8 text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <Link to="/login" className="font-medium text-primary hover:underline">Sign in</Link>
-        </div>
-      </div>
-    </div>
+            <section className="space-y-5 pt-2">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-[#8a8d95]">
+                Your account
+              </h2>
+
+              <p className="text-sm text-[#8a8d95]">
+                Signing up as <span className="font-medium text-white">{getValues('email')}</span>
+              </p>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <AuthField
+                  id="firstName"
+                  label="First name"
+                  autoComplete="given-name"
+                  error={errors.firstName?.message}
+                  {...register('firstName')}
+                />
+                <AuthField
+                  id="lastName"
+                  label="Last name"
+                  autoComplete="family-name"
+                  error={errors.lastName?.message}
+                  {...register('lastName')}
+                />
+              </div>
+
+              <AuthField
+                id="phone"
+                label="Phone"
+                type="tel"
+                inputMode="tel"
+                // Market-driven, so a Ghanaian admin is not shown a Kenyan number to copy.
+                placeholder={market?.phoneLocalExample ?? ''}
+                autoComplete="tel"
+                hint={market ? `Optional. ${phoneHint(market)}` : 'Optional.'}
+                error={errors.phone?.message}
+                {...register('phone')}
+              />
+
+              <AuthField
+                id="password"
+                label="Password"
+                type="password"
+                autoComplete="new-password"
+                hint="At least 8 characters, with an uppercase letter, a number and a special character."
+                error={errors.password?.message}
+                {...register('password')}
+              />
+
+              <AuthField
+                id="confirmPassword"
+                label="Confirm password"
+                type="password"
+                autoComplete="new-password"
+                error={errors.confirmPassword?.message}
+                {...register('confirmPassword')}
+              />
+            </section>
+
+            <AuthPrimaryButton type="submit" loading={isLoading}>
+              Create account
+            </AuthPrimaryButton>
+
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setStep('email');
+                setAutoFocusEmail(true);
+              }}
+              className={`h-auto w-full justify-center p-0 text-[13px] font-normal hover:bg-transparent ${authQuietLinkClass}`}
+            >
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              Use a different email
+            </Button>
+          </div>
+        )}
+      </form>
+
+      <AuthAltAction>
+        Already have an account?{' '}
+        <Link to="/login" className={authInlineLinkClass}>
+          Sign in
+        </Link>
+      </AuthAltAction>
+    </AuthLayout>
   );
 }

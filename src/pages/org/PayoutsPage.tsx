@@ -14,12 +14,17 @@ import { isSimulatedPayout } from "@/lib/simulated";
 import { SimulatedBadge, SimulatedBanner } from "@/components/ui/simulated-badge";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import { formatMoney } from "@/lib/market";
 
 export default function PayoutsPage() {
   const { user } = useAuthStore();
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const orgId = user?.organizationId || "";
+  // This organization's own currency. Null until the org resolves, and formatMoney then renders
+  // the number with no currency token rather than guessing at KES.
+  const { market, mobileMoneyLabel } = useOrgMarket();
 
   const { data, isLoading } = useQuery({
     queryKey: ["payouts", orgId],
@@ -54,7 +59,11 @@ export default function PayoutsPage() {
     },
     { accessorKey: "farmerName", header: "Farmer" },
     { accessorKey: "farmerPhone", header: "Phone" },
-    { accessorKey: "amount", header: "Amount", cell: ({ row }) => `KES ${(row.getValue("amount") as number).toLocaleString()}` },
+    {
+      accessorKey: "amount",
+      header: "Amount",
+      cell: ({ row }) => formatMoney(row.getValue("amount") as number, market),
+    },
     { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge variant={getStatusVariant(row.getValue("status"))}>{row.getValue("status")}</StatusBadge> },
     {
       id: "determination",
@@ -99,16 +108,21 @@ export default function PayoutsPage() {
       {simulatedPayouts.length > 0 && (
         <SimulatedBanner>
           {simulatedPayouts.length} of these {payouts.length} payouts{" "}
-          {simulatedPayouts.length === 1 ? "is" : "are"} test data, worth KES{" "}
-          {simulatedTotal.toLocaleString()} of the totals below. No money reached any farmer for{" "}
-          {simulatedPayouts.length === 1 ? "it" : "them"} and no M-Pesa message was sent — do not
+          {simulatedPayouts.length === 1 ? "is" : "are"} test data, worth{" "}
+          {formatMoney(simulatedTotal, market)} of the totals below. No money reached any farmer
+          for {simulatedPayouts.length === 1 ? "it" : "them"} and no {mobileMoneyLabel} message
+          was sent — do not
           report {simulatedPayouts.length === 1 ? "it" : "them"} as money disbursed. Each one is
           marked in the list below.
         </SimulatedBanner>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Amount" value={`KES ${total.toLocaleString()}`} icon={DollarSign} />
-        <StatCard title="Avg Payout" value={`KES ${payouts.length ? Math.round(total / payouts.length).toLocaleString() : 0}`} icon={TrendingUp} />
+        <StatCard title="Total Amount" value={formatMoney(total, market)} icon={DollarSign} />
+        <StatCard
+          title="Avg Payout"
+          value={formatMoney(payouts.length ? Math.round(total / payouts.length) : 0, market)}
+          icon={TrendingUp}
+        />
         <StatCard title="Total Payouts" value={payouts.length} icon={Hash} />
         <StatCard title="Success Rate" value={`${payouts.length ? ((successCount / payouts.length) * 100).toFixed(0) : 0}%`} icon={CheckCircle} />
       </div>

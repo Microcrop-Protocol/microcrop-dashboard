@@ -37,6 +37,20 @@ const CODE_MESSAGES: Record<string, string> = {
     "The insurance regulator operating license is required. Add the license number and upload the certificate.",
   REGULATOR_LICENSE_EXPIRY_REQUIRED: "Please provide the operating license's expiry date.",
   REGULATOR_LICENSE_EXPIRED: "The operating license on file has expired. Submit a current license.",
+  // The registration number moved from signup to KYB submission, so these two now reach a
+  // partner mid-form rather than mid-signup. The backend's own copy for both is already good
+  // and long (it explains what the number is and where to find it), but it exceeds the
+  // isUserSafeMessage length ceiling, so without these entries it would be replaced by the
+  // generic "Some details look incorrect" / "That conflicts with something" — which says
+  // nothing about which field or what to do.
+  REGISTRATION_NUMBER_REQUIRED:
+    "Your company registration number is required. It must match the business-registration certificate you upload.",
+  REGISTRATION_NUMBER_TAKEN:
+    "That company registration number is already registered to another organization. Check it against your certificate, or contact MicroCrop.",
+  // A capability refusal is a PLAN BOUNDARY, not a fault. If one ever reaches a toast — the
+  // gates in lib/capability.ts exist to stop that — it must not read as an error.
+  CAPABILITY_NOT_ENABLED:
+    "That isn't enabled for your organization. Contact MicroCrop to have it switched on.",
 };
 
 // Heuristic: is this string already written as end-user copy (vs. a raw

@@ -68,7 +68,7 @@ const PlotsPage = lazyRetry(() => import("@/pages/org/PlotsPage"));
 const PlotWeatherPage = lazyRetry(() => import("@/pages/org/PlotWeatherPage"));
 const DamagePage = lazyRetry(() => import("@/pages/org/DamagePage"));
 const FinancialsPage = lazyRetry(() => import("@/pages/org/FinancialsPage"));
-const KYBPage = lazyRetry(() => import("@/pages/org/KYBPage"));
+const SettingsPage = lazyRetry(() => import("@/pages/org/SettingsPage"));
 const ReservePage = lazyRetry(() => import("@/pages/org/ReservePage"));
 const StaffPage = lazyRetry(() => import("@/pages/org/StaffPage"));
 const ExportPage = lazyRetry(() => import("@/pages/org/ExportPage"));
@@ -233,7 +233,15 @@ const App = () => (
                 <Route path="damage" element={<ProtectedRoute requiredPermission="damage:read"><DamagePage /></ProtectedRoute>} />
                 <Route path="financials" element={<ProtectedRoute requiredPermission="financials:read"><FinancialsPage /></ProtectedRoute>} />
                 <Route path="reserve" element={<ProtectedRoute requiredPermission="reserve:read"><ReservePage /></ProtectedRoute>} />
-                <Route path="kyb" element={<ProtectedRoute allowedRoles={['ORG_ADMIN']}><KYBPage /></ProtectedRoute>} />
+                {/* Settings, with Verification (KYB) as its first tab. The tab is a ROUTE
+                    segment so /org/settings/verification is linkable and survives a reload —
+                    see SettingsPage. */}
+                <Route path="settings" element={<ProtectedRoute allowedRoles={['ORG_ADMIN']}><SettingsPage /></ProtectedRoute>} />
+                <Route path="settings/:tab" element={<ProtectedRoute allowedRoles={['ORG_ADMIN']}><SettingsPage /></ProtectedRoute>} />
+                {/* The old top-level Verification route. It is where the signup flow navigates,
+                    it is in partners' bookmarks and it is in emails already sent, so it
+                    redirects rather than 404s. `replace` keeps Back working. */}
+                <Route path="kyb" element={<Navigate to="/org/settings/verification" replace />} />
                 <Route path="staff" element={<ProtectedRoute requiredCan="manageStaff"><StaffPage /></ProtectedRoute>} />
                 <Route path="export" element={<ProtectedRoute requiredCan="exportData"><ExportPage /></ProtectedRoute>} />
                 <Route path="activity" element={<OrgActivityPage />} />

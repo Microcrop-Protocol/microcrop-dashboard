@@ -27,12 +27,15 @@ import {
   type OrganizationRegistrationFormData,
   organizationTypeLabels,
 } from '@/lib/validations/kyb';
-import type { KYBDocumentType } from '@/types';
 import { cn } from '@/lib/utils';
+// This form carries no country field, so the hint names every supported market rather than
+// claiming Kenya. The schema it uses accepts any supported market's number for the same reason.
+import { phoneHint } from '@/lib/market';
 
 interface UploadedDocument {
   file: File;
-  type: KYBDocumentType;
+  /** The per-market document CODE. Not a KYBDocumentType — see KYBDocumentUpload. */
+  type: string;
   preview?: string;
 }
 
@@ -294,11 +297,9 @@ export function OrganizationRegistrationForm({
                     <FormItem>
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
-                        <Input type="tel" placeholder="+254712345678\u2026" autoComplete="tel" {...field} />
+                        <Input type="tel" autoComplete="tel" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Kenyan phone number format (+254... or 07...)
-                      </FormDescription>
+                      <FormDescription>{phoneHint(null)}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -26,30 +26,35 @@ import type {
   Farmer, Herd, LivestockPolicyQuote, Policy, PaymentInstructions, IBLISeason, CoverageType,
 } from '@/types';
 import {
-  pastoralistRegistrationSchema, herdRegistrationSchema, livestockPolicyConfigSchema,
+  pastoralistRegistrationSchemaFor, herdRegistrationSchema, livestockPolicyConfigSchema,
   LIVESTOCK_TYPES, calculateTLU,
   type PastoralistRegistrationData, type HerdRegistrationData, type LivestockPolicyConfigData,
 } from '@/lib/validations/livestock-onboarding';
+import { useOrgMarket } from '@/hooks/useOrgMarket';
+import { formatMoney as formatMarketMoney, phoneHint, type Market } from '@/lib/market';
 
 /**
- * IBLI premiums, herd values and fees are LOCAL currency — the backend prices
- * livestock in KES per TLU and M-Pesa collects in KES. Not USDC: the stablecoin
- * leg is settlement plumbing. The quote endpoint returns no currency tag and
- * livestock is a Kenya-only product today, so the label is fixed, not guessed.
+ * IBLI premiums, herd values and fees are LOCAL currency — the backend prices livestock per TLU
+ * and mobile money collects in the same currency. Not USDC: the stablecoin leg is settlement
+ * plumbing.
+ *
+ * LIVESTOCK IS KENYA-ONLY TODAY, AND THE LABEL IS STILL DERIVED. The old justification — "a
+ * Kenya-only product, so the label is fixed, not guessed" — makes the currency a function of a
+ * fact that is enforced somewhere else: `markets.js` carries `livestockEnabled`, Ghana has it
+ * false, and the backend's LIVESTOCK_UNDERWRITING capability ANDs with it. If that ever changes
+ * for a market, this file would be a hardcoded `KES` sitting quietly behind a gate that has
+ * opened. Deriving it costs nothing and cannot go stale.
+ *
+ * `makeFormatMoney` keeps the original defensive shape: `undefined.toLocaleString()` throws, and
+ * a throw inside a step renderer is caught by the app-level ErrorBoundary, which unmounts the
+ * wizard and loses every step of state the field agent has collected. A dash is far cheaper.
  */
-const CURRENCY = 'KES';
-
-/**
- * Render a money field without assuming the API sent it. `undefined.toLocaleString()`
- * throws, and a throw inside a step renderer is caught by the app-level
- * ErrorBoundary, which unmounts the wizard and loses every step of state the
- * field agent has collected. A dash is a far cheaper failure.
- */
-function formatMoney(value: number | string | null | undefined): string {
-  const amount = Number(value);
-  return value != null && Number.isFinite(amount)
-    ? `${CURRENCY} ${amount.toLocaleString()}`
-    : `${CURRENCY} —`;
+function makeFormatMoney(market: Market | null) {
+  return (value: number | string | null | undefined): string => {
+    const amount = Number(value);
+    if (value == null || !Number.isFinite(amount)) return market ? `${market.currency} —` : '—';
+    return formatMarketMoney(amount, market);
+  };
 }
 
 /**
@@ -94,6 +99,11 @@ export function LivestockOnboardingWizard() {
   // Multi-country: narrow the insurance-unit list by country (units carry an ISO country).
   const [unitCountry, setUnitCountry] = useState<string>('all');
 
+  // The organization's market: its currency, its phone format and what its administrative
+  // divisions are called.
+  const { market, level1Label, level2Label, mobileMoneyLabel } = useOrgMarket();
+  const formatMoney = makeFormatMoney(market);
+
   // Sync paymentPhone when farmer is registered
   useEffect(() => {
     if (farmer?.phoneNumber && !paymentPhone) {
@@ -122,9 +132,13 @@ export function LivestockOnboardingWizard() {
   // ── Forms ──────────────────────────────────────────────
 
   const farmerForm = useForm<PastoralistRegistrationData>({
-    resolver: zodResolver(pastoralistRegistrationSchema),
+    // Market-driven: the phone is validated against THIS organization's market and the two
+    // administrative-division messages use its own labels. See lib/validations/onboarding.
+    resolver: zodResolver(pastoralistRegistrationSchemaFor(market)),
     defaultValues: {
-      phoneNumber: '+254',
+      // Seeded from the market rather than with a Kenyan dialling code. Empty while the market
+      // resolves, rather than wrong.
+      phoneNumber: '',
       nationalId: '',
       firstName: '',
       lastName: '',
@@ -273,11 +287,17 @@ export function LivestockOnboardingWizard() {
       // Replay guard: the backend returned the EXISTING transaction and sent no
       // second STK prompt. Polling still applies — it is the same reference.
       if (simulated) {
-        notifySuccess('Test payment started', 'No M-Pesa prompt was sent and no money will be charged.');
+        notifySuccess(
+          'Test payment started',
+          `No ${mobileMoneyLabel} prompt was sent and no money will be charged.`,
+        );
       } else if (result.alreadyPending) {
         notifySuccess('Payment prompt already pending', result.instructions);
       } else {
-        notifySuccess('Payment request sent', "Check the pastoralist's phone for the M-Pesa prompt.");
+        notifySuccess(
+          'Payment request sent',
+          `Check the pastoralist's phone for the ${mobileMoneyLabel} prompt.`,
+        );
       }
     },
     onError: (error) => {
@@ -299,7 +319,10 @@ export function LivestockOnboardingWizard() {
       if (cancelled || attempts >= maxAttempts) {
         if (!cancelled && attempts >= maxAttempts) {
           setPaymentStatus('failed');
-          notifyError(null, "Payment confirmation timed out. Check the pastoralist's M-Pesa messages.");
+          notifyError(
+            null,
+            `Payment confirmation timed out. Check the pastoralist's ${mobileMoneyLabel} messages.`,
+          );
         }
         return;
       }
@@ -329,7 +352,11 @@ export function LivestockOnboardingWizard() {
     poll();
 
     return () => { cancelled = true; };
-  }, [paymentStatus, paymentRef, queryClient]);
+    // `mobileMoneyLabel` is in the deps because the timeout message names it. It is a stable
+    // string derived from the organization's market, so including it does not restart the poll
+    // in practice — but leaving it out would be a stale-closure bug the day the market resolves
+    // mid-poll, which is exactly the window a slow first page load creates.
+  }, [paymentStatus, paymentRef, queryClient, mobileMoneyLabel]);
 
   // ── Unsaved changes warning ────────────────────────────
 
@@ -423,8 +450,10 @@ export function LivestockOnboardingWizard() {
             <FormField control={farmerForm.control} name="phoneNumber" render={({ field }) => (
               <FormItem>
                 <FormLabel>Phone Number <span className="text-destructive">*</span></FormLabel>
-                <FormControl><Input placeholder="+254712345678" autoComplete="off" {...field} /></FormControl>
-                <FormDescription>Include country code (e.g. +254)</FormDescription>
+                <FormControl>
+                  <Input placeholder={market?.phoneExample ?? ''} autoComplete="off" {...field} />
+                </FormControl>
+                <FormDescription>{phoneHint(market)}</FormDescription>
                 <FormMessage />
               </FormItem>
             )} />
@@ -440,14 +469,14 @@ export function LivestockOnboardingWizard() {
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField control={farmerForm.control} name="county" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>County/Region <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel>{level1Label} <span className="text-destructive">*</span></FormLabel>
                   <FormControl><Input placeholder="Turkana" autoComplete="off" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={farmerForm.control} name="subCounty" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Sub-County <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel>{level2Label} <span className="text-destructive">*</span></FormLabel>
                   <FormControl><Input placeholder="Turkana Central" autoComplete="off" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -677,7 +706,7 @@ export function LivestockOnboardingWizard() {
 
               <FormField control={herdForm.control} name="estimatedValue" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Estimated Value (Per Head) in {CURRENCY} <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel>Estimated value per head{market ? ` in ${market.currency}` : ''} <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input type="number" min={100} {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
                   </FormControl>
@@ -874,7 +903,7 @@ export function LivestockOnboardingWizard() {
           <CardContent className="flex flex-col items-center justify-center space-y-4 pt-6 text-center">
             {paymentSimulated && (
               <SimulatedBanner className="w-full text-left">
-                This was a test payment. No M-Pesa prompt was sent, no money was charged, and the
+                This was a test payment. No {mobileMoneyLabel} prompt was sent, no money was charged, and the
                 policy below is test data — the pastoralist is NOT covered.
               </SimulatedBanner>
             )}
@@ -901,13 +930,13 @@ export function LivestockOnboardingWizard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>M-Pesa Payment</CardTitle>
-          <CardDescription>Send an M-Pesa STK prompt to the pastoralist</CardDescription>
+          <CardTitle>{mobileMoneyLabel} payment</CardTitle>
+          <CardDescription>Send a {mobileMoneyLabel} prompt to the pastoralist</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {paymentSimulated && (
             <SimulatedBanner>
-              This is a test payment. No M-Pesa prompt was sent to the pastoralist and no money
+              This is a test payment. No {mobileMoneyLabel} prompt was sent to the pastoralist and no money
               will be charged — the policy it activates is test data.
             </SimulatedBanner>
           )}
@@ -927,11 +956,11 @@ export function LivestockOnboardingWizard() {
           {paymentStatus === 'idle' || paymentStatus === 'failed' ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">M-Pesa Phone Number</label>
+                <label className="text-sm font-medium">{mobileMoneyLabel} phone number</label>
                 <Input 
                   value={paymentPhone} 
                   onChange={(e) => setPaymentPhone(e.target.value)} 
-                  placeholder="+254700000000"
+                  placeholder={market?.phoneExample ?? ''}
                 />
                 <p className="text-xs text-muted-foreground">The prompt will be sent to this number.</p>
               </div>
@@ -960,7 +989,7 @@ export function LivestockOnboardingWizard() {
                 <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
                   {paymentSimulated
                     ? 'No prompt was sent — there is nothing for the pastoralist to confirm. Waiting for the test payment to settle.'
-                    : 'An M-Pesa prompt has been sent to the phone. Waiting for the pastoralist to enter their PIN...'}
+                    : `A ${mobileMoneyLabel} prompt has been sent to the phone. Waiting for the pastoralist to enter their PIN...`}
                 </p>
               </div>
             </div>

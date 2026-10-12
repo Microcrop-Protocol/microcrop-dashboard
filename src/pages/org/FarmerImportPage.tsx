@@ -21,9 +21,69 @@ import {
   buildResultReport,
   type ImportReport,
 } from "./importIssues";
+import { CapabilityGate } from "@/components/capability/CapabilityGate";
+import { useCapability } from "@/hooks/useCapabilities";
+import { CAPABILITY } from "@/lib/capability";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
+import type { Market } from "@/lib/market";
 
-const FARMER_CSV_TEMPLATE = 'firstName,lastName,phoneNumber,nationalId,county\nJohn,Doe,+254712345678,12345678,Nakuru';
-const PLOT_CSV_TEMPLATE = 'farmerPhone,name,latitude,longitude,acreage,cropType\n+254712345678,Plot A,-0.3031,36.08,2.5,Maize';
+/**
+ * The CSV templates are MARKET-DRIVEN, because a template is an instruction.
+ *
+ * They were literals containing `+254712345678` and `Nakuru`. The backend used to accept any
+ * string for an imported phone number — which made bulk import the accidental only way to
+ * onboard a non-Kenyan farmer — and now validates every row against the organization's own
+ * market and reports bad rows individually. So a Ghanaian partner downloading a template full of
+ * Kenyan numbers would hand back a file in which EVERY row fails validation, with nothing in the
+ * product having told it otherwise.
+ *
+ * The HEADER names are deliberately unchanged. `county` is the column, in every market; only its
+ * label differs, and renaming the CSV header would break every partner's existing importer for
+ * a cosmetic gain. The sample VALUES are what carry the market.
+ */
+function farmerCsvTemplate(market: Market | null): string {
+  const phone = market?.phoneExample ?? '';
+  const division = market?.countryCode === 'GH' ? 'Ashanti' : 'Nakuru';
+  return `firstName,lastName,phoneNumber,nationalId,county\nJohn,Doe,${phone},12345678,${division}`;
+}
+
+/**
+ * The JSON placeholders, DERIVED from the CSV templates rather than written out again.
+ *
+ * They were a second pair of literals carrying the same `+254712345678`, and a second copy is a
+ * second thing to forget: the CSV template and the JSON example would drift and a partner would
+ * be shown two different "correct" formats on the same screen.
+ */
+function csvToJsonExample(csv: string): string {
+  const [header, row] = csv.split('\n');
+  const keys = header.split(',');
+  const values = row.split(',');
+  const entries = keys.map((key, index) => {
+    const raw = values[index] ?? '';
+    // Numbers stay numbers in the example; a quoted latitude would be a wrong example.
+    const value = raw !== '' && Number.isFinite(Number(raw)) && !/^\+/.test(raw) && key !== 'nationalId'
+      ? raw
+      : JSON.stringify(raw);
+    return `"${key}": ${value}`;
+  });
+  return `[{${entries.join(', ')}}]`;
+}
+
+function farmerJsonPlaceholder(market: Market | null): string {
+  return csvToJsonExample(farmerCsvTemplate(market));
+}
+
+function plotJsonPlaceholder(market: Market | null): string {
+  return csvToJsonExample(plotCsvTemplate(market));
+}
+
+function plotCsvTemplate(market: Market | null): string {
+  const phone = market?.phoneExample ?? '';
+  // Coordinates inside the market, so a partner that imports the sample unedited does not create
+  // a plot in the wrong country and then wonder why its satellite readings are empty.
+  const [lat, lng] = market?.countryCode === 'GH' ? ['6.6885', '-1.6244'] : ['-0.3031', '36.08'];
+  return `farmerPhone,name,latitude,longitude,acreage,cropType\n${phone},Plot A,${lat},${lng},2.5,Maize`;
+}
 
 function downloadTemplate(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/csv' });
@@ -191,6 +251,10 @@ export default function FarmerImportPage() {
   const [plotsImportMode, setPlotsImportMode] = useState<'csv' | 'json'>('csv');
   const [farmersReport, setFarmersReport] = useState<ImportReport | null>(null);
   const [plotsReport, setPlotsReport] = useState<ImportReport | null>(null);
+  const bulkImport = useCapability(CAPABILITY.BULK_IMPORT);
+  // `market` is null until the organization resolves, and the template helpers render an empty
+  // sample number rather than a Kenyan one in that window.
+  const { market } = useOrgMarket();
 
   const importFarmersMutation = useMutation({
     mutationFn: (farmers: Record<string, unknown>[]) => api.bulkImportFarmers(farmers),
@@ -327,6 +391,17 @@ export default function FarmerImportPage() {
         <p className="text-muted-foreground">Import farmers and plots via CSV or JSON</p>
       </div>
 
+      {/*
+        BULK_IMPORT is off for new organizations by default — it is high-volume PII intake
+        (national IDs) by an organization that may not have passed KYB. The route already
+        requires the `bulkImport` PERMISSION; this is the orthogonal organization-level question,
+        and it replaces the whole surface because every control on the page is an import control.
+      */}
+      <CapabilityGate
+        capability={CAPABILITY.BULK_IMPORT}
+        state={bulkImport.state}
+        onRetry={bulkImport.refetch}
+      >
       <Tabs defaultValue="farmers">
         <TabsList>
           <TabsTrigger value="farmers">Import Farmers</TabsTrigger>
@@ -386,7 +461,7 @@ export default function FarmerImportPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => downloadTemplate(FARMER_CSV_TEMPLATE, 'farmers-template.csv')}
+                      onClick={() => downloadTemplate(farmerCsvTemplate(market), 'farmers-template.csv')}
                     >
                       <Download className="mr-2 h-4 w-4" aria-hidden="true" />
                       Download Template
@@ -402,7 +477,7 @@ export default function FarmerImportPage() {
               ) : (
                 <>
                   <Textarea
-                    placeholder='[{"firstName": "John", "lastName": "Doe", "phoneNumber": "+254712345678", "nationalId": "12345678", "county": "Nakuru"}]'
+                    placeholder={farmerJsonPlaceholder(market)}
                     rows={10}
                     value={farmersJson}
                     onChange={(e) => setFarmersJson(e.target.value)}
@@ -477,7 +552,7 @@ export default function FarmerImportPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => downloadTemplate(PLOT_CSV_TEMPLATE, 'plots-template.csv')}
+                      onClick={() => downloadTemplate(plotCsvTemplate(market), 'plots-template.csv')}
                     >
                       <Download className="mr-2 h-4 w-4" aria-hidden="true" />
                       Download Template
@@ -493,7 +568,7 @@ export default function FarmerImportPage() {
               ) : (
                 <>
                   <Textarea
-                    placeholder='[{"farmerPhone": "+254712345678", "name": "Plot A", "latitude": -0.3031, "longitude": 36.08, "acreage": 2.5, "cropType": "Maize"}]'
+                    placeholder={plotJsonPlaceholder(market)}
                     rows={10}
                     value={plotsJson}
                     onChange={(e) => setPlotsJson(e.target.value)}
@@ -515,6 +590,7 @@ export default function FarmerImportPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      </CapabilityGate>
     </div>
   );
 }

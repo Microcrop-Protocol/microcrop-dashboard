@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Download, Users, FileText, DollarSign, ArrowRightLeft, Loader2 } from "lucide-react";
 import { notifySuccess, notifyError } from "@/lib/notify";
+import { CapabilityGate } from "@/components/capability/CapabilityGate";
+import { useCapability } from "@/hooks/useCapabilities";
+import { CAPABILITY } from "@/lib/capability";
 
 const exportConfigs = [
   { title: "Farmers", description: "Export all farmer data including KYC status", icon: Users, key: "farmers" as const },
@@ -21,9 +24,26 @@ const exportFns = {
   transactions: api.exportTransactions,
 };
 
+/**
+ * DATA EXPORT.
+ *
+ * TWO INDEPENDENT GATES, and they are not interchangeable:
+ *
+ *   `exportData` (a PERMISSION, on the route in App.tsx) answers whether THIS USER may export.
+ *   `DATA_EXPORT` (a CAPABILITY, here) answers whether the ORGANIZATION has the feature at all.
+ *
+ * The permission gate stays outermost, on the route, because the copy differs: a Viewer who
+ * cannot export should be told to ask its own administrator, not that MicroCrop has to enable
+ * something. Both must pass — the backend checks `export:*` on the route and
+ * `assertCapability(DATA_EXPORT)` at four chokepoints inside export.service.
+ *
+ * The whole page is replaced rather than each button disabled: there is nothing else on it, and
+ * four dead Download buttons is four invitations to click and get a 403.
+ */
 export default function ExportPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), to: new Date() });
   const [downloading, setDownloading] = useState<string | null>(null);
+  const exportCapability = useCapability(CAPABILITY.DATA_EXPORT);
 
   const handleDownload = async (key: keyof typeof exportFns, title: string) => {
     setDownloading(key);
@@ -50,6 +70,11 @@ export default function ExportPage() {
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold">Data Export</h1><p className="text-muted-foreground">Download organization data as CSV</p></div>
+      <CapabilityGate
+        capability={CAPABILITY.DATA_EXPORT}
+        state={exportCapability.state}
+        onRetry={exportCapability.refetch}
+      >
       <div className="grid gap-4 md:grid-cols-2">
         {exportConfigs.map(exp => (
           <Card key={exp.title}>
@@ -64,6 +89,7 @@ export default function ExportPage() {
           </Card>
         ))}
       </div>
+      </CapabilityGate>
     </div>
   );
 }

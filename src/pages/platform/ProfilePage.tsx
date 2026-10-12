@@ -5,6 +5,9 @@ import { api } from '@/lib/api';
 import { resolveFileUrl } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { notifySuccess, notifyError } from '@/lib/notify';
+// A PLATFORM ADMIN has no market of its own — it operates across organizations — so the hint
+// names every supported market rather than claiming one. `phoneHint(null)` is that string.
+import { phoneHint } from '@/lib/market';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -209,7 +212,7 @@ export default function ProfilePage() {
                 id="phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+254 …"
+                placeholder={phoneHint(null)}
               />
             </div>
           </div>

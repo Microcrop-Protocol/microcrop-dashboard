@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -14,14 +14,22 @@ import { Upload, Download, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { notifySuccess, notifyError } from "@/lib/notify";
 import { KybGatingBanner } from "@/components/kyb/KybGatingBanner";
+import { useOrgMarket } from "@/hooks/useOrgMarket";
 
-const columns: ColumnDef<Farmer>[] = [
+/**
+ * A FUNCTION of the market, because one header is a per-market label.
+ *
+ * The `county` COLUMN keeps its name — it is the schema column in every market and renaming it
+ * would be a destructive change for a cosmetic gain — but what it is CALLED differs: Kenya has
+ * Counties, Ghana has Regions. A module-level constant could not express that.
+ */
+const buildColumns = (level1Label: string): ColumnDef<Farmer>[] => [
   { accessorKey: "firstName", header: "First Name" },
   { accessorKey: "lastName", header: "Last Name" },
   // The API field is `phoneNumber`; `phone` is never returned and rendered blank.
   { accessorKey: "phoneNumber", header: "Phone" },
   { accessorKey: "nationalId", header: "National ID" },
-  { accessorKey: "county", header: "County" },
+  { accessorKey: "county", header: level1Label },
   {
     accessorKey: "kycStatus",
     header: "KYC Status",
@@ -62,6 +70,8 @@ export default function FarmersPage() {
   const canDecideKyc = can.decideKyc;
   const orgId = user?.organizationId || "";
   const [exporting, setExporting] = useState(false);
+  const { level1Label } = useOrgMarket();
+  const columns = useMemo(() => buildColumns(level1Label), [level1Label]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["farmers", orgId],
