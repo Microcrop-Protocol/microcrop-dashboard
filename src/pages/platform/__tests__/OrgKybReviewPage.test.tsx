@@ -76,6 +76,25 @@ describe('OrgKybReviewPage', () => {
     expect(screen.queryByText(/Kenya/)).not.toBeInTheDocument();
   });
 
+  it('does not label an unknown-market organization\'s county with Kenya\'s "County"', async () => {
+    mocks.getKybReviews.mockResolvedValue([review({ countryCode: null, regulator: null, county: 'Greater Accra' })]);
+    renderPage();
+    await screen.findByText('Accra Mutual');
+    expect(screen.getByText(/County \/ Region: Greater Accra/)).toBeInTheDocument();
+    expect(screen.queryByText(/· County: Greater Accra/)).not.toBeInTheDocument();
+  });
+
+  it('shows the regulator code the server sends, with its full name', async () => {
+    mocks.getKybReviews.mockResolvedValue([
+      review({ regulator: 'NIC', regulatorName: 'National Insurance Commission', countryName: 'Ghana' }),
+    ]);
+    renderPage();
+    await screen.findByText('Accra Mutual');
+    const badge = screen.getByTestId('kyb-regulator');
+    expect(badge).toHaveTextContent('Regulator: NIC');
+    expect(badge).toHaveAttribute('title', 'National Insurance Commission');
+  });
+
   it("flags a licence issued by another market's regulator", async () => {
     mocks.getKybReviews.mockResolvedValue([
       review({
@@ -121,5 +140,54 @@ describe('OrgKybReviewPage', () => {
     expect(within(licence.closest('li') as HTMLElement).getByText('missing')).toBeInTheDocument();
     expect(within(screen.getByText('Ghana TIN').closest('li') as HTMLElement).getByText('provided')).toBeInTheDocument();
     expect(mocks.getOrgKyb).toHaveBeenCalledWith('org-gh');
+  });
+
+  function checklistFor(countryCode: string): OrgKyb {
+    return {
+      kybStatus: 'PENDING_REVIEW',
+      onboardingStep: 'KYB_VERIFICATION',
+      countryCode,
+      verification: null,
+      checklist: {
+        countryCode,
+        regulator: countryCode === 'KE' ? 'IRA' : 'NIC',
+        regulatorLicenseRequired: true,
+        regulatorLicenseDocType: 'LICENSE',
+        requiredDocuments: [{ documentType: 'LICENSE', label: 'Licence', required: true, satisfied: false }],
+        optionalDocuments: [],
+      },
+    };
+  }
+
+  it('warns when the checklist was built for a different market than the card names', async () => {
+    mocks.getKybReviews.mockResolvedValue([review({})]);
+    mocks.getOrgKyb.mockResolvedValue(checklistFor('KE'));
+    renderPage();
+    await screen.findByText('Accra Mutual');
+    fireEvent.click(screen.getByRole('button', { name: /required documents for this market/i }));
+    expect(
+      await screen.findByText(/This checklist is for KE, but the organization is listed under GH/),
+    ).toBeInTheDocument();
+  });
+
+  it('does not warn when the checklist matches the card', async () => {
+    mocks.getKybReviews.mockResolvedValue([review({})]);
+    mocks.getOrgKyb.mockResolvedValue(checklistFor('GH'));
+    renderPage();
+    await screen.findByText('Accra Mutual');
+    fireEvent.click(screen.getByRole('button', { name: /required documents for this market/i }));
+    await screen.findByText('Licence');
+    expect(screen.queryByText(/This checklist is for/)).not.toBeInTheDocument();
+  });
+
+  it('warns when the card has no market but the server built the checklist for one', async () => {
+    mocks.getKybReviews.mockResolvedValue([review({ countryCode: null, regulator: null })]);
+    mocks.getOrgKyb.mockResolvedValue(checklistFor('KE'));
+    renderPage();
+    await screen.findByText('Accra Mutual');
+    fireEvent.click(screen.getByRole('button', { name: /required documents for this market/i }));
+    expect(
+      await screen.findByText(/This checklist is for KE, but the organization has no market on file/),
+    ).toBeInTheDocument();
   });
 });

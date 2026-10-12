@@ -10,7 +10,6 @@ import { resolveFileUrl } from '@/lib/utils';
 import { FileText, Loader2, ShieldCheck, ShieldAlert, ExternalLink, ScanSearch, Globe2 } from 'lucide-react';
 import { KybChecklistPanel } from '@/components/platform/KybChecklistPanel';
 import { kybReviewMarket } from '@/lib/kyb-review';
-import { level1Label, marketOrNull } from '@/lib/market';
 // The PLATFORM-ADMIN verification type. The org-facing `OrgKybVerification` deliberately does
 // not declare the Sumsub verdict — the backend withholds it from the screened party — and this
 // page is the surface that is entitled to it. Using the org-facing type here would make the
@@ -124,7 +123,7 @@ export default function OrgKybReviewPage() {
                     <CardTitle className="text-base">{org.name}</CardTitle>
                     <CardDescription>
                       {org.type} · Reg {org.registrationNumber ?? 'not yet provided'}
-                      {org.county ? ` · ${level1Label(marketOrNull(market.countryCode))}: ${org.county}` : ''}
+                      {org.county ? ` · ${market.level1Label}: ${org.county}` : ''}
                     </CardDescription>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {market.known ? (
@@ -137,7 +136,11 @@ export default function OrgKybReviewPage() {
                           {market.countryCode ? `Unrecognised market (${market.countryCode})` : 'Market unknown'}
                         </Badge>
                       )}
-                      <Badge variant="outline" data-testid="kyb-regulator">
+                      <Badge
+                        variant="outline"
+                        data-testid="kyb-regulator"
+                        title={market.regulatorName ?? undefined}
+                      >
                         Regulator: {market.regulator ?? 'unknown'}
                       </Badge>
                     </div>

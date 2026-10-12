@@ -305,8 +305,16 @@ export interface OrgKybReview {
    * market is unknown rather than shown Kenya.
    */
   countryCode?: string | null;
-  /** The market's insurance regulator as the server names it (IRA, NIC). */
+  /**
+   * The market's insurance regulator, as the SHORT CODE the server sends (IRA, NIC). Null — sent
+   * deliberately — for an organization whose country is not a supported market. Absent on an
+   * older backend.
+   */
   regulator?: string | null;
+  /** The regulator's full name (Insurance Regulatory Authority, National Insurance Commission). */
+  regulatorName?: string | null;
+  /** The market's country name as the server names it; null for an unsupported country. */
+  countryName?: string | null;
   kybStatus: KYBStatus;
   createdAt: string;
   kybVerification: OrgKybReviewVerification | null;

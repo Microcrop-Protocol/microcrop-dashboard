@@ -48,8 +48,12 @@ export function KybChecklistPanel({
   });
 
   const checklist = data?.checklist;
-  const mismatch =
-    checklist && expectedCountryCode && checklist.countryCode?.toUpperCase() !== expectedCountryCode;
+  const checklistCountry = checklist?.countryCode?.trim().toUpperCase() || null;
+  const expected = expectedCountryCode?.trim().toUpperCase() || null;
+  // A checklist built for a market the review card does not name is a disagreement either way:
+  // a DIFFERENT market, or a market on the checklist while the card has none on file. The backend
+  // falls back to a default market for an org with no country, so the second case is real.
+  const mismatch = Boolean(checklist && checklistCountry && checklistCountry !== expected);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -73,9 +77,11 @@ export function KybChecklistPanel({
               {checklist.regulatorLicenseRequired ? " (licence required)" : ""}
             </p>
             {mismatch && (
-              <p className="text-sm text-destructive">
-                This checklist is for {checklist.countryCode}, but the organization is listed under{" "}
-                {expectedCountryCode}. Resolve the organization's market before approving.
+              <p role="alert" className="text-sm text-destructive">
+                {expected
+                  ? `This checklist is for ${checklistCountry}, but the organization is listed under ${expected}.`
+                  : `This checklist is for ${checklistCountry}, but the organization has no market on file.`}{" "}
+                Resolve the organization's market before approving.
               </p>
             )}
             <ul className="space-y-1">
