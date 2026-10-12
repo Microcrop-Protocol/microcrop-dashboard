@@ -604,6 +604,34 @@ class ApiClient {
   }
 
   /**
+   * One organization's policies, for a platform admin. NOT getPolicies: that is the org-scoped
+   * GET /policies, which resolves the org from the caller. A platform admin has none, so it was
+   * refused, and on older backends the refusal was a 401 that signed the admin out.
+   */
+  async platformGetOrgPolicies(orgId: string, params?: { page?: number; limit?: number; status?: string }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<Policy[]>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/policies${query ? `?${query}` : ''}`,
+    );
+  }
+
+  /** One organization's payouts, for a platform admin. See platformGetOrgPolicies. */
+  async platformGetOrgPayouts(orgId: string, params?: { page?: number; limit?: number; status?: string }) {
+    const query = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return this.requestWithPagination<Payout[]>(
+      `/platform/organizations/${encodeURIComponent(orgId)}/payouts${query ? `?${query}` : ''}`,
+    );
+  }
+
+  /**
    * Flip one capability. The reason is MANDATORY and must be at least 10 characters — the
    * backend refuses a shorter one, in the validator and again in the service, because the audit
    * row is only useful if it says why.
