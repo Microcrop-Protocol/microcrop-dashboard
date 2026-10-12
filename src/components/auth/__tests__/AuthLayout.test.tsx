@@ -50,7 +50,7 @@ describe('AuthLayout', () => {
   it('keeps the decorative brand panel out of the accessibility tree', () => {
     const { container } = renderLayout();
 
-    const panel = container.querySelector('[aria-hidden="true"].bg-\\[\\#0a0a0c\\]');
+    const panel = container.querySelector('[aria-hidden="true"].auth-brand-panel');
     expect(panel).toBeInTheDocument();
     // Its logo carries no alt text, so it contributes no stray image announcement either.
     expect(panel?.querySelector('img')).toHaveAttribute('alt', '');
@@ -58,7 +58,7 @@ describe('AuthLayout', () => {
 
   it('collapses the brand panel below the lg breakpoint rather than reflowing it', () => {
     const { container } = renderLayout();
-    const panel = container.querySelector('[aria-hidden="true"].bg-\\[\\#0a0a0c\\]');
+    const panel = container.querySelector('[aria-hidden="true"].auth-brand-panel');
 
     expect(panel).toHaveClass('hidden');
     expect(panel).toHaveClass('lg:flex');

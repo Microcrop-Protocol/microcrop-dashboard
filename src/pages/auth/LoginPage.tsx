@@ -165,7 +165,7 @@ export default function LoginPage() {
             />
 
             <p className={`text-sm ${authMutedTextClass}`}>
-              Signing in as <span className="font-medium text-white">{getValues('email')}</span>
+              Signing in as <span className="font-medium text-foreground">{getValues('email')}</span>
             </p>
 
             <AuthField

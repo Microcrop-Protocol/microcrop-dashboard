@@ -24,9 +24,9 @@ export function OrDivider() {
     // The rules are decorative; the word is read. A <hr> either side would announce two
     // separators around a stray "or", which is noise, so the lines are styled divs.
     <div className="flex items-center gap-4" role="presentation">
-      <div className="h-px flex-1 bg-[#26272b]" />
+      <div className="h-px flex-1 bg-border" />
       <span className={`text-xs ${authMutedTextClass}`}>or</span>
-      <div className="h-px flex-1 bg-[#26272b]" />
+      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -70,7 +70,7 @@ export const AuthField = forwardRef<HTMLInputElement, AuthFieldProps>(function A
         ref={ref}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className={cn(authInputClass, error && 'border-[#f0646f] focus-visible:border-[#f0646f]', className)}
+        className={cn(authInputClass, error && 'border-destructive focus-visible:border-destructive', className)}
         {...inputProps}
       />
       {hint ? (
@@ -81,7 +81,7 @@ export const AuthField = forwardRef<HTMLInputElement, AuthFieldProps>(function A
       {error ? (
         // role="alert" so a message that appears after submit is announced without the user
         // having to go looking for it.
-        <p id={errorId} role="alert" className="mt-1.5 text-xs text-[#f0646f]">
+        <p id={errorId} role="alert" className="mt-1.5 text-xs text-destructive">
           {error}
         </p>
       ) : null}
@@ -106,7 +106,7 @@ export function AuthPrimaryButton({
   return (
     <div className="relative">
       {/*
-        The glow. A blurred blue bar sitting behind and below the button — decorative, so
+        The glow. A blurred brand-colour bar sitting behind and below the button — decorative, so
         aria-hidden, and pointer-events-none so it never eats the click.
 
         It is STATIC: no animation, no transition. prefers-reduced-motion is about movement,
@@ -117,7 +117,7 @@ export function AuthPrimaryButton({
       */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-3 bottom-0 top-2 rounded-[10px] bg-[#2f6bff] opacity-40 blur-lg"
+        className="pointer-events-none absolute inset-x-3 bottom-0 top-2 rounded-[10px] bg-primary opacity-30 blur-lg"
       />
       <Button
         type={type}
