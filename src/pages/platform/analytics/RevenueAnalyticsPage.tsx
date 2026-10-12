@@ -39,7 +39,9 @@ export default function RevenueAnalyticsPage() {
 
   // Labelled only when the server confirms the figures are for the market asked for.
   const market = data ? confirmedMarket(data, countryCode) : null;
-  const money = (v: number) => (isLoading ? "—" : formatMoneyCompact(v, market));
+  // An absent figure is "—", never a confident 0.
+  const money = (v: number | null | undefined) =>
+    isLoading || v === null || v === undefined ? "—" : formatMoneyCompact(v, market);
 
   return (
     <div className="space-y-6">
@@ -69,17 +71,17 @@ export default function RevenueAnalyticsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title={withCurrencySuffix("Total Premiums", market)}
-          value={money(data?.totals.premiums ?? 0)}
+          value={money(data?.totals.premiums)}
           icon={Wallet}
         />
         <StatCard
           title={withCurrencySuffix("Platform Fees", market)}
-          value={money(data?.totals.fees ?? 0)}
+          value={money(data?.totals.fees)}
           icon={DollarSign}
         />
         <StatCard
           title="Payouts (USDC)"
-          value={isLoading ? "—" : formatUsdcCompact(data?.totals.payoutsUsdc ?? 0)}
+          value={isLoading ? "—" : formatUsdcCompact(data?.totals.payoutsUsdc)}
           subtitle="Settled on-chain in USDC"
           icon={ArrowDownUp}
         />
@@ -109,7 +111,10 @@ export default function RevenueAnalyticsPage() {
       />
 
       <BarChart
-        data={(data?.byOrganization ?? []).map((org) => ({ name: org.name, value: org.fees }))}
+        // An organization with no fee figure is left off rather than drawn as a zero bar.
+        data={(data?.byOrganization ?? [])
+          .filter((org) => org.fees !== null)
+          .map((org) => ({ name: org.name, value: org.fees }))}
         xKey="name"
         title={withCurrencySuffix("Platform Fees by Organization", market)}
         formatYAxis={(v) => formatMoneyCompact(v, market)}

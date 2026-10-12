@@ -8,6 +8,8 @@
  *
  * THE CURRENCY RULE these types encode:
  *
+ *   - Every money field is `number | null`. Null is a figure the server did not send, and it
+ *     renders as "—" — never as 0, which would claim a total nobody stated.
  *   - Local money (premiums, fees) is only ever present for ONE market at a time, and carries the
  *     `countryCode`/`currency` the SERVER echoed. A page labels it only when that echo matches
  *     the market it asked for — see `confirmedMarket`.
@@ -41,22 +43,24 @@ export interface AnalyticsMarketEcho {
 export interface RevenueAnalyticsView extends AnalyticsMarketEcho {
   granularity: Granularity;
   totals: {
-    /** In `currency`. */
-    premiums: number;
-    /** In `currency`. */
-    fees: number;
-    payoutsUsdc: number;
+    /** In `currency`. Null when the server sent no figure. */
+    premiums: number | null;
+    /** In `currency`. Null when the server sent no figure. */
+    fees: number | null;
+    /** Null when the server sent no figure. */
+    payoutsUsdc: number | null;
     /** Server-computed on a USDC basis, else null. Never derived client-side. */
     lossRatio: number | null;
   };
-  timeSeries: { date: string; premiums: number; fees: number; payoutsUsdc: number }[];
+  /** A null point is a gap in the chart, not a zero. */
+  timeSeries: { date: string; premiums: number | null; fees: number | null; payoutsUsdc: number | null }[];
   byOrganization: {
     organizationId: string;
     name: string;
     /** In `currency`. */
-    fees: number;
+    fees: number | null;
     /** In `currency`. */
-    premiums: number;
+    premiums: number | null;
     count: number;
   }[];
 }
@@ -93,11 +97,13 @@ export interface FarmersAnalyticsView extends AnalyticsMarketEcho {
 
 export interface PayoutsAnalyticsView extends AnalyticsMarketEcho {
   granularity: Granularity;
-  totalUsdc: number;
-  avgUsdc: number;
+  /** Null when the server sent no figure. */
+  totalUsdc: number | null;
+  /** Null when the server sent no figure. */
+  avgUsdc: number | null;
   count: number;
   successRate: number;
-  timeSeries: { date: string; amountUsdc: number; count: number }[];
+  timeSeries: { date: string; amountUsdc: number | null; count: number }[];
   byStatus: NamedCount[];
   /** Settlement determinations grouped by status, e.g. { CONFIRMED: 12, UNDERFUNDED: 3 }. */
   byDeterminationStatus?: Record<string, number>;

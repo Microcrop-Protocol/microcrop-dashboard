@@ -5,11 +5,12 @@
  * needs the market as an explicit, visible choice. Two modes, and the difference is about money:
  *
  *   'any'     All markets, or one. For screens whose figures are counts (organizations, farmers,
- *             policies, damage scores), or whose money arrives already split per currency
- *             (the overview's `byCurrency`). "All" is meaningful there.
+ *             policies, damage scores), whose money arrives already split per currency (the
+ *             overview's `byCurrency`), or whose money is USDC in every market (payouts). "All"
+ *             is meaningful there.
  *   'single'  Exactly one market. For screens whose figures are a single money series in a local
- *             currency (revenue) or must be read against one (payouts). "All" would mean adding
- *             KES to GHS, which has no unit, so it is not offered.
+ *             currency (revenue). "All" would mean adding KES to GHS, which has no unit, so it is
+ *             not offered.
  *
  * THE SINGLE-MARKET DEFAULT IS THE FIRST MARKET IN REGISTRY ORDER, AND IT IS SHOWN. It happens to
  * be Kenya today, but it is read from SUPPORTED_COUNTRY_CODES rather than written as 'KE', and the

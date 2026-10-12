@@ -77,6 +77,22 @@ describe('PlatformDashboard', () => {
     expect(screen.getByText('Payouts Sent (USDC)')).toBeInTheDocument();
   });
 
+  it('shows money the server did not send as "—", never as a confident zero', async () => {
+    mocks.getPlatformStats.mockResolvedValue({
+      ...STATS,
+      financials: {
+        byCurrency: [{ countryCode: 'KE', currency: 'KES', totalPremiums: null, totalFees: null }],
+        totalPayoutsUsdc: null,
+        totalPayoutCount: 0,
+      },
+    });
+    renderPage();
+    const ke = await screen.findByTestId('financials-KE');
+    expect(within(ke).getAllByText('—')).toHaveLength(2);
+    expect(within(ke).queryByText(/KES\s0|^0$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/USDC 0/)).not.toBeInTheDocument();
+  });
+
   it('asks for every market by default, and for one when one is selected', async () => {
     renderPage();
     await screen.findByTestId('financials-KE');

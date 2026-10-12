@@ -17,6 +17,10 @@ import type { PlatformCurrencyFinancials } from "@/types";
 const formatNumber = (value: number) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 
+/** A local-money figure, or "—" when the server sent none — never a confident 0. */
+const formatLocal = (value: number | null, market: ReturnType<typeof confirmedMarket>) =>
+  value === null ? "—" : formatMoneyCompact(value, market);
+
 /**
  * One market's premiums and fees, in that market's currency. Each card is labelled from its own
  * row — never from the page's filter — and the rows are never added together.
@@ -35,11 +39,11 @@ function CurrencyFinancialsCard({ row }: { row: PlatformCurrencyFinancials }) {
       <CardContent className="grid grid-cols-2 gap-4">
         <div>
           <p className="text-sm text-muted-foreground">Premiums collected</p>
-          <p className="text-xl font-bold tabular-nums">{formatMoneyCompact(row.totalPremiums, market)}</p>
+          <p className="text-xl font-bold tabular-nums">{formatLocal(row.totalPremiums, market)}</p>
         </div>
         <div>
           <p className="text-sm text-muted-foreground">Platform fees</p>
-          <p className="text-xl font-bold tabular-nums">{formatMoneyCompact(row.totalFees, market)}</p>
+          <p className="text-xl font-bold tabular-nums">{formatLocal(row.totalFees, market)}</p>
         </div>
       </CardContent>
     </Card>
@@ -116,7 +120,7 @@ export default function PlatformDashboard() {
         />
         <StatCard
           title="Payouts Sent (USDC)"
-          value={isLoading ? "—" : formatUsdcCompact(stats?.financials.totalPayoutsUsdc ?? 0)}
+          value={isLoading ? "—" : formatUsdcCompact(stats?.financials.totalPayoutsUsdc)}
           subtitle={`${stats?.financials.totalPayoutCount ?? 0} payouts · settled in USDC`}
           icon={DollarSign}
         />

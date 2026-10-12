@@ -19,19 +19,20 @@ import {
 } from "@/lib/platform-analytics";
 
 /**
- * Payouts for one market. Every amount here is USDC — payouts settle on-chain in USDC whatever the
- * market's premium currency — so the market selects WHICH payouts, never the unit they are shown
- * in. The old page formatted these as KES.
+ * Payouts, platform-wide or for one market. Every amount here is USDC — payouts settle on-chain in
+ * USDC whatever the market's premium currency — so the market selects WHICH payouts, never the
+ * unit they are shown in, and "All markets" is a sum in one unit. That is why this page, unlike
+ * revenue, offers it (and defaults to it). The old page formatted these as KES.
  */
 export default function PayoutsAnalyticsPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultAnalyticsRange);
   const [granularity, setGranularity] = useState<Granularity>("daily");
-  const marketFilter = useMarketFilter("single");
+  const marketFilter = useMarketFilter("any");
   const { countryCode } = marketFilter;
   const range = dateRangeParams(dateRange);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["payoutsAnalytics", countryCode, range.startDate, range.endDate, granularity],
+    queryKey: ["payoutsAnalytics", countryCode ?? "ALL", range.startDate, range.endDate, granularity],
     queryFn: () => api.getPayoutsAnalytics({ countryCode, granularity, ...range }),
   });
 
@@ -39,8 +40,8 @@ export default function PayoutsAnalyticsPage() {
     <div className="space-y-6">
       <AnalyticsHeader
         title="Payouts Analytics"
-        description={`Payout performance in ${marketFilter.market?.countryName ?? "the selected market"} — amounts in USDC`}
-        mode="single"
+        description={`Payout performance — ${marketFilter.market?.countryName ?? "all markets"} — amounts in USDC`}
+        mode="any"
         marketFilter={marketFilter}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
@@ -60,12 +61,12 @@ export default function PayoutsAnalyticsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Paid (USDC)"
-          value={isLoading ? "—" : formatUsdcCompact(data?.totalUsdc ?? 0)}
+          value={isLoading ? "—" : formatUsdcCompact(data?.totalUsdc)}
           icon={DollarSign}
         />
         <StatCard
           title="Average Payout (USDC)"
-          value={isLoading ? "—" : formatUsdcCompact(data?.avgUsdc ?? 0)}
+          value={isLoading ? "—" : formatUsdcCompact(data?.avgUsdc)}
           icon={TrendingUp}
         />
         <StatCard

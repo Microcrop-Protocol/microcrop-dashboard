@@ -854,8 +854,9 @@ export interface PlatformCurrencyFinancials {
   countryCode: string;
   /** ISO 4217, as the server states it. */
   currency: string;
-  totalPremiums: number;
-  totalFees: number;
+  /** Null when the server sent no figure — rendered "—", never 0. */
+  totalPremiums: number | null;
+  totalFees: number | null;
 }
 
 export interface PlatformStats {
@@ -870,7 +871,8 @@ export interface PlatformStats {
    */
   financials: {
     byCurrency: PlatformCurrencyFinancials[];
-    totalPayoutsUsdc: number;
+    /** Null when the server sent no figure — rendered "—", never "USDC 0". */
+    totalPayoutsUsdc: number | null;
     totalPayoutCount: number;
   };
   period: { start: string | null; end: string | null };

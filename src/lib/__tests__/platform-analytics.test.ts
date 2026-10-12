@@ -73,6 +73,16 @@ describe('USDC formatting', () => {
     expect(formatUsdc('abc')).toBe('USDC —');
     expect(formatUsdcCompact(Number.NaN)).toBe('USDC —');
   });
+
+  it('renders an ABSENT amount as a dash, never as a confident zero', () => {
+    expect(formatUsdc(null)).toBe('—');
+    expect(formatUsdc(undefined)).toBe('—');
+    expect(formatUsdcCompact(null)).toBe('—');
+    expect(formatUsdcCompact('')).toBe('—');
+    // A zero the server actually sent is still a zero.
+    expect(formatUsdc(0)).toBe('USDC 0.00');
+    expect(formatUsdcCompact(0)).toBe('USDC 0');
+  });
 });
 
 describe('formatRatio', () => {
@@ -165,6 +175,16 @@ describe('normalizePlatformStats — the nested overview shape', () => {
     expect(stats.financials.byCurrency).toEqual([]);
     expect(stats.period).toEqual({ start: null, end: null });
   });
+
+  it('leaves absent money null — a missing payout total is not "USDC 0"', () => {
+    const stats = normalizePlatformStats({
+      financials: { byCurrency: [{ countryCode: 'KE', currency: 'KES' }] },
+    });
+    expect(stats.financials.totalPayoutsUsdc).toBeNull();
+    expect(stats.financials.byCurrency).toEqual([
+      { countryCode: 'KE', currency: 'KES', totalPremiums: null, totalFees: null },
+    ]);
+  });
 });
 
 describe('normalizeRevenueAnalytics', () => {
@@ -201,8 +221,45 @@ describe('normalizeRevenueAnalytics', () => {
     const view = normalizeRevenueAnalytics({
       timeSeries: [{ date: '2026-10-01', totalPremiums: 100, totalFees: 5, totalPayoutsAmount: 999 }],
     });
-    expect(view.totals.payoutsUsdc).toBe(0);
-    expect(view.timeSeries[0].payoutsUsdc).toBe(0);
+    expect(view.totals.payoutsUsdc).toBeNull();
+    expect(view.timeSeries[0].payoutsUsdc).toBeNull();
+  });
+
+  it('reads the FLAT totals and the separate payout series the backend actually sends', () => {
+    // The shape of getRevenueAnalytics for a scoped market: no `totals` block, flat money fields,
+    // and payouts in their own series. The old reader summed the local series for payouts and
+    // printed "USDC 0".
+    const view = normalizeRevenueAnalytics({
+      countryCode: 'GH',
+      currency: 'GHS',
+      totalPremiums: '4200',
+      totalFees: 210,
+      totalPayoutsUsdc: '300.5',
+      timeSeries: [{ date: '2026-10-01', premiums: '4200', fees: 210, policies: 3 }],
+      payoutsTimeSeries: [{ date: '2026-10-01', payoutsUsdc: '300.5', count: 1 }],
+      byOrganization: [{ organizationId: 'o1', organizationName: 'Accra Coop', totalFees: 210, totalPremiums: 4200, count: 3 }],
+    });
+    expect(view.totals).toEqual({ premiums: 4200, fees: 210, payoutsUsdc: 300.5, lossRatio: null });
+    expect(view.timeSeries).toEqual([{ date: '2026-10-01', premiums: 4200, fees: 210, payoutsUsdc: null }]);
+  });
+
+  it('takes the payout total from the payout series when no flat total was sent', () => {
+    const view = normalizeRevenueAnalytics({
+      payoutsTimeSeries: [{ date: '2026-10-01', payoutsUsdc: 2 }, { date: '2026-10-02', payoutsUsdc: '3' }],
+    });
+    expect(view.totals.payoutsUsdc).toBe(5);
+  });
+
+  it('leaves money the server did not send as null — not 0', () => {
+    // The unscoped backend answer: flat local-money fields null, no series.
+    const view = normalizeRevenueAnalytics({ totalPremiums: null, totalFees: null, timeSeries: null, byOrganization: null });
+    expect(view.totals.premiums).toBeNull();
+    expect(view.totals.fees).toBeNull();
+    expect(view.totals.payoutsUsdc).toBeNull();
+    expect(normalizeRevenueAnalytics({}).totals).toEqual({ premiums: null, fees: null, payoutsUsdc: null, lossRatio: null });
+    expect(
+      normalizeRevenueAnalytics({ byOrganization: [{ organizationId: 'o1', organizationName: 'X' }] }).byOrganization[0],
+    ).toMatchObject({ fees: null, premiums: null });
   });
 
   it('keeps a null loss ratio null — it is never computed from local premiums', () => {
@@ -335,8 +392,14 @@ describe('normalizePayoutsAnalytics — every amount is USDC', () => {
     expect(view.timeSeries).toEqual([{ date: '2026-10-01', amountUsdc: 50, count: 2 }]);
   });
 
-  it('ignores an amount field that does not carry the Usdc suffix', () => {
+  it('ignores an amount field that does not carry the Usdc suffix — and leaves it absent, not 0', () => {
     const view = normalizePayoutsAnalytics({ summary: { totalAmount: 999, avgAmount: 9 } });
+    expect(view.totalUsdc).toBeNull();
+    expect(view.avgUsdc).toBeNull();
+  });
+
+  it('keeps a zero the server sent as zero', () => {
+    const view = normalizePayoutsAnalytics({ summary: { totalAmountUsdc: 0, avgAmountUsdc: '0', totalCount: 0 } });
     expect(view.totalUsdc).toBe(0);
     expect(view.avgUsdc).toBe(0);
   });

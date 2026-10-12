@@ -11,6 +11,9 @@
  *
  * WHAT THEY REFUSE TO DO:
  *
+ *   - Turn an ABSENT money figure into 0. Money fields are `number | null`; null is what the
+ *     server did not send, and it renders as "—". A "USDC 0" tile is a statement that nothing was
+ *     paid out, which the dashboard has no grounds to make.
  *   - Label local money with a currency the server did not confirm. `confirmedMarket` returns a
  *     Market only when the response echoes the market that was asked for AND that market's
  *     currency matches the mirror. An older backend that ignores `?countryCode=` answers with
@@ -61,6 +64,35 @@ const num = (v: unknown): number => {
 /** A number when one is actually present, else undefined — so a caller can tell 0 from absent. */
 const maybeNum = (v: unknown): number | undefined =>
   v === null || v === undefined || v === '' ? undefined : num(v);
+
+/**
+ * MONEY: a number only when the server sent one, else null. `num` turns an absent field into 0,
+ * and a 0 on a money tile is a confident claim ("USDC 0 paid out") about a figure the server never
+ * stated — so every money field goes through this instead, and the pages render null as "—".
+ */
+const money = (v: unknown): number | null => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+
+/** The first argument that is a present money figure, else null. */
+const firstMoney = (...candidates: unknown[]): number | null => {
+  for (const c of candidates) {
+    const m = money(c);
+    if (m !== null) return m;
+  }
+  return null;
+};
+
+/** Sum of the PRESENT values; null when none is present — an empty series is not a zero total. */
+const sumPresent = (values: (number | null)[]): number | null => {
+  const present = values.filter((v): v is number => v !== null);
+  return present.length > 0 ? sum(present) : null;
+};
 
 const nullableRatio = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null;
@@ -144,9 +176,17 @@ export function confirmedMarket(
 // FORMATTING
 // ---------------------------------------------------------------------------
 
-/** "USDC 1,234.56". Payout amounts are always USDC, so this never needs a market. */
+/** Absent money: null, undefined or an empty string. Rendered as a dash, never as 0. */
+const absent = (value: unknown): boolean => value === null || value === undefined || value === '';
+
+/**
+ * "USDC 1,234.56". Payout amounts are always USDC, so this never needs a market. An ABSENT
+ * amount renders "—": it used to be `Number(value ?? 0)`, which printed "USDC 0.00" for a figure
+ * the server never sent.
+ */
 export function formatUsdc(value: number | string | null | undefined, decimals = 2): string {
-  const n = Number(value ?? 0);
+  if (absent(value)) return '—';
+  const n = Number(value);
   if (!Number.isFinite(n)) return `${USDC} —`;
   return `${USDC} ${n.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
@@ -154,9 +194,10 @@ export function formatUsdc(value: number | string | null | undefined, decimals =
   })}`;
 }
 
-/** "USDC 1.2K", for a stat tile or an axis. */
+/** "USDC 1.2K", for a stat tile or an axis. "—" for an absent amount, as formatUsdc. */
 export function formatUsdcCompact(value: number | string | null | undefined): string {
-  const n = Number(value ?? 0);
+  if (absent(value)) return '—';
+  const n = Number(value);
   if (!Number.isFinite(n)) return `${USDC} —`;
   return `${USDC} ${new Intl.NumberFormat('en-US', {
     notation: 'compact',
@@ -206,8 +247,8 @@ export function normalizePlatformStats(raw: unknown): PlatformStats {
     .map((row) => ({
       countryCode: str(row.countryCode) ?? '',
       currency: str(row.currency) ?? '',
-      totalPremiums: num(row.totalPremiums),
-      totalFees: num(row.totalFees),
+      totalPremiums: money(row.totalPremiums),
+      totalFees: money(row.totalFees),
     }))
     // A row that does not say which market and currency it is cannot be labelled — and an
     // unlabelled per-currency tile is meaningless — so it is dropped rather than shown as a guess.
@@ -219,7 +260,7 @@ export function normalizePlatformStats(raw: unknown): PlatformStats {
     farmers: { total: num(farmers.total) },
     financials: {
       byCurrency,
-      totalPayoutsUsdc: num(fin.totalPayoutsUsdc),
+      totalPayoutsUsdc: money(fin.totalPayoutsUsdc),
       totalPayoutCount: num(fin.totalPayoutCount),
     },
     period: { start: str(period.start), end: str(period.end) },
@@ -230,15 +271,25 @@ export function normalizeRevenueAnalytics(raw: unknown): RevenueAnalyticsView {
   const r = rec(raw);
   const timeSeries = arr(r.timeSeries).map(rec).map((row) => ({
     date: dateKey(row.date),
-    premiums: num(row.totalPremiums ?? row.premiums),
-    fees: num(row.totalFees ?? row.fees),
-    payoutsUsdc: num(row.totalPayoutsUsdc ?? row.payoutsUsdc),
+    premiums: firstMoney(row.totalPremiums, row.premiums),
+    fees: firstMoney(row.totalFees, row.fees),
+    payoutsUsdc: firstMoney(row.totalPayoutsUsdc, row.payoutsUsdc),
   }));
+  // The backend sends the USDC payout series separately from the local-money series.
+  const payoutSeries = arr(r.payoutsTimeSeries).map(rec).map((row) => firstMoney(row.payoutsUsdc, row.amountUsdc));
 
+  // Totals are read from a `totals`/`summary` block when there is one, else from the flat fields
+  // the backend actually sends (`totalPremiums`, `totalFees`, `totalPayoutsUsdc`), else summed from
+  // the series. With none of those present the total is null — NOT zero: before this, a response
+  // carrying its payout total only in the flat field rendered "USDC 0".
   const totals = rec(r.totals ?? r.summary);
-  const premiums = maybeNum(totals.totalPremiums) ?? sum(timeSeries.map((p) => p.premiums));
-  const fees = maybeNum(totals.totalFees) ?? sum(timeSeries.map((p) => p.fees));
-  const payoutsUsdc = maybeNum(totals.totalPayoutsUsdc) ?? sum(timeSeries.map((p) => p.payoutsUsdc));
+  const premiums =
+    firstMoney(totals.totalPremiums, r.totalPremiums) ?? sumPresent(timeSeries.map((p) => p.premiums));
+  const fees = firstMoney(totals.totalFees, r.totalFees) ?? sumPresent(timeSeries.map((p) => p.fees));
+  const payoutsUsdc =
+    firstMoney(totals.totalPayoutsUsdc, r.totalPayoutsUsdc) ??
+    sumPresent(timeSeries.map((p) => p.payoutsUsdc)) ??
+    sumPresent(payoutSeries);
 
   return {
     countryCode: str(r.countryCode),
@@ -254,8 +305,8 @@ export function normalizeRevenueAnalytics(raw: unknown): RevenueAnalyticsView {
     byOrganization: arr(r.byOrganization).map(rec).map((row) => ({
       organizationId: String(row.organizationId ?? ''),
       name: str(row.organizationName) ?? str(row.name) ?? 'Unknown organization',
-      fees: num(row.totalFees),
-      premiums: num(row.totalPremiums),
+      fees: money(row.totalFees),
+      premiums: money(row.totalPremiums),
       count: num(row.count),
     })),
   };
@@ -329,7 +380,7 @@ export function normalizePayoutsAnalytics(raw: unknown): PayoutsAnalyticsView {
   const summary = rec(r.summary);
   const timeSeries = arr(r.timeSeries).map(rec).map((row) => ({
     date: dateKey(row.date),
-    amountUsdc: num(row.totalPayoutsUsdc ?? row.amountUsdc),
+    amountUsdc: firstMoney(row.totalPayoutsUsdc, row.amountUsdc),
     count: num(row.totalPayoutsCount ?? row.count),
   }));
   const determination = r.byDeterminationStatus;
@@ -338,8 +389,8 @@ export function normalizePayoutsAnalytics(raw: unknown): PayoutsAnalyticsView {
     countryCode: str(r.countryCode),
     currency: str(r.currency),
     granularity: granularityOf(r.granularity),
-    totalUsdc: num(summary.totalAmountUsdc ?? summary.totalPayoutsUsdc),
-    avgUsdc: num(summary.avgAmountUsdc),
+    totalUsdc: firstMoney(summary.totalAmountUsdc, summary.totalPayoutsUsdc),
+    avgUsdc: money(summary.avgAmountUsdc),
     count: num(summary.totalCount ?? summary.count),
     successRate: num(r.successRate),
     timeSeries,
