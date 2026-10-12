@@ -28,9 +28,9 @@ function GoogleMark({ muted }: { muted: boolean }) {
   // marks read as "ready" no matter how dim the surrounding button is.
   if (muted) {
     return (
-      <svg viewBox="0 0 18 18" className="h-[18px] w-[18px]" aria-hidden="true" focusable="false">
+      <svg viewBox="0 0 18 18" className="h-[18px] w-[18px] text-muted-foreground" aria-hidden="true" focusable="false">
         <path
-          fill="#8a8d95"
+          fill="currentColor"
           d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Zm-8.64 9c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.95v2.33A9 9 0 0 0 9 18.2Zm-5.03-7.28a5.41 5.41 0 0 1 0-3.44V5.15H.95a9 9 0 0 0 0 8.1l3.02-2.33ZM9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .95 5.15l3.02 2.33C4.68 5.36 6.66 3.78 9 3.78Z"
         />
       </svg>
@@ -84,7 +84,7 @@ export function GoogleAuthButton({ label = 'Continue with Google' }: GoogleAuthB
             // Not `disabled:` utilities — the element is not disabled. The dimming and the
             // cursor have to be stated directly, and the hover tint has to be cancelled so
             // the control does not feel responsive.
-            'cursor-not-allowed opacity-55 hover:bg-[#191a1d]',
+            'cursor-not-allowed opacity-55 hover:bg-background',
           )}
         >
           <GoogleMark muted />

@@ -185,7 +185,7 @@ export default function RegisterOrganizationPage() {
               used; the design calls for no card borders on this panel.
             */}
             <section className="space-y-5">
-              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-[#8a8d95]">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Organization
               </h2>
 
@@ -245,11 +245,11 @@ export default function RegisterOrganizationPage() {
                   </SelectContent>
                 </Select>
                 {errors.countryCode ? (
-                  <p id="countryCode-error" role="alert" className="mt-1.5 text-xs text-[#f0646f]">
+                  <p id="countryCode-error" role="alert" className="mt-1.5 text-xs text-destructive">
                     {errors.countryCode.message}
                   </p>
                 ) : (
-                  <p id="countryCode-hint" className="mt-1.5 text-xs text-[#8a8d95]">
+                  <p id="countryCode-hint" className="mt-1.5 text-xs text-muted-foreground">
                     {market
                       ? `Sets your currency (${market.currency}), how premiums are collected (${market.mobileMoneyLabel}) and which regulator's licence your verification needs (${market.regulator}).`
                       : 'Sets your currency, how premiums are collected and which documents your verification needs.'}
@@ -269,19 +269,19 @@ export default function RegisterOrganizationPage() {
                 {...register('county')}
               />
 
-              <p className="text-xs text-[#8a8d95]">
+              <p className="text-xs text-muted-foreground">
                 Your company registration number, documents and regulator licence are collected
                 after you sign up, in Settings &rarr; Verification.
               </p>
             </section>
 
             <section className="space-y-5 pt-2">
-              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-[#8a8d95]">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Your account
               </h2>
 
-              <p className="text-sm text-[#8a8d95]">
-                Signing up as <span className="font-medium text-white">{getValues('email')}</span>
+              <p className="text-sm text-muted-foreground">
+                Signing up as <span className="font-medium text-foreground">{getValues('email')}</span>
               </p>
 
               <div className="grid gap-5 sm:grid-cols-2">
