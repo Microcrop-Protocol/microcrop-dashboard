@@ -1,3 +1,5 @@
+import type { CatalogueStatus } from './catalogue';
+
 /**
  * A numeric value delivered as a STRING over JSON because it maps to a Prisma
  * `Decimal` column (Prisma serializes Decimal to a string). Always coerce with
@@ -568,6 +570,12 @@ export interface Policy {
    * `@/lib/tier`.
    */
   settlementMode?: ServiceTier | null;
+  /**
+   * The catalogue status the product was SOLD UNDER — AVAILABLE or PILOT — frozen at purchase.
+   * A crop that later graduates from pilot does not rewrite what this policy was sold as. Null on
+   * policies sold before the catalogue existed, and optional for a payload that does not select it.
+   */
+  catalogueStatus?: CatalogueStatus | null;
 }
 
 export interface PolicyQuote {

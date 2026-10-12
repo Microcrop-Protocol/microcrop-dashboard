@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api/client";
+import { catalogueRefusalMessage } from "@/lib/catalogue";
 
 /**
  * Turn any thrown error (ApiError, network failure, unexpected Error) into a
@@ -51,6 +52,15 @@ const CODE_MESSAGES: Record<string, string> = {
   // gates in lib/capability.ts exist to stop that — it must not read as an error.
   CAPABILITY_NOT_ENABLED:
     "That isn't enabled for your organization. Contact MicroCrop to have it switched on.",
+  // Catalogue refusals. The detail-aware wording (which crop, which country, coming soon or not
+  // listed) comes from catalogueRefusalMessage below; these are only what a refusal says when
+  // it arrives without its structured details. A product boundary, not a fault.
+  PRODUCT_NOT_OFFERED:
+    "That product isn't offered in your market, so it can't be quoted or sold.",
+  PRODUCT_NOT_IN_MARKET:
+    "That crop or livestock type isn't in your market's product list. Choose one from the list.",
+  PRICING_NOT_CONFIGURED:
+    "Pricing for that product isn't configured in your market yet, so no quote can be given. Contact MicroCrop.",
 };
 
 // Heuristic: is this string already written as end-user copy (vs. a raw
@@ -67,6 +77,8 @@ export function getErrorMessage(
   fallback = "Something went wrong. Please try again.",
 ): string {
   if (error instanceof ApiError) {
+    const catalogue = catalogueRefusalMessage(error.code, error.context);
+    if (catalogue) return catalogue;
     if (error.code && CODE_MESSAGES[error.code]) return CODE_MESSAGES[error.code];
 
     // Validation errors: surface the first field-level detail if it reads cleanly.

@@ -625,6 +625,11 @@ export const api = {
     return apiClient.getMyCapabilities();
   },
 
+  /** The product catalogue: the org's own market, or every market for a platform admin. */
+  getCatalogue: async () => {
+    return apiClient.getCatalogue();
+  },
+
   updateOrgSettings: async (settings: {
     brandColor?: string;
     webhookUrl?: string;

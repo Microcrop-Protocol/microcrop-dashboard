@@ -7,6 +7,7 @@
  */
 
 import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse, PartnerDetermination, DeterminationStatus, EvidencePackage, SettlementReportInput, SettlementReportResult, SettlementReportsResponse, OrgCapability, OrgCapabilityStatus, OrgCapabilitiesResponse, SetOrgCapabilityResult } from '@/types';
+import type { CatalogueResponse } from '@/types/catalogue';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -31,7 +32,8 @@ interface ApiErrorResponse {
   error: {
     code: string;
     message: string;
-    details?: ApiErrorDetail[];
+    // A per-field ARRAY on a validation failure (Joi), a structured OBJECT on a domain refusal.
+    details?: ApiErrorDetail[] | Record<string, unknown>;
   };
 }
 
@@ -40,11 +42,27 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public code?: string,
-    public details?: ApiErrorDetail[]
+    public details?: ApiErrorDetail[],
+    /**
+     * The structured OBJECT form of `error.details`, which a domain refusal carries instead of a
+     * field list — PRODUCT_NOT_OFFERED sends `{ countryCode, line, item, status }`. Kept apart
+     * from `details` so that field stays what its type says: an array. Before this split the
+     * object landed in `details` and the import report's `.map` over it threw.
+     */
+    public context?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** Route the wire's `details` to the field matching its shape. */
+function splitErrorDetails(
+  raw: unknown,
+): [ApiErrorDetail[] | undefined, Record<string, unknown> | undefined] {
+  if (Array.isArray(raw)) return [raw as ApiErrorDetail[], undefined];
+  if (raw && typeof raw === 'object') return [undefined, raw as Record<string, unknown>];
+  return [undefined, undefined];
 }
 
 class ApiClient {
@@ -137,7 +155,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
+      throw new ApiError(message, response.status, error.error?.code, ...splitErrorDetails(error.error?.details));
     }
 
     return (data as ApiResponse<T>).data;
@@ -189,7 +207,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
+      throw new ApiError(message, response.status, error.error?.code, ...splitErrorDetails(error.error?.details));
     }
 
     return {
@@ -244,7 +262,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
+      throw new ApiError(message, response.status, error.error?.code, ...splitErrorDetails(error.error?.details));
     }
 
     return (data as ApiResponse<T>).data;
@@ -754,6 +772,16 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  // ============================================
+  // PRODUCT CATALOGUE
+  // ============================================
+
+  /**
+   * What each market lists, and with which status. An organization user receives only its own
+   * market; a platform admin receives every market. Reachable by every role.
+   */
+  async getCatalogue() { return this.request<CatalogueResponse>('/catalogue'); }
 
   // ============================================
   // FARMERS
