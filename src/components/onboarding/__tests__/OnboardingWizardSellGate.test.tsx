@@ -73,8 +73,8 @@ function renderWizard() {
   return client;
 }
 
-/** Register → consent → KYC → plot (with `crop`) → walk → review, landing on the quote step. */
-async function reachQuoteStep(crop: RegExp) {
+/** Register → consent → KYC → plot step, with `crop` chosen in the picker but the plot not created. */
+async function choosePlotCrop(crop: RegExp) {
   await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
   fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Wanjiku' } });
   fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Mwangi' } });
@@ -93,6 +93,11 @@ async function reachQuoteStep(crop: RegExp) {
   const field = screen.getByText(/crop type/i).closest('div') as HTMLElement;
   fireEvent.click(within(field).getByRole('combobox'));
   fireEvent.click(await screen.findByRole('option', { name: crop }));
+}
+
+/** Register → consent → KYC → plot (with `crop`) → walk → review, landing on the quote step. */
+async function reachQuoteStep(crop: RegExp) {
+  await choosePlotCrop(crop);
   fireEvent.click(screen.getByRole('button', { name: /create plot/i }));
 
   fireEvent.click(await screen.findByRole('button', { name: 'Finish walk' }));
@@ -148,5 +153,30 @@ describe('OnboardingWizard sell gate', () => {
     expect(await screen.findByText(/pricing not configured yet/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /continue to purchase/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /recalculate/i })).toBeDisabled();
+  });
+
+  it('says a sellable pilot crop can be sold', async () => {
+    renderWizard();
+    await choosePlotCrop(/Sorghum/);
+    expect(await screen.findByText(/It can be quoted and sold/)).toBeInTheDocument();
+  });
+
+  it('never tells the agent an unpriced pilot crop can be sold', async () => {
+    mocks.getCatalogue.mockResolvedValue({ markets: [keWithUnsellable('SORGHUM')] });
+    renderWizard();
+
+    // Plot step: the crop may be registered, and the only claim made is that it cannot be quoted.
+    await choosePlotCrop(/Sorghum/);
+    expect(await screen.findByText(/pricing not configured yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/It can be quoted and sold/)).not.toBeInTheDocument();
+
+    // Quote step: the alert explains why, and nothing beneath it contradicts it.
+    fireEvent.click(screen.getByRole('button', { name: /create plot/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish walk' }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirm boundary/i }));
+    await screen.findByText('Insurance Coverage');
+    expect(screen.getByRole('alert')).toHaveTextContent(/pricing not configured yet/i);
+    expect(screen.queryByText(/It can be quoted and sold/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /get quote/i })).toBeDisabled();
   });
 });

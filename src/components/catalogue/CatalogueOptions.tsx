@@ -123,7 +123,7 @@ export function CatalogueSelectItems({
 
 /**
  * What the selected item insures against and on which index — the line a field agent reads aloud
- * to a farmer — plus the pilot note when it applies.
+ * to a farmer — plus the pilot note when the item is a pilot the server says is sellable.
  */
 export function CatalogueItemDetails({
   item,
@@ -146,7 +146,8 @@ export function CatalogueItemDetails({
         Cover period: {item.coverPeriod} · Insurable unit: {item.insurableUnit}
       </p>
       {item.precedent && <p>Precedent: {item.precedent}</p>}
-      {item.status === CATALOGUE_STATUS.PILOT && (
+      {/* The note says the crop can be sold, so it needs the server's word, not the status alone. */}
+      {item.status === CATALOGUE_STATUS.PILOT && isSellable(item) && (
         <p className="text-amber-700 dark:text-amber-400">{pilotNote(item.label, countryName)}</p>
       )}
     </div>
