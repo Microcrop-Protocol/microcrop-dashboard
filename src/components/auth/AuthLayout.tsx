@@ -1,7 +1,7 @@
 /**
  * The full-height split screen shared by sign-in and sign-up.
  *
- * Left: brand panel in the app's emerald tint, decorative. Right: the form, centred in a ~420px column.
+ * Left: a photo of fields under an emerald wash, with the brand and tagline. Decorative. Right: the form, centred in a ~420px column.
  * Below 1024px the left panel is removed from the DOM entirely rather than hidden with
  * `lg:hidden` — it is purely decorative, and leaving it mounted would ship a screen reader
  * a second copy of the brand name before the heading on every small-screen sign-in.
@@ -12,39 +12,65 @@ import { privacyUrl, termsUrl } from '@/lib/legal';
 import { authMutedTextClass, authQuietLinkClass } from './auth-styles';
 
 /**
- * The decorative half. `aria-hidden` because every word on it is either repeated by the
- * page heading or has no informational content; the logo is likewise marked decorative
- * rather than given alt text that would duplicate the wordmark beside it.
+ * The decorative half: a photograph of cultivated fields under an emerald-to-dark wash, with
+ * the brand and the marketing site's own line set at the bottom.
+ *
+ * `aria-hidden` because nothing here is information the form side does not already carry;
+ * the photo and the logo are decorative and carry empty alt text. The words are the eyebrow
+ * and headline from microcrop.app's hero, so the first screen a partner sees in the product
+ * says the same thing as the site that sent them here.
+ *
+ * The photo is /auth-fields.jpg (1400px, ~230 KB), the same image the marketing site uses.
+ * The panel is display:none below lg, and an <img> there is still fetched unless it is lazy;
+ * `loading="lazy"` is what keeps phones from downloading it.
  */
 function BrandPanel() {
   return (
     <div
       aria-hidden="true"
-      className="auth-brand-panel relative hidden overflow-hidden bg-secondary lg:flex lg:w-1/2 lg:items-center lg:justify-center"
+      className="auth-brand-panel relative hidden overflow-hidden bg-primary lg:flex lg:w-1/2 lg:flex-col lg:justify-between"
     >
+      <img
+        src="/auth-fields.jpg"
+        alt=""
+        width={1400}
+        height={933}
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
       {/*
-        A soft diagonal wash of the brand colour. Gradients rather than an image: no asset to
-        download, no CSP surface, and it scales to any viewport. Static, so there is nothing
-        for prefers-reduced-motion to switch off.
+        Two layers over the photo. The emerald multiply ties the image to the product's
+        colour; the bottom-weighted dark gradient is what makes the white type legible
+        regardless of which part of the field sits behind it. Static, so nothing here
+        needs a prefers-reduced-motion switch.
       */}
-      <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/15 via-secondary to-background"
-      />
-      <div
-        className="pointer-events-none absolute -left-1/4 top-1/4 h-[70%] w-[120%] -rotate-12 bg-gradient-to-r from-transparent via-primary/10 to-transparent blur-3xl"
-      />
+      <div className="pointer-events-none absolute inset-0 bg-primary/35 mix-blend-multiply" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/10" />
 
-      <div className="relative flex flex-col items-center gap-6 px-12">
-        <img
-          src="/microcropsymb.png"
-          alt=""
-          width={140}
-          height={140}
-          className="h-32 w-32 object-contain xl:h-36 xl:w-36"
-        />
-        <span className="font-heading text-4xl font-semibold tracking-tight text-foreground xl:text-5xl">
+      <div className="relative flex items-center gap-3 p-10 xl:p-12">
+        {/* On a white tile: the green mark disappears against the sky in the photo. */}
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/95 shadow-sm">
+          <img
+            src="/microcropsymb.png"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 object-contain"
+          />
+        </span>
+        <span className="font-heading text-2xl font-semibold tracking-tight text-white drop-shadow-sm">
           MicroCrop
         </span>
+      </div>
+
+      <div className="relative max-w-xl p-10 xl:p-12">
+        <p className="text-sm font-semibold uppercase tracking-wide text-white/85">
+          Climate cover, made practical
+        </p>
+        <p className="mt-4 font-heading text-4xl font-semibold leading-tight tracking-tight text-white xl:text-5xl">
+          A better way to protect the people who grow our food
+        </p>
       </div>
     </div>
   );
@@ -109,7 +135,8 @@ export function AuthLayout({ heading, subtitle, banner, wide, children }: AuthLa
     <div className="flex min-h-screen w-full overflow-x-hidden bg-background">
       <BrandPanel />
 
-      <main className="flex w-full flex-col justify-center px-5 py-12 sm:px-8 lg:w-1/2">
+      {/* Below lg there is no photo panel, so a soft brand wash keeps the page from reading as blank white. */}
+      <main className="flex w-full flex-col justify-center bg-gradient-to-b from-primary/10 via-background to-background px-5 py-12 sm:px-8 lg:w-1/2 lg:bg-none">
         <div className={`mx-auto w-full ${wide ? 'max-w-[520px]' : 'max-w-[420px]'}`}>
           {/*
             The brand repeated for small screens, where BrandPanel is not rendered. It is a
