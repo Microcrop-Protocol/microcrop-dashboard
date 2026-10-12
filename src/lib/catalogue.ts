@@ -134,11 +134,6 @@ export function isSellable(item: CatalogueItem | null | undefined): boolean {
   return item != null && item.sellable === true && SELLABLE_STATUSES.includes(item.status);
 }
 
-/** The reason codes the server may put on a not-sellable PILOT/AVAILABLE item. */
-export const CATALOGUE_REASON = {
-  PRICING_NOT_CONFIGURED,
-} as const;
-
 /**
  * Short copy for a not-sellable item's `reason`, or null when there is none. An unrecognised code
  * gets a generic line rather than the raw enum, and never a guess at what it means.
@@ -343,9 +338,6 @@ export function notSellableReason(
 /** The picker could not be filled because the catalogue did not load. */
 export const CATALOGUE_UNKNOWN_MESSAGE =
   "We couldn't load your market's product list, so there is nothing to choose from yet. Try again in a moment.";
-
-/** The catalogue is still on its way — not a failure, and not worded as one. */
-export const CATALOGUE_LOADING_MESSAGE = "Your market's product list is still loading.";
 
 /** A policy's frozen catalogue status, for a detail row. */
 export function soldUnderLabel(status: CatalogueStatus | string | null | undefined): string | null {
