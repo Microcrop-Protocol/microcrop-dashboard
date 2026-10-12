@@ -6,6 +6,14 @@
  */
 
 import { apiClient } from './client';
+import {
+  normalizeDamageAnalytics,
+  normalizeFarmersAnalytics,
+  normalizePayoutsAnalytics,
+  normalizePlatformStats,
+  normalizePoliciesAnalytics,
+  normalizeRevenueAnalytics,
+} from '@/lib/platform-analytics';
 import type {
   DeterminationStatus,
   OrgCapability,
@@ -43,6 +51,7 @@ import type {
   FarmerConsentStatus,
   RecordConsentResponse,
   WithdrawConsentResponse,
+  PlatformAnalyticsQuery,
 } from '@/types';
 
 const toArray = <T>(value: unknown): T[] => {
@@ -172,8 +181,16 @@ export const api = {
   // PLATFORM STATS
   // ============================================
 
-  getPlatformStats: async () => {
-    return apiClient.platformDashboardOverview();
+  getPlatformStats: async (params?: Omit<PlatformAnalyticsQuery, 'granularity'>) => {
+    return normalizePlatformStats(await apiClient.platformDashboardOverview(params));
+  },
+
+  // ============================================
+  // PRODUCT CATALOGUE
+  // ============================================
+
+  getCatalogue: async () => {
+    return apiClient.getCatalogue();
   },
 
   // ============================================
@@ -494,24 +511,24 @@ export const api = {
   // ANALYTICS
   // ============================================
 
-  getRevenueAnalytics: async () => {
-    return apiClient.platformAnalyticsRevenue();
+  getRevenueAnalytics: async (params?: PlatformAnalyticsQuery) => {
+    return normalizeRevenueAnalytics(await apiClient.platformAnalyticsRevenue(params));
   },
 
-  getPoliciesAnalytics: async () => {
-    return apiClient.platformAnalyticsPolicies();
+  getPoliciesAnalytics: async (params?: PlatformAnalyticsQuery) => {
+    return normalizePoliciesAnalytics(await apiClient.platformAnalyticsPolicies(params));
   },
 
-  getFarmersAnalytics: async () => {
-    return apiClient.platformAnalyticsFarmers();
+  getFarmersAnalytics: async (params?: PlatformAnalyticsQuery) => {
+    return normalizeFarmersAnalytics(await apiClient.platformAnalyticsFarmers(params));
   },
 
-  getPayoutsAnalytics: async () => {
-    return apiClient.platformAnalyticsPayouts();
+  getPayoutsAnalytics: async (params?: PlatformAnalyticsQuery) => {
+    return normalizePayoutsAnalytics(await apiClient.platformAnalyticsPayouts(params));
   },
 
-  getDamageAnalytics: async () => {
-    return apiClient.platformAnalyticsDamage();
+  getDamageAnalytics: async (params?: Omit<PlatformAnalyticsQuery, 'granularity'>) => {
+    return normalizeDamageAnalytics(await apiClient.platformAnalyticsDamage(params));
   },
 
   getFinancialSummary: async () => {
