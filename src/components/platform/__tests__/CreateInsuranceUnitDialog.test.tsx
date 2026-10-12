@@ -92,6 +92,32 @@ describe('CreateInsuranceUnitDialog', () => {
     });
   });
 
+  it('omits a blank sub-county and an empty bounding box rather than sending them empty', async () => {
+    // The backend validator takes subCounty as optional min(1): `subCounty: ''` is a 400.
+    const onSubmit = open();
+    fireEvent.change(screen.getByLabelText('Unit Code'), { target: { value: 'KE-31' } });
+    fireEvent.change(screen.getByLabelText('County'), { target: { value: 'Baringo' } });
+    fireEvent.change(screen.getByLabelText('Sub-County (Optional)'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: /create unit/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload).not.toHaveProperty('subCounty');
+    expect(payload).not.toHaveProperty('bbox');
+    expect(payload).toMatchObject({ country: 'KE', unitCode: 'KE-31', county: 'Baringo' });
+  });
+
+  it('sends a sub-county that was filled in, trimmed', async () => {
+    const onSubmit = open();
+    fireEvent.change(screen.getByLabelText('Unit Code'), { target: { value: 'KE-32' } });
+    fireEvent.change(screen.getByLabelText('County'), { target: { value: 'Baringo' } });
+    fireEvent.change(screen.getByLabelText('Sub-County (Optional)'), { target: { value: ' Mogotio ' } });
+    fireEvent.click(screen.getByRole('button', { name: /create unit/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].subCounty).toBe('Mogotio');
+  });
+
   it('refuses an incomplete bounding box', async () => {
     const onSubmit = open();
     fireEvent.change(screen.getByLabelText('Unit Code'), { target: { value: 'KE-30' } });

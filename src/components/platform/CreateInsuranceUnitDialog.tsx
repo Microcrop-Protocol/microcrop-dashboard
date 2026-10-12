@@ -243,16 +243,25 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
   }, [selectedCountry, form]);
 
   const handleSubmit = async (data: FormData) => {
-    const { bboxMinLon, bboxMinLat, bboxMaxLon, bboxMaxLat, ...rest } = data;
+    const { bboxMinLon, bboxMinLat, bboxMaxLon, bboxMaxLat, subCounty, ...rest } = data;
     const bbox =
       bboxMinLon !== undefined && bboxMinLat !== undefined && bboxMaxLon !== undefined && bboxMaxLat !== undefined
         ? [bboxMinLon, bboxMinLat, bboxMaxLon, bboxMaxLat]
         : undefined;
+    const trimmedSubCounty = subCounty?.trim();
 
     try {
       // The superRefine above guarantees every livestock term is present for a market that
       // sells livestock, and refuses every other market — so these are numbers here.
-      await onSubmit({ ...(rest as Omit<CreateInsuranceUnitPayload, "bbox">), bbox });
+      //
+      // Empty OPTIONAL fields are omitted, not sent blank: the backend's validator refuses
+      // `subCounty: ''` (it is optional, not allowed-empty), so a unit with no sub-county failed
+      // to save. Same for bbox, which is either all four corners or absent.
+      await onSubmit({
+        ...(rest as Omit<CreateInsuranceUnitPayload, "bbox" | "subCounty">),
+        ...(trimmedSubCounty ? { subCounty: trimmedSubCounty } : {}),
+        ...(bbox ? { bbox } : {}),
+      });
       setOpen(false);
       // The next unit is most likely in the same market: keep the country, reset the rest to
       // that market's defaults.

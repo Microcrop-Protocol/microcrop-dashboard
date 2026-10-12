@@ -25,9 +25,12 @@ const fmtDecimal = (value: unknown, digits: number): string => {
 
 // A unit's rates are in ITS market's currency, which may differ row to row on the "All markets"
 // view — so each row is labelled from its own `country`, and an unknown one is left unlabelled.
+// Two decimals: a per-TLU rate is a configured price (e.g. 1,512.50), and rounding it to whole
+// units showed the operator a rate that is not the one the unit charges.
 const fmtRate = (value: unknown, country: string): string => {
+  if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
-  return Number.isFinite(n) ? formatMoney(n, marketOrNull(country)) : "—";
+  return Number.isFinite(n) ? formatMoney(n, marketOrNull(country), { decimals: 2 }) : "—";
 };
 
 function seasonColumn(season: "LRLD" | "SRSD"): ColumnDef<InsuranceUnit> {
