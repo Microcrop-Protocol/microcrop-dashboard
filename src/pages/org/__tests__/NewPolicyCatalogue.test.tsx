@@ -11,6 +11,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api/client';
 import { KE_CATALOGUE } from '@/test/catalogue-fixtures';
+import type { CatalogueMarket } from '@/types/catalogue';
+
+/** Kenya's catalogue with one crop the SERVER has stopped selling (e.g. not priced). */
+function keWithUnsellable(code: string): CatalogueMarket {
+  return {
+    ...KE_CATALOGUE,
+    lines: {
+      ...KE_CATALOGUE.lines,
+      CROP: KE_CATALOGUE.lines.CROP.map((c) =>
+        c.code === code ? { ...c, sellable: false, reason: 'PRICING_NOT_CONFIGURED' } : c,
+      ),
+    },
+  };
+}
 
 const mocks = vi.hoisted(() => ({
   getCatalogue: vi.fn(),
@@ -43,8 +57,9 @@ const PLOTS = [
   { id: 'p-tea', farmerId: 'f1', name: 'Hill', cropType: 'TEA', acreage: '1' },
 ];
 
-function renderPage() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+function renderPage(
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -116,5 +131,59 @@ describe('NewPolicyPage and the catalogue', () => {
     await choose('Select farmer', /Wanjiku/);
     await choose('Select plot', /North/);
     expect(await screen.findByText(/Pricing for maize is not configured in Kenya yet/)).toBeInTheDocument();
+  });
+
+  it('holds the quote — and Continue — while the catalogue is still loading', async () => {
+    mocks.getCatalogue.mockReset().mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await choose('Select farmer', /Wanjiku/);
+    await choose('Select plot', /North/);
+    // Give an eager quote every chance to fire.
+    await waitFor(() => expect(mocks.getPlots).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mocks.getPolicyQuote).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('holds the quote — and Continue — when the catalogue failed to load', async () => {
+    mocks.getCatalogue.mockReset().mockRejectedValue(new Error('down'));
+    renderPage();
+    await choose('Select farmer', /Wanjiku/);
+    await choose('Select plot', /North/);
+    expect(await screen.findByText(/couldn't load your market's product list/i)).toBeInTheDocument();
+    expect(mocks.getPolicyQuote).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it("does not quote a PILOT crop the server marks unsellable, and gives the server's reason", async () => {
+    mocks.getCatalogue.mockResolvedValue({ markets: [keWithUnsellable('SORGHUM')] });
+    mocks.getPlots.mockResolvedValue({
+      data: [{ id: 'p-sorghum', farmerId: 'f1', name: 'East', cropType: 'SORGHUM', acreage: '1' }],
+    });
+    renderPage();
+    await choose('Select farmer', /Wanjiku/);
+    await choose('Select plot', /East/);
+    expect(
+      await screen.findByText('Sorghum cannot be quoted or sold in Kenya yet — pricing not configured yet.'),
+    ).toBeInTheDocument();
+    expect(mocks.getPolicyQuote).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('disables Create Policy if the crop stops being sellable after Continue', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    renderPage(client);
+    await choose('Select farmer', /Wanjiku/);
+    await choose('Select plot', /North/);
+    await screen.findByText('Premium');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    const create = await screen.findByRole('button', { name: 'Create Policy' });
+    expect(create).toBeEnabled();
+
+    // The catalogue refreshes and the server no longer sells maize.
+    client.setQueryData(['catalogue', 'org-1'], { markets: [keWithUnsellable('MAIZE')] });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Policy' })).toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Create Policy' }));
+    expect(mocks.purchasePolicy).not.toHaveBeenCalled();
   });
 });
