@@ -1,4 +1,6 @@
 import { ApiError, type ApiErrorDetail } from "@/lib/api/client";
+import { getErrorMessage } from "@/lib/error-messages";
+import { PRODUCT_NOT_IN_MARKET } from "@/lib/catalogue";
 
 export interface ImportIssue {
   row?: number;
@@ -36,7 +38,9 @@ function cap(list: string[]): string[] {
  * so the rendered message reads naturally.
  */
 export function parseBackendDetails(details: ApiErrorDetail[] | undefined): ImportIssue[] {
-  if (!details) return [];
+  // Defensive: the client routes an object-shaped `details` to ApiError.context, but a
+  // hand-built ApiError could still carry one here, and `.map` on it would throw.
+  if (!Array.isArray(details)) return [];
   return details.map((d) => {
     const message = cleanJoiMessage(d.message);
     const match = d.field?.match(/^[^.]+\.(\d+)\.(.+)$/);
@@ -101,6 +105,16 @@ export function buildErrorReport(error: unknown, label: string): ImportReport {
     const failingRowCount = new Set(
       raw.map((i) => i.row).filter((r): r is number => r !== undefined),
     ).size;
+    // A catalogue refusal of the whole file (a crop the market does not list) is a product
+    // boundary with its own wording; the raw backend message is not shown in its place.
+    if (error.code === PRODUCT_NOT_IN_MARKET) {
+      return {
+        tone: "error",
+        title: "Not in your market's product list",
+        summary: getErrorMessage(error),
+        issues: cap(grouped),
+      };
+    }
     const summary =
       error.status === 0
         ? "Couldn't reach the server — check your connection and try again."
