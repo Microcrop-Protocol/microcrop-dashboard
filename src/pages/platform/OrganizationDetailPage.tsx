@@ -113,14 +113,16 @@ export default function OrganizationDetailPage() {
   });
 
   const { data: policiesData } = useQuery({
-    queryKey: ["orgPolicies", orgId],
-    queryFn: () => api.getPolicies(orgId!),
+    queryKey: ["platformOrgPolicies", orgId],
+    // The platform endpoint, not api.getPolicies: that one lists the CALLER's org, and a
+    // platform admin has none — the old call was refused and signed the admin out.
+    queryFn: () => api.getOrgPoliciesAsPlatform(orgId!),
     enabled: !!orgId,
   });
 
   const { data: payoutsData } = useQuery({
-    queryKey: ["orgPayouts", orgId],
-    queryFn: () => api.getPayouts(orgId!),
+    queryKey: ["platformOrgPayouts", orgId],
+    queryFn: () => api.getOrgPayoutsAsPlatform(orgId!),
     enabled: !!orgId,
   });
 

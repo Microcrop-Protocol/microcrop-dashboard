@@ -301,12 +301,24 @@ export const api = {
     return apiClient.getPolicy(id);
   },
 
+  /** A NAMED organization's policies, for platform screens. getPolicies is the caller's own org. */
+  getOrgPoliciesAsPlatform: async (orgId: string) => {
+    const result = await apiClient.platformGetOrgPolicies(orgId);
+    return { data: result.data, total: result.pagination?.total || result.data.length };
+  },
+
   // ============================================
   // PAYOUTS
   // ============================================
 
   getPayouts: async (_orgId: string) => {
     const result = await apiClient.getPayouts();
+    return { data: result.data, total: result.pagination?.total || result.data.length };
+  },
+
+  /** A NAMED organization's payouts, for platform screens. getPayouts is the caller's own org. */
+  getOrgPayoutsAsPlatform: async (orgId: string) => {
+    const result = await apiClient.platformGetOrgPayouts(orgId);
     return { data: result.data, total: result.pagination?.total || result.data.length };
   },
 
