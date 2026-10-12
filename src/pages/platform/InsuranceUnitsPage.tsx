@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,7 +9,12 @@ import { formatDate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { CreateInsuranceUnitDialog } from "@/components/platform/CreateInsuranceUnitDialog";
+import { MarketSelect } from "@/components/platform/MarketSelect";
 import { notifySuccess, notifyError } from "@/lib/notify";
+import { useMarketFilter } from "@/hooks/useMarketFilter";
+import { divisionLabelForFilter, type MarketFilter } from "@/lib/market-filter";
+import { formatMoney, marketOrNull } from "@/lib/market";
+import { seasonShortLabel } from "@/lib/insurance-unit-market";
 
 // NDVI baselines & premium rates are Prisma Decimals that arrive as strings and
 // may be null on sparse rows — render an em dash instead of a literal "NaN".
@@ -18,73 +23,85 @@ const fmtDecimal = (value: unknown, digits: number): string => {
   return Number.isFinite(n) ? n.toFixed(digits) : "—";
 };
 
-const fmtRate = (value: unknown): string => {
+// A unit's rates are in ITS market's currency, which may differ row to row on the "All markets"
+// view — so each row is labelled from its own `country`, and an unknown one is left unlabelled.
+// Two decimals: a per-TLU rate is a configured price (e.g. 1,512.50), and rounding it to whole
+// units showed the operator a rate that is not the one the unit charges.
+const fmtRate = (value: unknown, country: string): string => {
+  if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
-  return Number.isFinite(n) ? n.toLocaleString() : "—";
+  return Number.isFinite(n) ? formatMoney(n, marketOrNull(country), { decimals: 2 }) : "—";
 };
 
-const columns: ColumnDef<InsuranceUnit>[] = [
-  {
-    accessorKey: "country",
-    header: "Country",
-  },
-  {
-    accessorKey: "county",
-    header: "Region",
-    cell: ({ row }) => (
-      <div>
-        <div className="font-medium">{row.getValue("county")}</div>
-        {row.original.subCounty && (
-          <div className="text-sm text-muted-foreground">{row.original.subCounty}</div>
-        )}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "unitCode",
-    header: "Unit Code",
-  },
-  {
-    header: "LRLD Season",
+function seasonColumn(season: "LRLD" | "SRSD"): ColumnDef<InsuranceUnit> {
+  const baseline = season === "LRLD" ? "ndviBaselineLRLD" : "ndviBaselineSRSD";
+  const rate = season === "LRLD" ? "premiumRateLRLD" : "premiumRateSRSD";
+  return {
+    id: season,
+    header: `${season} Season`,
     cell: ({ row }) => (
       <div className="text-sm">
-        <div>Base: {fmtDecimal(row.original.ndviBaselineLRLD, 3)}</div>
-        <div className="text-muted-foreground">Rate: {fmtRate(row.original.premiumRateLRLD)}</div>
+        <div className="text-xs text-muted-foreground">{seasonShortLabel(row.original.country, season)}</div>
+        <div>Base: {fmtDecimal(row.original[baseline], 3)}</div>
+        <div className="text-muted-foreground">Rate/TLU: {fmtRate(row.original[rate], row.original.country)}</div>
       </div>
     ),
-  },
-  {
-    header: "SRSD Season",
-    cell: ({ row }) => (
-      <div className="text-sm">
-        <div>Base: {fmtDecimal(row.original.ndviBaselineSRSD, 3)}</div>
-        <div className="text-muted-foreground">Rate: {fmtRate(row.original.premiumRateSRSD)}</div>
-      </div>
-    ),
-  },
-  {
-    accessorKey: "isActive",
-    header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge variant={row.getValue("isActive") ? "active" : "expired"}>
-        {row.getValue("isActive") ? "Active" : "Inactive"}
-      </StatusBadge>
-    ),
-  },
-  {
-    accessorKey: "createdAt",
-    header: "Created",
-    cell: ({ row }) => formatDate(row.getValue("createdAt")),
-  },
-];
+  };
+}
+
+function buildColumns(filter: MarketFilter): ColumnDef<InsuranceUnit>[] {
+  return [
+    {
+      accessorKey: "country",
+      header: "Country",
+      cell: ({ row }) => marketOrNull(row.original.country)?.countryName ?? row.original.country,
+    },
+    {
+      accessorKey: "county",
+      header: divisionLabelForFilter(filter),
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.getValue("county")}</div>
+          {row.original.subCounty && (
+            <div className="text-sm text-muted-foreground">{row.original.subCounty}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "unitCode",
+      header: "Unit Code",
+    },
+    seasonColumn("LRLD"),
+    seasonColumn("SRSD"),
+    {
+      accessorKey: "isActive",
+      header: "Status",
+      cell: ({ row }) => (
+        <StatusBadge variant={row.getValue("isActive") ? "active" : "expired"}>
+          {row.getValue("isActive") ? "Active" : "Inactive"}
+        </StatusBadge>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+      cell: ({ row }) => formatDate(row.getValue("createdAt")),
+    },
+  ];
+}
 
 export default function InsuranceUnitsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const { value: marketFilter, setValue: setMarketFilter, countryCode } = useMarketFilter("any");
+  const columns = useMemo(() => buildColumns(marketFilter), [marketFilter]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["insurance-units"],
-    queryFn: () => api.getInsuranceUnits(),
+    queryKey: ["insurance-units", countryCode ?? "ALL"],
+    // Filtered server-side: the list endpoint declares `country`, so a Ghana view never pages
+    // through Kenyan units to find its own.
+    queryFn: () => api.getInsuranceUnits(countryCode ? { country: countryCode } : undefined),
   });
 
   const createMutation = useMutation({
@@ -127,7 +144,7 @@ export default function InsuranceUnitsPage() {
         <div>
           <h1 className="text-2xl font-bold">Insurance Units</h1>
           <p className="text-muted-foreground">
-            Manage geographic regions for IBLI coverage (multi-country)
+            Geographic units for the livestock forage index, per market
           </p>
         </div>
         <CreateInsuranceUnitDialog
@@ -140,6 +157,7 @@ export default function InsuranceUnitsPage() {
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
+        <MarketSelect mode="any" value={marketFilter} onChange={setMarketFilter} />
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input

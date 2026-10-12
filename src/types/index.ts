@@ -1,3 +1,5 @@
+import type { CatalogueStatus } from './catalogue';
+
 /**
  * A numeric value delivered as a STRING over JSON because it maps to a Prisma
  * `Decimal` column (Prisma serializes Decimal to a string). Always coerce with
@@ -297,6 +299,22 @@ export interface OrgKybReview {
   contactEmail?: string | null;
   contactPhone?: string | null;
   county?: string | null;
+  /**
+   * The organization's market. Decides which regulator licenses it and which documents its KYB
+   * checklist requires. Absent on an older backend or a legacy row: the reviewer is then told the
+   * market is unknown rather than shown Kenya.
+   */
+  countryCode?: string | null;
+  /**
+   * The market's insurance regulator, as the SHORT CODE the server sends (IRA, NIC). Null — sent
+   * deliberately — for an organization whose country is not a supported market. Absent on an
+   * older backend.
+   */
+  regulator?: string | null;
+  /** The regulator's full name (Insurance Regulatory Authority, National Insurance Commission). */
+  regulatorName?: string | null;
+  /** The market's country name as the server names it; null for an unsupported country. */
+  countryName?: string | null;
   kybStatus: KYBStatus;
   createdAt: string;
   kybVerification: OrgKybReviewVerification | null;
@@ -538,7 +556,16 @@ export interface Policy {
   plotName: string;
   status: PolicyStatus;
   coverageType: CoverageType;
-  cropType: string;
+  /**
+   * Legacy flat field. The Policy row has no crop column, so `GET /policies` never sent it; the
+   * crop is the PLOT's, under `plot.cropType`. Read through `policyCropCode` in lib/catalogue.
+   */
+  cropType?: string | null;
+  /**
+   * The insured plot as `GET /policies` includes it: `{ name, cropType }` on the list, the whole
+   * plot row on `GET /policies/:id`. Null on a livestock policy.
+   */
+  plot?: { name?: string | null; cropType?: string | null } | null;
   sumInsured: DecimalString;
   premium: DecimalString;
   platformFee: DecimalString;
@@ -568,6 +595,12 @@ export interface Policy {
    * `@/lib/tier`.
    */
   settlementMode?: ServiceTier | null;
+  /**
+   * The catalogue status the product was SOLD UNDER — AVAILABLE or PILOT — frozen at purchase.
+   * A crop that later graduates from pilot does not rewrite what this policy was sold as. Null on
+   * policies sold before the catalogue existed, and optional for a payload that does not select it.
+   */
+  catalogueStatus?: CatalogueStatus | null;
 }
 
 export interface PolicyQuote {
@@ -827,16 +860,39 @@ export interface PolicyExpireCheck {
   daysRemaining: number;
 }
 
-// Platform Stats
+// Platform Stats — GET /dashboard/platform/overview (dashboard.platform.service getOverview).
+//
+// The backend has always answered in this NESTED shape; the dashboard used to declare a flat one
+// (`totalOrganizations`, `premiumsCollected`, ...) that no response ever carried, so every tile
+// read `undefined ?? 0` and the platform dashboard showed zeros in production.
+
+/** One market's premium/fee totals, in THAT market's currency. Never summed across entries. */
+export interface PlatformCurrencyFinancials {
+  countryCode: string;
+  /** ISO 4217, as the server states it. */
+  currency: string;
+  /** Null when the server sent no figure — rendered "—", never 0. */
+  totalPremiums: number | null;
+  totalFees: number | null;
+}
+
 export interface PlatformStats {
-  totalOrganizations: number;
-  activeOrganizations: number;
-  totalFarmers: number;
-  activePolicies: number;
-  newPoliciesPeriod: number;
-  totalRevenue: number;
-  premiumsCollected: number;
-  payoutsSent: number;
+  organizations: { total: number; active: number; inactive: number };
+  policies: { total: number; active: number; periodNew: number };
+  farmers: { total: number };
+  /**
+   * Deliberately NOT declared: the legacy `financials.totalPremiums` / `totalRevenue`, which sum
+   * KES and GHS rows into one number. A mixed-currency total has no unit, so it must not be
+   * renderable; money comes from `byCurrency` (local) and `totalPayoutsUsdc` (payouts settle in
+   * USDC in every market).
+   */
+  financials: {
+    byCurrency: PlatformCurrencyFinancials[];
+    /** Null when the server sent no figure — rendered "—", never "USDC 0". */
+    totalPayoutsUsdc: number | null;
+    totalPayoutCount: number;
+  };
+  period: { start: string | null; end: string | null };
 }
 
 // Satellite Monitoring Types
@@ -1731,3 +1787,6 @@ export interface WithdrawConsentResponse {
   alreadyRevoked: boolean;
   status: ConsentStatus;
 }
+
+export * from './catalogue';
+export * from './platform-analytics';

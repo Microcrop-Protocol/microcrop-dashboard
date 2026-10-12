@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -9,11 +9,19 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Plot } from "@/types";
 import { PlotMap } from "@/components/maps/PlotMap";
 import { PieChart } from "@/components/charts/PieChart";
+import { useCatalogue } from "@/hooks/useCatalogue";
+import { productLabel } from "@/lib/catalogue";
+import type { CatalogueMarket } from "@/types/catalogue";
 
-const columns: ColumnDef<Plot>[] = [
+/** Built per catalogue so the crop column shows the market's label, not the enum value. */
+const buildColumns = (catalogue: CatalogueMarket | null): ColumnDef<Plot>[] => [
   { accessorKey: "name", header: "Plot Name" },
   { accessorKey: "farmerName", header: "Farmer" },
-  { accessorKey: "cropType", header: "Crop" },
+  {
+    accessorKey: "cropType",
+    header: "Crop",
+    cell: ({ row }) => productLabel(catalogue, "CROP", row.original.cropType),
+  },
   { accessorKey: "acreage", header: "Acreage", cell: ({ row }) => `${row.getValue("acreage")} acres` },
   { accessorKey: "policiesCount", header: "Policies" },
   { accessorKey: "latestNdvi", header: "NDVI", cell: ({ row }) => (row.getValue("latestNdvi") as number)?.toFixed(2) ?? "-" },
@@ -36,6 +44,8 @@ export default function PlotsPage() {
   const [selectedPlotId, setSelectedPlotId] = useState<string | undefined>();
   const { user } = useAuthStore();
   const orgId = user?.organizationId || "";
+  const { market: catalogue } = useCatalogue();
+  const columns = useMemo(() => buildColumns(catalogue), [catalogue]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["plots", orgId],
@@ -106,7 +116,7 @@ export default function PlotsPage() {
             <div className="mt-4 space-y-2">
               {cropDistribution.map((crop, i) => (
                 <div key={crop.name} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{crop.name}</span>
+                  <span className="text-muted-foreground">{productLabel(catalogue, "CROP", crop.name)}</span>
                   <span className="font-medium">{crop.count} plots • {crop.value.toFixed(1)} acres</span>
                 </div>
               ))}

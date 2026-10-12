@@ -4,75 +4,84 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { LineChart } from "@/components/charts/LineChart";
 import { PieChart } from "@/components/charts/PieChart";
 import { BarChart } from "@/components/charts/BarChart";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { GranularitySelect } from "@/components/ui/granularity-select";
+import { AnalyticsHeader } from "@/components/platform/AnalyticsHeader";
+import { Card, CardContent } from "@/components/ui/card";
 import { Users, UserPlus, FileCheck, MapPin } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { Granularity } from "@/types";
+import { useMarketFilter } from "@/hooks/useMarketFilter";
+import { divisionLabelForFilter, pluralDivisionLabel } from "@/lib/market-filter";
+import {
+  countyChartData,
+  dateRangeParams,
+  defaultAnalyticsRange,
+  formatRatio,
+  kycApprovalRate,
+} from "@/lib/platform-analytics";
 
+/**
+ * Farmer registrations and where farmers are. The `county` column holds a Kenyan County or a
+ * Ghanaian Region, so the label follows the selected market, and across markets each area is
+ * tagged with its country — the backend returns `byCounty` as `[{ countryCode, county, count }]`
+ * precisely so two markets' areas are never merged under one name.
+ */
 export default function FarmersAnalyticsPage() {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    to: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultAnalyticsRange);
   const [granularity, setGranularity] = useState<Granularity>("daily");
+  const marketFilter = useMarketFilter("any");
+  const { countryCode } = marketFilter;
+  const range = dateRangeParams(dateRange);
 
-  const { data } = useQuery({
-    queryKey: ["farmersAnalytics", dateRange, granularity],
-    queryFn: () => api.getFarmersAnalytics(),
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["farmersAnalytics", countryCode ?? "ALL", range.startDate, range.endDate, granularity],
+    queryFn: () => api.getFarmersAnalytics({ countryCode, granularity, ...range }),
   });
 
-  // Safely extract array data from API response
-  const byKycStatus = Array.isArray(data?.byKycStatus) ? data.byKycStatus : [];
-  const byCounty = Array.isArray(data?.byCounty) ? data.byCounty : [];
-  const timeSeries = Array.isArray(data?.timeSeries) ? data.timeSeries : [];
-
-  // Calculate KYC approval rate safely
-  const approvedCount = byKycStatus.find((s: { name: string; value: number }) => s.name === 'Approved')?.value ?? 0;
-  const totalFarmers = data?.totalFarmers || 1;
-  const kycApprovalRate = ((approvedCount / totalFarmers) * 100).toFixed(0);
+  const division = divisionLabelForFilter(marketFilter.value);
+  const byCounty = data?.byCounty ?? [];
+  const count = (v: number | undefined) => (isLoading ? "—" : (v ?? 0).toLocaleString());
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Farmers Analytics</h1>
-          <p className="text-muted-foreground">Track farmer registrations and KYC status</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <GranularitySelect value={granularity} onChange={setGranularity} />
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
-        </div>
-      </div>
+      <AnalyticsHeader
+        title="Farmers Analytics"
+        description={`Farmer registrations and KYC status — ${marketFilter.market?.countryName ?? "all markets"}`}
+        mode="any"
+        marketFilter={marketFilter}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        granularity={granularity}
+        onGranularityChange={setGranularity}
+      />
+
+      {isError && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            We couldn't load farmer analytics. Please try again.
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Farmers"
-          value={data?.totalFarmers?.toLocaleString() ?? 0}
-          icon={Users}
-        />
-        <StatCard
-          title="New This Period"
-          value={data?.newFarmers?.toLocaleString() ?? 0}
-          icon={UserPlus}
-        />
+        <StatCard title="Total Farmers" value={count(data?.totalFarmers)} icon={Users} />
+        <StatCard title="New This Period" value={count(data?.newInPeriod)} icon={UserPlus} />
         <StatCard
           title="KYC Approved"
-          value={`${kycApprovalRate}%`}
+          value={isLoading || !data ? "—" : formatRatio(kycApprovalRate(data), 0)}
           icon={FileCheck}
         />
         <StatCard
-          title="Counties Covered"
-          value={byCounty.length}
+          title={`${pluralDivisionLabel(division)} Covered`}
+          value={isLoading ? "—" : byCounty.length}
           icon={MapPin}
         />
       </div>
 
       {/* Charts */}
       <LineChart
-        data={timeSeries}
+        data={data?.timeSeries ?? []}
         xKey="date"
         yKeys={[{ key: "value", name: "Farmers Registered", color: "hsl(var(--chart-1))" }]}
         title="Farmer Registrations Over Time"
@@ -80,8 +89,14 @@ export default function FarmersAnalyticsPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <PieChart data={byKycStatus} title="Farmers by KYC Status" height={280} />
-        <BarChart data={byCounty} xKey="name" title="Farmers by County" horizontal height={280} />
+        <PieChart data={data?.byKycStatus ?? []} title="Farmers by KYC Status" height={280} />
+        <BarChart
+          data={countyChartData(byCounty, { withMarket: !countryCode })}
+          xKey="name"
+          title={`Farmers by ${division}`}
+          horizontal
+          height={280}
+        />
       </div>
     </div>
   );

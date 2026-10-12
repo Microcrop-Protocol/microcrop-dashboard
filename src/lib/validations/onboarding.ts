@@ -1,30 +1,16 @@
 import { z } from 'zod';
 import {
+  formatMoney,
   isValidPhoneForAnyMarket,
   isValidPhoneForMarket,
   level1Label,
   level2Label,
+  MARKETS,
   phoneHint,
+  SUPPORTED_COUNTRY_CODES,
   type Market,
 } from '@/lib/market';
-
-export const CROP_TYPES = [
-  { value: 'MAIZE', label: 'Maize' },
-  { value: 'BEANS', label: 'Beans' },
-  { value: 'RICE', label: 'Rice' },
-  { value: 'SORGHUM', label: 'Sorghum' },
-  { value: 'MILLET', label: 'Millet' },
-  { value: 'VEGETABLES', label: 'Vegetables' },
-  { value: 'CASSAVA', label: 'Cassava' },
-  { value: 'SWEET_POTATO', label: 'Sweet Potato' },
-  { value: 'BANANA', label: 'Banana' },
-  { value: 'COFFEE', label: 'Coffee' },
-  { value: 'TEA', label: 'Tea' },
-  { value: 'WHEAT', label: 'Wheat' },
-  { value: 'BARLEY', label: 'Barley' },
-  { value: 'POTATOES', label: 'Potatoes' },
-] as const;
-
+import type { CatalogueItem } from '@/types/catalogue';
 
 /**
  * MARKET-DRIVEN registration fields.
@@ -74,39 +60,84 @@ export const farmerRegistrationSchema = farmerRegistrationSchemaFor(null);
 
 export type FarmerRegistrationData = z.infer<typeof farmerRegistrationSchema>;
 
-export const plotCreationSchema = z.object({
-  name: z.string()
-    .min(2, 'Plot name must be at least 2 characters')
-    .max(100, 'Plot name must not exceed 100 characters'),
-  latitude: z.number()
-    .min(-90, 'Latitude must be between -90 and 90')
-    .max(90, 'Latitude must be between -90 and 90')
-    .refine(v => v !== 0, 'Latitude is required'),
-  longitude: z.number()
-    .min(-180, 'Longitude must be between -180 and 180')
-    .max(180, 'Longitude must be between -180 and 180')
-    .refine(v => v !== 0, 'Longitude is required'),
-  acreage: z.number()
-    .min(0.1, 'Acreage must be at least 0.1')
-    .max(10000, 'Acreage must not exceed 10,000'),
-  cropType: z.enum([
-    'MAIZE', 'BEANS', 'RICE', 'SORGHUM', 'MILLET', 'VEGETABLES',
-    'CASSAVA', 'SWEET_POTATO', 'BANANA', 'COFFEE', 'TEA', 'WHEAT',
-    'BARLEY', 'POTATOES',
-  ]),
-  plantingDate: z.string().optional(),
-});
+/**
+ * MARKET-DRIVEN crop choice.
+ *
+ * `cropType` was `z.enum([...])` over all fourteen values of the Prisma enum, which made tea,
+ * cassava and banana valid plot crops in every market. The server now refuses a crop that is not
+ * in the organization's market catalogue (PRODUCT_NOT_IN_MARKET) — and ONLY that: its plot gate
+ * is "listed", any status, so a COMING_SOON crop can be registered ahead of launch. The client
+ * matches it exactly: any LISTED item of the market's CROP line. Whether the crop can then be
+ * QUOTED is a separate question, answered at the quote step (and the picker labels a
+ * not-yet-sellable crop "Coming soon — cannot be insured yet").
+ *
+ * `crops === null` is the not-yet-known case. It accepts nothing, with a message that says why,
+ * rather than accepting anything and letting the server refuse it.
+ */
+export const plotCreationSchemaFor = (crops: readonly CatalogueItem[] | null) =>
+  z.object({
+    name: z.string()
+      .min(2, 'Plot name must be at least 2 characters')
+      .max(100, 'Plot name must not exceed 100 characters'),
+    latitude: z.number()
+      .min(-90, 'Latitude must be between -90 and 90')
+      .max(90, 'Latitude must be between -90 and 90')
+      .refine(v => v !== 0, 'Latitude is required'),
+    longitude: z.number()
+      .min(-180, 'Longitude must be between -180 and 180')
+      .max(180, 'Longitude must be between -180 and 180')
+      .refine(v => v !== 0, 'Longitude is required'),
+    acreage: z.number()
+      .min(0.1, 'Acreage must be at least 0.1')
+      .max(10000, 'Acreage must not exceed 10,000'),
+    cropType: z.string({ required_error: 'Select a crop' })
+      .min(1, 'Select a crop')
+      .refine(
+        // Listed, any status — the backend's plot gate. NOT isSellable: that is the quote gate.
+        (code) => Boolean(crops?.some((item) => item.code === code)),
+        {
+          message: crops
+            ? "Choose a crop offered in your organization's market."
+            : "Your market's crop list hasn't loaded yet.",
+        },
+      ),
+    plantingDate: z.string().optional(),
+  });
+
+/** Catalogue-agnostic variant, for the type. Accepts no crop — see plotCreationSchemaFor. */
+export const plotCreationSchema = plotCreationSchemaFor(null);
 
 export type PlotCreationData = z.infer<typeof plotCreationSchema>;
 
-export const policyConfigSchema = z.object({
-  sumInsured: z.number()
-    .min(1000, 'Minimum sum insured is 1,000 USDC')
-    .max(1000000, 'Maximum sum insured is 1,000,000 USDC'),
-  coverageType: z.enum(['DROUGHT', 'FLOOD', 'BOTH', 'COMPREHENSIVE']),
-  durationDays: z.number()
-    .min(30, 'Minimum duration is 30 days')
-    .max(365, 'Maximum duration is 365 days'),
-});
+/** The widest bounds any supported market accepts, for a form with no market in hand. */
+const ANY_MARKET_MIN = Math.min(...SUPPORTED_COUNTRY_CODES.map((c) => MARKETS[c].minSumInsuredLocal));
+const ANY_MARKET_MAX = Math.max(...SUPPORTED_COUNTRY_CODES.map((c) => MARKETS[c].maxSumInsuredLocal));
+
+/**
+ * MARKET-DRIVEN sum-insured bounds.
+ *
+ * The messages here said "Minimum sum insured is 1,000 USDC" — wrong in every market, because
+ * the wizard quotes in LOCAL currency (the stablecoin leg is settlement plumbing the field agent
+ * never sees), and the 1,000,000 ceiling is Kenya's: Ghana's is 250,000.
+ *
+ * The bounds are the market registry's, which lib/market.ts is explicit are a HINT — policy.service
+ * enforces them inside the purchase transaction and its refusal is the truth. With no market in
+ * hand the widest bounds any market accepts are used and no currency is named.
+ */
+export const policyConfigSchemaFor = (market: Market | null) => {
+  const min = market?.minSumInsuredLocal ?? ANY_MARKET_MIN;
+  const max = market?.maxSumInsuredLocal ?? ANY_MARKET_MAX;
+  return z.object({
+    sumInsured: z.number()
+      .min(min, `Minimum sum insured is ${formatMoney(min, market)}`)
+      .max(max, `Maximum sum insured is ${formatMoney(max, market)}`),
+    coverageType: z.enum(['DROUGHT', 'FLOOD', 'BOTH', 'COMPREHENSIVE']),
+    durationDays: z.number()
+      .min(30, 'Minimum duration is 30 days')
+      .max(365, 'Maximum duration is 365 days'),
+  });
+};
+
+export const policyConfigSchema = policyConfigSchemaFor(null);
 
 export type PolicyConfigData = z.infer<typeof policyConfigSchema>;

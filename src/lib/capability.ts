@@ -95,9 +95,11 @@ export const CAPABILITY_DESCRIPTIONS: Record<OrgCapability, string> = {
   CROP_UNDERWRITING:
     'Quote and sell crop cover. Off means no new crop policy can be quoted or purchased. ' +
     'Cover already sold is unaffected — this gates intake only.',
+  // What else gates livestock is the MARKET'S PRODUCT CATALOGUE, not a fixed "crop-only" rule:
+  // a market sells only the livestock its catalogue lists. Ghana's lists none today.
   LIVESTOCK_UNDERWRITING:
-    'Quote and sell livestock (IBLI) cover. Also requires the market to permit livestock: ' +
-    'Ghana is crop-only regardless of this switch.',
+    'Quote and sell livestock cover. Also requires the organization\'s market to list livestock ' +
+    'in its product catalogue — this switch has no effect in a market that lists none (Ghana, today).',
   BULK_IMPORT:
     'CSV/JSON bulk import of farmers and plots. Off means only one-at-a-time onboarding. ' +
     'High-volume PII intake, so it is off for new organizations by default.',

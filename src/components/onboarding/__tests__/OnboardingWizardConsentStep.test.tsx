@@ -85,7 +85,9 @@ function renderWizard() {
  */
 async function registerAFarmer() {
   fireEvent.change(screen.getByPlaceholderText('Jane'), { target: { value: 'Wanjiku' } });
-  fireEvent.change(screen.getByPlaceholderText('Mwangi'), { target: { value: 'Mwangi' } });
+  // By label: the last-name placeholder is a per-market example now, and empty here because the
+  // market never resolves — the same reason the phone field is found by label.
+  fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Mwangi' } });
   fireEvent.change(screen.getByLabelText(/phone number/i), {
     target: { value: '+254700000000' },
   });

@@ -6,7 +6,20 @@
  * - Production: VITE_API_URL=https://api.microcrop.app
  */
 
-import type { User, Organization, OnboardingStep, OrganizationStats, PlatformStats, RevenueAnalytics, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse, PartnerDetermination, DeterminationStatus, EvidencePackage, SettlementReportInput, SettlementReportResult, SettlementReportsResponse, OrgCapability, OrgCapabilityStatus, OrgCapabilitiesResponse, SetOrgCapabilityResult } from '@/types';
+import type { User, Organization, OnboardingStep, OrganizationStats, PoliciesAnalytics, FarmersAnalytics, PayoutsAnalytics, DamageAnalytics, Activity, ReserveStatus, OrgKyb, OrgKybVerification, OrgKybReview, Farmer, Plot, Policy, PolicyQuote, PolicyPurchaseResponse, PolicyStatus, CoverageType, Payout, FinancialSummary, OrganizationApplication, OrgAdminInvitation, GeoJsonPolygon, PlotBoundary, NdviReading, PlotHealth, SatelliteMonitoringOverview, DamageVerification, DamageAssessment, FraudFlag, FraudSummary, FraudFlagStatus, GpsPoint, GpsTrackResponse, KycFieldVerifyResponse, PaymentInitiateResponse, PaymentStatusResponse, BlogPost, BlogCategory, BlogTag, PostStatus, UploadResult, WebhookConfig, WebhookDelivery, WebhookDeliveryStatus, ApiKeyStatus, ApiKeyRotateResult, OrgRole, WeatherMarket, WeatherStationCoverage, PlotCoverage, ConsentMethod, ConsentDocumentsResponse, FarmerConsentStatus, RecordConsentResponse, WithdrawConsentResponse, PartnerDetermination, DeterminationStatus, EvidencePackage, SettlementReportInput, SettlementReportResult, SettlementReportsResponse, OrgCapability, OrgCapabilityStatus, OrgCapabilitiesResponse, SetOrgCapabilityResult, PlatformAnalyticsQuery } from '@/types';
+import type { CatalogueResponse } from '@/types/catalogue';
+
+/**
+ * `?a=1&b=2` from a params object, dropping undefined/null/'' so an unset filter is absent rather
+ * than sent as the string "undefined". Empty string when nothing is left.
+ */
+function toQuery(params?: object): string {
+  const entries = Object.entries(params ?? {}).filter(
+    ([, v]) => v !== undefined && v !== null && v !== '',
+  );
+  if (entries.length === 0) return '';
+  return `?${new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()}`;
+}
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '');
 
@@ -31,7 +44,8 @@ interface ApiErrorResponse {
   error: {
     code: string;
     message: string;
-    details?: ApiErrorDetail[];
+    // A per-field ARRAY on a validation failure (Joi), a structured OBJECT on a domain refusal.
+    details?: ApiErrorDetail[] | Record<string, unknown>;
   };
 }
 
@@ -40,11 +54,27 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public code?: string,
-    public details?: ApiErrorDetail[]
+    public details?: ApiErrorDetail[],
+    /**
+     * The structured OBJECT form of `error.details`, which a domain refusal carries instead of a
+     * field list — PRODUCT_NOT_OFFERED sends `{ countryCode, line, item, status }`. Kept apart
+     * from `details` so that field stays what its type says: an array. Before this split the
+     * object landed in `details` and the import report's `.map` over it threw.
+     */
+    public context?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** Route the wire's `details` to the field matching its shape. */
+function splitErrorDetails(
+  raw: unknown,
+): [ApiErrorDetail[] | undefined, Record<string, unknown> | undefined] {
+  if (Array.isArray(raw)) return [raw as ApiErrorDetail[], undefined];
+  if (raw && typeof raw === 'object') return [undefined, raw as Record<string, unknown>];
+  return [undefined, undefined];
 }
 
 class ApiClient {
@@ -137,7 +167,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
+      throw new ApiError(message, response.status, error.error?.code, ...splitErrorDetails(error.error?.details));
     }
 
     return (data as ApiResponse<T>).data;
@@ -189,7 +219,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
+      throw new ApiError(message, response.status, error.error?.code, ...splitErrorDetails(error.error?.details));
     }
 
     return {
@@ -244,7 +274,7 @@ class ApiClient {
         this.handleDeactivatedError();
       }
 
-      throw new ApiError(message, response.status, error.error?.code, error.error?.details);
+      throw new ApiError(message, response.status, error.error?.code, ...splitErrorDetails(error.error?.details));
     }
 
     return (data as ApiResponse<T>).data;
@@ -486,9 +516,13 @@ class ApiClient {
   // PLATFORM DASHBOARD
   // ============================================
 
-  async platformDashboardOverview(params?: { period?: string; startDate?: string; endDate?: string }) {
-    const query = new URLSearchParams(params as Record<string, string>).toString();
-    return this.request<PlatformStats>(`/dashboard/platform/overview${query ? `?${query}` : ''}`);
+  /**
+   * The platform overview. Answers in the NESTED shape (organizations/policies/farmers/financials)
+   * with money split per currency in `financials.byCurrency` and payouts in USDC — see
+   * normalizePlatformStats in lib/platform-analytics, which is the only reader of this payload.
+   */
+  async platformDashboardOverview(params?: Omit<PlatformAnalyticsQuery, 'granularity'> & { period?: string }) {
+    return this.request<unknown>(`/dashboard/platform/overview${toQuery(params)}`);
   }
 
   async platformDashboardOrganizations(params?: {
@@ -499,46 +533,36 @@ class ApiClient {
     isActive?: boolean;
     search?: string;
   }) {
-    const query = new URLSearchParams(
-      Object.fromEntries(
-        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-      )
-    ).toString();
-    return this.requestWithPagination<Organization[]>(`/dashboard/platform/organizations${query ? `?${query}` : ''}`);
+    return this.requestWithPagination<Organization[]>(`/dashboard/platform/organizations${toQuery(params)}`);
   }
 
   async platformDashboardOrgMetrics(orgId: string, params?: { period?: string }) {
-    const query = new URLSearchParams(params as Record<string, string>).toString();
-    return this.request<OrganizationStats>(`/dashboard/platform/organizations/${encodeURIComponent(orgId)}/metrics${query ? `?${query}` : ''}`);
+    return this.request<OrganizationStats>(`/dashboard/platform/organizations/${encodeURIComponent(orgId)}/metrics${toQuery(params)}`);
   }
 
-  async platformAnalyticsRevenue(params?: { period?: string; granularity?: string }) {
-    const query = new URLSearchParams(params as Record<string, string>).toString();
-    return this.request<RevenueAnalytics>(`/dashboard/platform/analytics/revenue${query ? `?${query}` : ''}`);
+  // The analytics responses are typed `unknown` on purpose: the platform pages render the view
+  // models built by lib/platform-analytics, never the wire shape, because the wire shape is
+  // exactly what the old pages got wrong. `countryCode`, `startDate`/`endDate` and `granularity`
+  // are all honoured server-side and all sent; nothing is dropped on the way out.
+
+  async platformAnalyticsRevenue(params?: PlatformAnalyticsQuery) {
+    return this.request<unknown>(`/dashboard/platform/analytics/revenue${toQuery(params)}`);
   }
 
-  async platformAnalyticsPolicies(params?: { period?: string; granularity?: string }) {
-    const query = new URLSearchParams(params as Record<string, string>).toString();
-    return this.request<PoliciesAnalytics>(`/dashboard/platform/analytics/policies${query ? `?${query}` : ''}`);
+  async platformAnalyticsPolicies(params?: PlatformAnalyticsQuery) {
+    return this.request<unknown>(`/dashboard/platform/analytics/policies${toQuery(params)}`);
   }
 
-  async platformAnalyticsFarmers(params?: { period?: string; granularity?: string }) {
-    const query = new URLSearchParams(params as Record<string, string>).toString();
-    return this.request<FarmersAnalytics>(`/dashboard/platform/analytics/farmers${query ? `?${query}` : ''}`);
+  async platformAnalyticsFarmers(params?: PlatformAnalyticsQuery) {
+    return this.request<unknown>(`/dashboard/platform/analytics/farmers${toQuery(params)}`);
   }
 
-  async platformAnalyticsPayouts(params?: { period?: string; granularity?: string }) {
-    const query = new URLSearchParams(params as Record<string, string>).toString();
-    return this.request<PayoutsAnalytics>(`/dashboard/platform/analytics/payouts${query ? `?${query}` : ''}`);
+  async platformAnalyticsPayouts(params?: PlatformAnalyticsQuery) {
+    return this.request<unknown>(`/dashboard/platform/analytics/payouts${toQuery(params)}`);
   }
 
-  async platformAnalyticsDamage(params?: { period?: string; page?: number; limit?: number }) {
-    const query = new URLSearchParams(
-      Object.fromEntries(
-        Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-      )
-    ).toString();
-    return this.request<DamageAnalytics>(`/dashboard/platform/analytics/damage-assessments${query ? `?${query}` : ''}`);
+  async platformAnalyticsDamage(params?: Omit<PlatformAnalyticsQuery, 'granularity'> & { period?: string; page?: number; limit?: number }) {
+    return this.request<unknown>(`/dashboard/platform/analytics/damage-assessments${toQuery(params)}`);
   }
 
   async platformActivity(limit?: number) {
@@ -754,6 +778,16 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  // ============================================
+  // PRODUCT CATALOGUE
+  // ============================================
+
+  /**
+   * What each market lists, and with which status. An organization user receives only its own
+   * market; a platform admin receives every market. Reachable by every role.
+   */
+  async getCatalogue() { return this.request<CatalogueResponse>('/catalogue'); }
 
   // ============================================
   // FARMERS

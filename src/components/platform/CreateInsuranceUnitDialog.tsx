@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Plus } from "lucide-react";
+import { Info, Loader2, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -35,11 +36,23 @@ import {
   level1Label,
   level2Label,
   marketOrNull,
+  type CountryCode,
 } from "@/lib/market";
+import {
+  CROP_SEASONS,
+  UNIT_ACTUARIAL_FIELDS,
+  blankUnitForm,
+  livestockUnitsOffered,
+  seasonHeading,
+  swapUnitDefaults,
+  unitCodeHint,
+  unitCodePlaceholder,
+  unitCodePrefixError,
+} from "@/lib/insurance-unit-market";
 
-// Optional numeric coordinate — empty input becomes undefined so the whole
-// bounding box stays optional.
-const optionalCoord = z
+// Optional numeric input — an empty box becomes undefined rather than NaN, so "required" is
+// reported as such instead of "Expected number, received nan".
+const optionalNumber = z
   .union([z.number(), z.nan()])
   .optional()
   .transform((v) => (v === undefined || Number.isNaN(v) ? undefined : v));
@@ -48,29 +61,58 @@ const createInsuranceUnitSchema = z
   .object({
     // The COLUMN names stay `county` / `subCounty` in every market — renaming live columns is
     // destructive and buys nothing. Only the LABELS are per-market (Kenya: County/Sub-County,
-    // Ghana: Region/District), so the validation messages are built from the market too.
+    // Ghana: Region/District).
     county: z.string().min(2),
     subCounty: z.string().optional(),
-    unitCode: z.string().min(2, "Unit Code is required (e.g., TURKANA or GH-AS-01)"),
+    unitCode: z.string().trim().min(2, "Unit code is required"),
     /**
      * A SELECT, not free text. It was `z.string().min(2).max(2)`, which accepted "XX" — and
      * since the backend now validates it against the market registry, a typo'd code is a 400
      * the operator has no way to anticipate from a bare text box.
      */
-    country: z.enum(SUPPORTED_COUNTRY_CODES as unknown as [string, ...string[]]),
-    bboxMinLon: optionalCoord,
-    bboxMinLat: optionalCoord,
-    bboxMaxLon: optionalCoord,
-    bboxMaxLat: optionalCoord,
-    ndviBaselineLRLD: z.number().min(0).max(1),
-    ndviBaselineSRSD: z.number().min(0).max(1),
-    strikeLevelLRLD: z.number().min(0).max(1),
-    strikeLevelSRSD: z.number().min(0).max(1),
-    premiumRateLRLD: z.number().min(0),
-    premiumRateSRSD: z.number().min(0),
-    valuePerTLU: z.number().min(100),
+    country: z.enum(SUPPORTED_COUNTRY_CODES as unknown as [CountryCode, ...CountryCode[]]),
+    bboxMinLon: optionalNumber,
+    bboxMinLat: optionalNumber,
+    bboxMaxLon: optionalNumber,
+    bboxMaxLat: optionalNumber,
+    // Livestock terms. Optional in the shape because a market with no livestock product has no
+    // terms to give; required below for every market that does.
+    ndviBaselineLRLD: optionalNumber,
+    ndviBaselineSRSD: optionalNumber,
+    strikeLevelLRLD: optionalNumber,
+    strikeLevelSRSD: optionalNumber,
+    premiumRateLRLD: optionalNumber,
+    premiumRateSRSD: optionalNumber,
+    valuePerTLU: optionalNumber,
   })
   .superRefine((data, ctx) => {
+    const prefixError = unitCodePrefixError(data.country, data.unitCode);
+    if (prefixError) ctx.addIssue({ code: z.ZodIssueCode.custom, message: prefixError, path: ["unitCode"] });
+
+    if (!livestockUnitsOffered(data.country)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "This market has no livestock product, so no insurance unit can be created for it.",
+        path: ["country"],
+      });
+    } else {
+      const ratio = (v: number | undefined) => v !== undefined && v >= 0 && v <= 1;
+      for (const field of UNIT_ACTUARIAL_FIELDS) {
+        const value = data[field];
+        if (value === undefined) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: [field] });
+        } else if (field.startsWith("ndvi") || field.startsWith("strike")) {
+          if (!ratio(value)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Must be between 0 and 1", path: [field] });
+        } else if (field === "valuePerTLU" ? value < 100 : value <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: field === "valuePerTLU" ? "Must be at least 100" : "Must be greater than 0",
+            path: [field],
+          });
+        }
+      }
+    }
+
     const coords = [data.bboxMinLon, data.bboxMinLat, data.bboxMaxLon, data.bboxMaxLat];
     const provided = coords.filter((c) => c !== undefined);
     if (provided.length === 0) return; // bbox is optional
@@ -103,7 +145,9 @@ const createInsuranceUnitSchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Min lat must be < max lat", path: ["bboxMaxLat"] });
   });
 
-type FormData = z.infer<typeof createInsuranceUnitSchema>;
+type FormInput = z.input<typeof createInsuranceUnitSchema>;
+type FormData = z.output<typeof createInsuranceUnitSchema>;
+type NumericField = Exclude<keyof FormInput, "county" | "subCounty" | "unitCode" | "country">;
 
 // The payload handed to the parent — bbox assembled into the [minLon, minLat,
 // maxLon, maxLat] array the API expects (omitted entirely when not provided).
@@ -127,71 +171,105 @@ interface Props {
   isLoading?: boolean;
 }
 
+/** Blank form for a market — see blankUnitForm. */
+const blankForm = (country: CountryCode): FormInput => blankUnitForm(country);
+
+// Parse a numeric input, mapping empty -> undefined.
+const parseNumber = (value: string) => (value === "" ? undefined : parseFloat(value));
+
+function NumberField({
+  control,
+  name,
+  label,
+  step = "any",
+}: {
+  control: Control<FormInput>;
+  name: NumericField;
+  label: string;
+  step?: string;
+}) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <FormControl>
+            <Input
+              type="number"
+              step={step}
+              name={field.name}
+              ref={field.ref}
+              onBlur={field.onBlur}
+              value={field.value === undefined || Number.isNaN(field.value) ? "" : field.value}
+              onChange={(e) => field.onChange(parseNumber(e.target.value))}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
 export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
   const [open, setOpen] = useState(false);
 
-  const form = useForm<FormData>({
+  const form = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(createInsuranceUnitSchema),
-    defaultValues: {
-      county: "",
-      subCounty: "",
-      unitCode: "",
-      country: DEFAULT_COUNTRY_CODE,
-      bboxMinLon: undefined,
-      bboxMinLat: undefined,
-      bboxMaxLon: undefined,
-      bboxMaxLat: undefined,
-      ndviBaselineLRLD: 0.45,
-      ndviBaselineSRSD: 0.45,
-      strikeLevelLRLD: 0.35,
-      strikeLevelSRSD: 0.35,
-      premiumRateLRLD: 1500,
-      premiumRateSRSD: 1500,
-      /**
-       * 15000 IS A KES FIGURE, and it is only defaulted for the Kenyan market.
-       *
-       * The backend made the same change for the same reason: defaulting it into a GHS unit
-       * would price a herd roughly 11x wrong, silently, with a number nobody typed. Switching
-       * the country away from Kenya clears it (see the effect below) so the operator has to
-       * state it — which is also what the backend now requires outside the default market.
-       */
-      valuePerTLU: 15000,
-    },
+    defaultValues: blankForm(DEFAULT_COUNTRY_CODE),
   });
 
-  const selectedCountry = form.watch("country");
+  const selectedCountry = form.watch("country") as CountryCode;
   const market = marketOrNull(selectedCountry);
-  // Null market cannot happen here — the field is a select over the registry — but the helper
-  // is written to tolerate it, and falling back to the code keeps the label honest either way.
+  const livestockOffered = livestockUnitsOffered(selectedCountry);
+  // Null market cannot happen here — the field is a select over the registry — but the label
+  // stays honest either way rather than naming a currency.
   const currencyCode = market?.currency ?? "local currency";
 
+  // Market-specific defaults follow the market. The 0.45/0.35/1,500/15,000 pre-fill is Kenyan
+  // (the last two in KES): switching away clears each field still holding a default, switching
+  // back restores it, and a figure the operator typed is kept either way.
+  const previousCountry = useRef<CountryCode>(selectedCountry);
   useEffect(() => {
-    // Clear the Kenya-specific TLU default when the operator picks another market, rather than
-    // carrying a KES figure into a GHS unit. Only the DEFAULT value is cleared: a figure the
-    // operator typed themselves is theirs to keep.
-    if (selectedCountry !== DEFAULT_COUNTRY_CODE && form.getValues("valuePerTLU") === 15000) {
-      form.resetField("valuePerTLU", { defaultValue: undefined as unknown as number });
+    const from = previousCountry.current;
+    if (from === selectedCountry) return;
+    previousCountry.current = selectedCountry;
+    const changes = swapUnitDefaults(form.getValues(), from, selectedCountry);
+    for (const [field, value] of Object.entries(changes)) {
+      form.setValue(field as NumericField, value as number | undefined, { shouldDirty: true });
     }
   }, [selectedCountry, form]);
 
   const handleSubmit = async (data: FormData) => {
-    const { bboxMinLon, bboxMinLat, bboxMaxLon, bboxMaxLat, ...rest } = data;
+    const { bboxMinLon, bboxMinLat, bboxMaxLon, bboxMaxLat, subCounty, ...rest } = data;
     const bbox =
       bboxMinLon !== undefined && bboxMinLat !== undefined && bboxMaxLon !== undefined && bboxMaxLat !== undefined
         ? [bboxMinLon, bboxMinLat, bboxMaxLon, bboxMaxLat]
         : undefined;
+    const trimmedSubCounty = subCounty?.trim();
 
     try {
-      await onSubmit({ ...rest, bbox });
+      // The superRefine above guarantees every livestock term is present for a market that
+      // sells livestock, and refuses every other market — so these are numbers here.
+      //
+      // Empty OPTIONAL fields are omitted, not sent blank: the backend's validator refuses
+      // `subCounty: ''` (it is optional, not allowed-empty), so a unit with no sub-county failed
+      // to save. Same for bbox, which is either all four corners or absent.
+      await onSubmit({
+        ...(rest as Omit<CreateInsuranceUnitPayload, "bbox" | "subCounty">),
+        ...(trimmedSubCounty ? { subCounty: trimmedSubCounty } : {}),
+        ...(bbox ? { bbox } : {}),
+      });
       setOpen(false);
-      form.reset();
+      // The next unit is most likely in the same market: keep the country, reset the rest to
+      // that market's defaults.
+      form.reset(blankForm(data.country));
     } catch {
       // Error is handled by parent
     }
   };
-
-  // Parse a coordinate input, mapping empty -> undefined (keeps bbox optional).
-  const parseCoord = (value: string) => (value === "" ? undefined : parseFloat(value));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -205,7 +283,8 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
         <DialogHeader>
           <DialogTitle>Add Insurance Unit</DialogTitle>
           <DialogDescription>
-            Create a new county-level coverage unit for livestock insurance (IBLI).
+            A geographic unit the livestock forage index is computed over, with its seasonal
+            NDVI baseline, strike level and premium rate per TLU.
           </DialogDescription>
         </DialogHeader>
 
@@ -220,7 +299,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                     <FormLabel>Country</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger aria-label="Country">
                           <SelectValue placeholder="Select country" />
                         </SelectTrigger>
                       </FormControl>
@@ -243,13 +322,35 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                   <FormItem>
                     <FormLabel>Unit Code</FormLabel>
                     <FormControl>
-                      <Input placeholder="KE-47" {...field} />
+                      <Input placeholder={unitCodePlaceholder(selectedCountry)} {...field} />
                     </FormControl>
+                    <FormDescription>{unitCodeHint(selectedCountry)}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+
+            {!livestockOffered && market && (
+              <div
+                role="status"
+                className="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 p-3 text-sm"
+              >
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden="true" />
+                <div className="space-y-1">
+                  <p>
+                    Livestock cover is not offered in {market.countryName}, so an insurance unit
+                    cannot be created there. Units carry livestock (forage-NDVI, per-TLU) terms only.
+                  </p>
+                  {(CROP_SEASONS[selectedCountry]?.length ?? 0) > 0 && (
+                    <p className="text-muted-foreground">
+                      {market.countryName} crop seasons:{" "}
+                      {CROP_SEASONS[selectedCountry]?.map((s) => s.name).join("; ")}.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -284,190 +385,38 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
               <div>
                 <h4 className="font-medium text-sm">Bounding Box (Optional)</h4>
                 <p className="text-xs text-muted-foreground">
-                  Geographic extent for the NDVI oracle. Leave blank or provide all four corners.
+                  Geographic extent for the NDVI oracle, in decimal degrees. Leave blank or provide
+                  all four corners.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="bboxMinLon"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Min Longitude</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="34.0"
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(parseCoord(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="bboxMinLat"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Min Latitude</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="1.5"
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(parseCoord(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="bboxMaxLon"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Max Longitude</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="36.5"
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(parseCoord(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="bboxMaxLat"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Max Latitude</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="5.5"
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(parseCoord(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <NumberField control={form.control} name="bboxMinLon" label="Min Longitude" />
+                <NumberField control={form.control} name="bboxMinLat" label="Min Latitude" />
+                <NumberField control={form.control} name="bboxMaxLon" label="Max Longitude" />
+                <NumberField control={form.control} name="bboxMaxLat" label="Max Latitude" />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-4 rounded-md border p-4 bg-muted/20">
-                <h4 className="font-medium text-sm">LRLD Season</h4>
-                <FormField
-                  control={form.control}
-                  name="ndviBaselineLRLD"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>NDVI Baseline</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="strikeLevelLRLD"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Strike Level</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="premiumRateLRLD"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Premium rate ({currencyCode}/TLU)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+            {livestockOffered && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  {(["LRLD", "SRSD"] as const).map((season) => (
+                    <div key={season} className="space-y-4 rounded-md border p-4 bg-muted/20">
+                      <h4 className="font-medium text-sm">{seasonHeading(selectedCountry, season)}</h4>
+                      <NumberField control={form.control} name={`ndviBaseline${season}`} label="NDVI Baseline" step="0.01" />
+                      <NumberField control={form.control} name={`strikeLevel${season}`} label="Strike Level" step="0.01" />
+                      <NumberField
+                        control={form.control}
+                        name={`premiumRate${season}`}
+                        label={`Premium rate (${currencyCode}/TLU)`}
+                      />
+                    </div>
+                  ))}
+                </div>
 
-              <div className="space-y-4 rounded-md border p-4 bg-muted/20">
-                <h4 className="font-medium text-sm">SRSD Season</h4>
-                <FormField
-                  control={form.control}
-                  name="ndviBaselineSRSD"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>NDVI Baseline</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="strikeLevelSRSD"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Strike Level</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="premiumRateSRSD"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Premium rate ({currencyCode}/TLU)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            <FormField
-              control={form.control}
-              name="valuePerTLU"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Value per TLU ({currencyCode})</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <NumberField control={form.control} name="valuePerTLU" label={`Value per TLU (${currencyCode})`} />
+              </>
+            )}
 
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button
@@ -478,7 +427,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
+              <Button type="submit" disabled={isLoading || !livestockOffered}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Unit
               </Button>

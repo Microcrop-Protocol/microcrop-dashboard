@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from '@/hooks/usePermissions';
+import { useLivestockNotOffered } from '@/hooks/useCatalogue';
 import type { PermissionCan } from '@/lib/permissions';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,6 +34,7 @@ import {
   Code2,
   Sprout,
   Settings,
+  PackageSearch,
 } from "lucide-react";
 import { docsUrl } from "@/lib/docs";
 import {
@@ -57,12 +59,18 @@ interface NavItem {
    * list when its destination is actually configured — see docsUrl().
    */
   external?: boolean;
+  /**
+   * A livestock (IBLI) surface. Hidden in a market whose catalogue lists no livestock (Ghana):
+   * the line is not offered there at all, so a nav entry would only lead to a "not offered" page.
+   */
+  livestock?: boolean;
 }
 
 const platformNavItems: NavItem[] = [
   { title: "Dashboard", href: "/platform/dashboard", icon: LayoutDashboard },
   { title: "Organizations", href: "/platform/organizations", icon: Building2 },
   { title: "Insurance Units", href: "/platform/insurance-units", icon: MapPin },
+  { title: "Product Catalogue", href: "/platform/catalogue", icon: PackageSearch },
   { title: "Treasury", href: "/platform/treasury", icon: Landmark },
   { title: "KYB Review", href: "/platform/kyb-review", icon: ClipboardCheck },
   { title: "Invitations", href: "/platform/invitations", icon: Mail },
@@ -86,13 +94,13 @@ const platformNavItems: NavItem[] = [
 const orgNavItems: NavItem[] = [
   { title: "Dashboard", href: "/org/dashboard", icon: LayoutDashboard, permission: "dashboard:read" },
   { title: "Field Onboarding", href: "/org/onboard", icon: ClipboardPlus, permission: "farmer:create" },
-  { title: "Livestock Onboarding", href: "/org/livestock-onboard", icon: ClipboardPlus, permission: "herd:create" },
+  { title: "Livestock Onboarding", href: "/org/livestock-onboard", icon: ClipboardPlus, permission: "herd:create", livestock: true },
   { title: "Farmers", href: "/org/farmers", icon: Users, permission: "farmer:read" },
   { title: "Policies", href: "/org/policies", icon: FileText, permission: "policy:read" },
   { title: "Payouts", href: "/org/payouts", icon: DollarSign, permission: "payout:read" },
   { title: "Plots", href: "/org/plots", icon: MapPin, permission: "plot:read" },
-  { title: "Herds", href: "/org/herds", icon: MapPin, permission: "herd:read" },
-  { title: "Forage Alerts", href: "/org/forage-alerts", icon: Sprout, permission: "satellite:read" },
+  { title: "Herds", href: "/org/herds", icon: MapPin, permission: "herd:read", livestock: true },
+  { title: "Forage Alerts", href: "/org/forage-alerts", icon: Sprout, permission: "satellite:read", livestock: true },
   { title: "Damage", href: "/org/damage", icon: AlertTriangle, permission: "damage:read" },
   { title: "Financials", href: "/org/financials", icon: BarChart3, permission: "financials:read" },
   { title: "Reserve", href: "/org/reserve", icon: PiggyBank, permission: "reserve:read" },
@@ -131,6 +139,9 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const location = useLocation();
   const { user, isPlatformAdmin } = useAuthStore();
   const perms = usePermissions();
+  // Only a POSITIVELY known "no livestock here" hides the livestock items; while the market or
+  // catalogue is loading they stay, so a Kenyan partner's nav does not reshuffle on load.
+  const livestockNotOffered = useLivestockNotOffered() !== null;
   const [openGroups, setOpenGroups] = useState<string[]>([]);
 
   // Show a nav item only if the user's permissions clear its gate. Enforcement is
@@ -139,6 +150,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   // and must not be dropped by a rule meant for in-app routes.
   const navItems = withDocsLink(
     (isPlatformAdmin() ? platformNavItems : orgNavItems).filter((item) => {
+      if (item.livestock && livestockNotOffered) return false;
       if (item.adminOnly) return perms.isAdmin;
       if (item.can) return perms.can[item.can];
       if (item.permission) return perms.has(item.permission);

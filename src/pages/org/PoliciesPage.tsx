@@ -15,6 +15,10 @@ import { SimulatedBadge, SimulatedBanner } from "@/components/ui/simulated-badge
 import { Plus } from "lucide-react";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney, type Market } from "@/lib/market";
+import { useCatalogue } from "@/hooks/useCatalogue";
+import { policyCropLabel } from "@/lib/catalogue";
+import { CatalogueStatusBadge } from "@/components/catalogue/CatalogueOptions";
+import type { CatalogueMarket } from "@/types/catalogue";
 
 /**
  * The columns are now a FUNCTION of the market, because one of them renders money.
@@ -25,7 +29,7 @@ import { formatMoney, type Market } from "@/lib/market";
  * the component so the table is not handed a new column array on every keystroke in the search
  * box — DataTable would otherwise reset its sort and pagination.
  */
-const buildColumns = (market: Market | null): ColumnDef<Policy>[] => [
+const buildColumns = (market: Market | null, catalogue: CatalogueMarket | null): ColumnDef<Policy>[] => [
   {
     accessorKey: "policyNumber",
     header: "Policy #",
@@ -42,7 +46,20 @@ const buildColumns = (market: Market | null): ColumnDef<Policy>[] => [
   { accessorKey: "farmerName", header: "Farmer" },
   { accessorKey: "plotName", header: "Plot" },
   { accessorKey: "coverageType", header: "Coverage" },
-  { accessorKey: "cropType", header: "Crop" },
+  {
+    id: "cropType",
+    header: "Crop",
+    // The crop is the PLOT's (`plot.cropType`; the policy row has none), labelled from the
+    // catalogue, else shown as its raw code — never blank. Beside it, the status the policy was
+    // SOLD UNDER (frozen at purchase), so a pilot sale stays marked as one after it graduates.
+    accessorFn: (policy) => policyCropLabel(catalogue, policy),
+    cell: ({ row }) => (
+      <span className="inline-flex flex-wrap items-center gap-1">
+        {policyCropLabel(catalogue, row.original)}
+        <CatalogueStatusBadge status={row.original.catalogueStatus} />
+      </span>
+    ),
+  },
   {
     accessorKey: "sumInsured",
     header: "Sum Insured",
@@ -58,7 +75,8 @@ export default function PoliciesPage() {
   const { can } = usePermissions();
   const orgId = user?.organizationId || "";
   const { market } = useOrgMarket();
-  const columns = useMemo(() => buildColumns(market), [market]);
+  const { market: catalogue } = useCatalogue();
+  const columns = useMemo(() => buildColumns(market, catalogue), [market, catalogue]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["policies", orgId],

@@ -25,65 +25,15 @@ import { CapabilityGate } from "@/components/capability/CapabilityGate";
 import { useCapability } from "@/hooks/useCapabilities";
 import { CAPABILITY } from "@/lib/capability";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
-import type { Market } from "@/lib/market";
-
-/**
- * The CSV templates are MARKET-DRIVEN, because a template is an instruction.
- *
- * They were literals containing `+254712345678` and `Nakuru`. The backend used to accept any
- * string for an imported phone number — which made bulk import the accidental only way to
- * onboard a non-Kenyan farmer — and now validates every row against the organization's own
- * market and reports bad rows individually. So a Ghanaian partner downloading a template full of
- * Kenyan numbers would hand back a file in which EVERY row fails validation, with nothing in the
- * product having told it otherwise.
- *
- * The HEADER names are deliberately unchanged. `county` is the column, in every market; only its
- * label differs, and renaming the CSV header would break every partner's existing importer for
- * a cosmetic gain. The sample VALUES are what carry the market.
- */
-function farmerCsvTemplate(market: Market | null): string {
-  const phone = market?.phoneExample ?? '';
-  const division = market?.countryCode === 'GH' ? 'Ashanti' : 'Nakuru';
-  return `firstName,lastName,phoneNumber,nationalId,county\nJohn,Doe,${phone},12345678,${division}`;
-}
-
-/**
- * The JSON placeholders, DERIVED from the CSV templates rather than written out again.
- *
- * They were a second pair of literals carrying the same `+254712345678`, and a second copy is a
- * second thing to forget: the CSV template and the JSON example would drift and a partner would
- * be shown two different "correct" formats on the same screen.
- */
-function csvToJsonExample(csv: string): string {
-  const [header, row] = csv.split('\n');
-  const keys = header.split(',');
-  const values = row.split(',');
-  const entries = keys.map((key, index) => {
-    const raw = values[index] ?? '';
-    // Numbers stay numbers in the example; a quoted latitude would be a wrong example.
-    const value = raw !== '' && Number.isFinite(Number(raw)) && !/^\+/.test(raw) && key !== 'nationalId'
-      ? raw
-      : JSON.stringify(raw);
-    return `"${key}": ${value}`;
-  });
-  return `[{${entries.join(', ')}}]`;
-}
-
-function farmerJsonPlaceholder(market: Market | null): string {
-  return csvToJsonExample(farmerCsvTemplate(market));
-}
-
-function plotJsonPlaceholder(market: Market | null): string {
-  return csvToJsonExample(plotCsvTemplate(market));
-}
-
-function plotCsvTemplate(market: Market | null): string {
-  const phone = market?.phoneExample ?? '';
-  // Coordinates inside the market, so a partner that imports the sample unedited does not create
-  // a plot in the wrong country and then wonder why its satellite readings are empty.
-  const [lat, lng] = market?.countryCode === 'GH' ? ['6.6885', '-1.6244'] : ['-0.3031', '36.08'];
-  return `farmerPhone,name,latitude,longitude,acreage,cropType\n${phone},Plot A,${lat},${lng},2.5,Maize`;
-}
+import { useCatalogue } from "@/hooks/useCatalogue";
+import { CatalogueStatusBadge } from "@/components/catalogue/CatalogueOptions";
+import {
+  csvToJsonExample,
+  farmerCsvTemplate,
+  importableCrops,
+  plotCsvTemplate,
+  preparePlotRows,
+} from "./importTemplates";
 
 function downloadTemplate(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/csv' });
@@ -253,8 +203,11 @@ export default function FarmerImportPage() {
   const [plotsReport, setPlotsReport] = useState<ImportReport | null>(null);
   const bulkImport = useCapability(CAPABILITY.BULK_IMPORT);
   // `market` is null until the organization resolves, and the template helpers render an empty
-  // sample number rather than a Kenyan one in that window.
+  // sample number rather than a Kenyan one in that window. The catalogue supplies the sample crop
+  // and the list of crop codes a plots file may carry.
   const { market } = useOrgMarket();
+  const { market: catalogue, state: catalogueState } = useCatalogue();
+  const crops = importableCrops(catalogue);
 
   const importFarmersMutation = useMutation({
     mutationFn: (farmers: Record<string, unknown>[]) => api.bulkImportFarmers(farmers),
@@ -346,12 +299,18 @@ export default function FarmerImportPage() {
       if (error) return showPlotsClientError("Invalid CSV", error);
       if (rows.length === 0) return showPlotsClientError("Empty file", "CSV file has no data rows.");
       if (rows.length > 500) return showPlotsClientError("Too many rows", "Maximum 500 plots per import.");
-      const plots = rows.map((p) => ({
+      const parsed = rows.map((p) => ({
         ...p,
         latitude: p.latitude ? parseFloat(p.latitude) : undefined,
         longitude: p.longitude ? parseFloat(p.longitude) : undefined,
         acreage: p.acreage ? parseFloat(p.acreage) : undefined,
       }));
+      const { plots, blocking } = preparePlotRows(parsed, catalogue, catalogueState);
+      if (blocking) {
+        setPlotsReport(blocking);
+        notifyError(undefined, blocking.summary);
+        return;
+      }
       importPlotsMutation.mutate(plots);
     } catch {
       showPlotsClientError("Parse error", "Failed to read CSV file.");
@@ -378,7 +337,14 @@ export default function FarmerImportPage() {
       if (!Array.isArray(parsed)) {
         return showPlotsClientError("Invalid format", "Input must be a JSON array.");
       }
-      importPlotsMutation.mutate(parsed);
+      // The same crop check and field mapping as the CSV path: a pasted array is the same rows.
+      const { plots, blocking } = preparePlotRows(parsed, catalogue, catalogueState);
+      if (blocking) {
+        setPlotsReport(blocking);
+        notifyError(undefined, blocking.summary);
+        return;
+      }
+      importPlotsMutation.mutate(plots);
     } catch {
       showPlotsClientError("Invalid JSON", "Please enter valid JSON.");
     }
@@ -477,7 +443,7 @@ export default function FarmerImportPage() {
               ) : (
                 <>
                   <Textarea
-                    placeholder={farmerJsonPlaceholder(market)}
+                    placeholder={csvToJsonExample(farmerCsvTemplate(market))}
                     rows={10}
                     value={farmersJson}
                     onChange={(e) => setFarmersJson(e.target.value)}
@@ -552,7 +518,7 @@ export default function FarmerImportPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => downloadTemplate(plotCsvTemplate(market), 'plots-template.csv')}
+                      onClick={() => downloadTemplate(plotCsvTemplate(market, catalogue), 'plots-template.csv')}
                     >
                       <Download className="mr-2 h-4 w-4" aria-hidden="true" />
                       Download Template
@@ -561,14 +527,14 @@ export default function FarmerImportPage() {
                   <div className="rounded-lg bg-muted/50 p-3">
                     <p className="text-xs font-medium text-muted-foreground mb-1">Required columns:</p>
                     <p className="text-xs text-muted-foreground font-mono">
-                      farmerPhone, name, latitude, longitude, acreage, cropType
+                      farmerPhone, plotName, latitude, longitude, acreage, cropType
                     </p>
                   </div>
                 </>
               ) : (
                 <>
                   <Textarea
-                    placeholder={plotJsonPlaceholder(market)}
+                    placeholder={csvToJsonExample(plotCsvTemplate(market, catalogue))}
                     rows={10}
                     value={plotsJson}
                     onChange={(e) => setPlotsJson(e.target.value)}
@@ -586,6 +552,38 @@ export default function FarmerImportPage() {
                   </Button>
                 </>
               )}
+              {/*
+                The cropType values this organization's market accepts, from the catalogue. A
+                crop outside this list is refused by the server, so the file is checked against
+                it before upload and the offending rows named.
+              */}
+              <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                <p className="mb-1 font-medium">
+                  cropType values{catalogue ? ` for ${catalogue.countryName}` : ""}:
+                </p>
+                {catalogue ? (
+                  <>
+                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono">
+                      {crops.sellable.map((c) => (
+                        <span key={c.code} className="inline-flex items-center gap-1">
+                          {c.code}
+                          <CatalogueStatusBadge status={c.status} />
+                        </span>
+                      ))}
+                    </p>
+                    {crops.notInsurableYet.length > 0 && (
+                      <p className="mt-2">
+                        Can be registered, but cannot be insured yet:{" "}
+                        <span className="font-mono">{crops.notInsurableYet.map((c) => c.code).join(", ")}</span>
+                      </p>
+                    )}
+                  </>
+                ) : catalogueState === "loading" ? (
+                  <p>Your market&apos;s crop list is still loading.</p>
+                ) : (
+                  <p>We couldn&apos;t load your market&apos;s crop list. Reload the page to try again.</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

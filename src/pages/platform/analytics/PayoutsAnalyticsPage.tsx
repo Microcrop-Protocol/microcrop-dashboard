@@ -4,67 +4,79 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { PieChart } from "@/components/charts/PieChart";
 import { SettlementBreakdownCard } from "@/components/payouts/SettlementBreakdownCard";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { GranularitySelect } from "@/components/ui/granularity-select";
+import { AnalyticsHeader } from "@/components/platform/AnalyticsHeader";
+import { Card, CardContent } from "@/components/ui/card";
 import { DollarSign, Hash, TrendingUp, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { Granularity } from "@/types";
+import { useMarketFilter } from "@/hooks/useMarketFilter";
+import {
+  dateRangeParams,
+  defaultAnalyticsRange,
+  formatRatio,
+  formatUsdcCompact,
+} from "@/lib/platform-analytics";
 
+/**
+ * Payouts, platform-wide or for one market. Every amount here is USDC — payouts settle on-chain in
+ * USDC whatever the market's premium currency — so the market selects WHICH payouts, never the
+ * unit they are shown in, and "All markets" is a sum in one unit. That is why this page, unlike
+ * revenue, offers it (and defaults to it). The old page formatted these as KES.
+ */
 export default function PayoutsAnalyticsPage() {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    to: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultAnalyticsRange);
   const [granularity, setGranularity] = useState<Granularity>("daily");
+  const marketFilter = useMarketFilter("any");
+  const { countryCode } = marketFilter;
+  const range = dateRangeParams(dateRange);
 
-  const { data } = useQuery({
-    queryKey: ["payoutsAnalytics", dateRange, granularity],
-    queryFn: () => api.getPayoutsAnalytics(),
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["payoutsAnalytics", countryCode ?? "ALL", range.startDate, range.endDate, granularity],
+    queryFn: () => api.getPayoutsAnalytics({ countryCode, granularity, ...range }),
   });
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Payouts Analytics</h1>
-          <p className="text-muted-foreground">Track payout performance and success rates</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <GranularitySelect value={granularity} onChange={setGranularity} />
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
-        </div>
-      </div>
+      <AnalyticsHeader
+        title="Payouts Analytics"
+        description={`Payout performance — ${marketFilter.market?.countryName ?? "all markets"} — amounts in USDC`}
+        mode="any"
+        marketFilter={marketFilter}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        granularity={granularity}
+        onGranularityChange={setGranularity}
+      />
+
+      {isError && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            We couldn't load payout analytics. Please try again.
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Amount"
-          value={formatCurrency(data?.totalAmount ?? 0)}
+          title="Total Paid (USDC)"
+          value={isLoading ? "—" : formatUsdcCompact(data?.totalUsdc)}
           icon={DollarSign}
         />
         <StatCard
-          title="Average Payout"
-          value={formatCurrency(data?.avgAmount ?? 0)}
+          title="Average Payout (USDC)"
+          value={isLoading ? "—" : formatUsdcCompact(data?.avgUsdc)}
           icon={TrendingUp}
         />
         <StatCard
           title="Total Payouts"
-          value={data?.count ?? 0}
+          value={isLoading ? "—" : (data?.count ?? 0).toLocaleString()}
           icon={Hash}
         />
         <StatCard
           title="Success Rate"
-          value={`${((data?.successRate ?? 0) * 100).toFixed(1)}%`}
+          value={isLoading ? "—" : formatRatio(data?.successRate ?? 0)}
           icon={CheckCircle}
         />
       </div>
@@ -73,11 +85,9 @@ export default function PayoutsAnalyticsPage() {
       <AreaChart
         data={data?.timeSeries ?? []}
         xKey="date"
-        yKeys={[
-          { key: "amount", name: "Amount (KES)", color: "hsl(var(--chart-1))" },
-        ]}
-        title="Payouts Over Time"
-        formatYAxis={(v) => formatCurrency(v)}
+        yKeys={[{ key: "amountUsdc", name: "Amount (USDC)", color: "hsl(var(--chart-1))" }]}
+        title="Payouts Over Time (USDC)"
+        formatYAxis={(v) => formatUsdcCompact(v)}
         height={300}
       />
 
