@@ -38,6 +38,7 @@ const PlatformDashboard = lazyRetry(() => import("@/pages/platform/PlatformDashb
 const OrganizationsPage = lazyRetry(() => import("@/pages/platform/OrganizationsPage"));
 const OrganizationDetailPage = lazyRetry(() => import("@/pages/platform/OrganizationDetailPage"));
 const InsuranceUnitsPage = lazyRetry(() => import("@/pages/platform/InsuranceUnitsPage"));
+const CataloguePage = lazyRetry(() => import("@/pages/platform/CataloguePage"));
 const RevenueAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/RevenueAnalyticsPage"));
 const PoliciesAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/PoliciesAnalyticsPage"));
 const FarmersAnalyticsPage = lazyRetry(() => import("@/pages/platform/analytics/FarmersAnalyticsPage"));
@@ -186,6 +187,7 @@ const App = () => (
                 <Route path="organizations" element={<OrganizationsPage />} />
                 <Route path="organizations/:orgId" element={<OrganizationDetailPage />} />
                 <Route path="insurance-units" element={<InsuranceUnitsPage />} />
+                <Route path="catalogue" element={<CataloguePage />} />
                 <Route path="analytics/revenue" element={<RevenueAnalyticsPage />} />
                 <Route path="analytics/policies" element={<PoliciesAnalyticsPage />} />
                 <Route path="analytics/farmers" element={<FarmersAnalyticsPage />} />

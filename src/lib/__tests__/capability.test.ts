@@ -191,6 +191,15 @@ describe('the enum carries no drain-path member', () => {
     }
   });
 
+  it('says livestock is gated by the market catalogue, not by a fixed crop-only rule', () => {
+    // The old copy said "Ghana is crop-only regardless of this switch" and called the cover
+    // "(IBLI)". What gates livestock now is the market's product catalogue.
+    const description = CAPABILITY_DESCRIPTIONS.LIVESTOCK_UNDERWRITING;
+    expect(description).toMatch(/product catalogue/i);
+    expect(description).not.toMatch(/crop-only/i);
+    expect(description).not.toMatch(/IBLI/);
+  });
+
   it('exposes the backend refusal code so a caller can branch on it', () => {
     expect(CAPABILITY_NOT_ENABLED).toBe('CAPABILITY_NOT_ENABLED');
   });

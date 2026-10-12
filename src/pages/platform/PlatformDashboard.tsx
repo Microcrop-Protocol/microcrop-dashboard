@@ -3,27 +3,60 @@ import { api } from "@/lib/api";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Building2,
-  Users,
-  FileText,
-  DollarSign,
-  Wallet,
-  TrendingUp,
-} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { MarketSelect } from "@/components/platform/MarketSelect";
+import { Building2, Users, FileText, DollarSign } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
+import { useMarketFilter } from "@/hooks/useMarketFilter";
+import { formatMoneyCompact, marketOrNull } from "@/lib/market";
+import { confirmedMarket, dateRangeParams, formatUsdcCompact } from "@/lib/platform-analytics";
+import type { PlatformCurrencyFinancials } from "@/types";
+
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+
+/**
+ * One market's premiums and fees, in that market's currency. Each card is labelled from its own
+ * row — never from the page's filter — and the rows are never added together.
+ */
+function CurrencyFinancialsCard({ row }: { row: PlatformCurrencyFinancials }) {
+  const market = confirmedMarket(row);
+  const name = marketOrNull(row.countryCode)?.countryName ?? row.countryCode;
+  return (
+    <Card data-testid={`financials-${row.countryCode}`}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">
+          {name} · {row.currency}
+        </CardTitle>
+        <CardDescription>Premiums and platform fees, in {row.currency}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">Premiums collected</p>
+          <p className="text-xl font-bold tabular-nums">{formatMoneyCompact(row.totalPremiums, market)}</p>
+        </div>
+        <div>
+          <p className="text-sm text-muted-foreground">Platform fees</p>
+          <p className="text-xl font-bold tabular-nums">{formatMoneyCompact(row.totalFees, market)}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function PlatformDashboard() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     to: new Date(),
   });
+  const { value: marketFilter, setValue: setMarketFilter, countryCode, market } = useMarketFilter("any");
+  const range = dateRangeParams(dateRange);
 
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ["platformStats", dateRange],
-    queryFn: () => api.getPlatformStats(),
+  const { data: stats, isLoading, isError } = useQuery({
+    queryKey: ["platformStats", countryCode ?? "ALL", range.startDate, range.endDate],
+    queryFn: () => api.getPlatformStats({ countryCode, ...range }),
   });
 
   const { data: activities } = useQuery({
@@ -31,21 +64,12 @@ export default function PlatformDashboard() {
     queryFn: () => api.getActivities(),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
-
-  const formatNumber = (value: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  // With one market selected only that market's row belongs on the page, even if the server
+  // returned more — a GHS card under a "Kenya" filter would read as Kenyan money.
+  const byCurrency = (stats?.financials.byCurrency ?? []).filter(
+    (row) => !countryCode || row.countryCode.toUpperCase() === countryCode,
+  );
+  const scope = market ? market.countryName : "all markets";
 
   return (
     <div className="space-y-6">
@@ -54,52 +78,80 @@ export default function PlatformDashboard() {
         <div>
           <h1 className="text-2xl font-bold">Platform Dashboard</h1>
           <p className="text-muted-foreground">
-            Overview of all organizations and platform metrics
+            Overview of organizations and platform metrics — {scope}
           </p>
         </div>
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <div className="flex flex-wrap items-center gap-2">
+          <MarketSelect mode="any" value={marketFilter} onChange={setMarketFilter} />
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {isError && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            We couldn't load platform metrics. Please try again.
+          </CardContent>
+        </Card>
+      )}
+
+      {/* KPI Cards — counts, and payouts in USDC (the one currency payouts settle in). */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Organizations"
-          value={stats?.totalOrganizations ?? 0}
-          subtitle={`${stats?.activeOrganizations ?? 0} active`}
+          value={isLoading ? "—" : formatNumber(stats?.organizations.total ?? 0)}
+          subtitle={`${stats?.organizations.active ?? 0} active`}
           icon={Building2}
         />
         <StatCard
           title="Total Farmers"
-          value={formatNumber(stats?.totalFarmers ?? 0)}
+          value={isLoading ? "—" : formatNumber(stats?.farmers.total ?? 0)}
           icon={Users}
         />
         <StatCard
           title="Active Policies"
-          value={formatNumber(stats?.activePolicies ?? 0)}
-          subtitle={`+${stats?.newPoliciesPeriod ?? 0} this period`}
+          value={isLoading ? "—" : formatNumber(stats?.policies.active ?? 0)}
+          subtitle={`+${stats?.policies.periodNew ?? 0} this period`}
           icon={FileText}
         />
         <StatCard
-          title="Total Revenue"
-          value={formatCurrency(stats?.totalRevenue ?? 0)}
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="Premiums Collected"
-          value={formatCurrency(stats?.premiumsCollected ?? 0)}
-          icon={Wallet}
-        />
-        <StatCard
-          title="Payouts Sent"
-          value={formatCurrency(stats?.payoutsSent ?? 0)}
+          title="Payouts Sent (USDC)"
+          value={isLoading ? "—" : formatUsdcCompact(stats?.financials.totalPayoutsUsdc ?? 0)}
+          subtitle={`${stats?.financials.totalPayoutCount ?? 0} payouts · settled in USDC`}
           icon={DollarSign}
         />
       </div>
+
+      {/* Money in local currency, one card per market. */}
+      <section aria-labelledby="financials-heading" className="space-y-3">
+        <h2 id="financials-heading" className="text-base font-semibold">
+          Premiums and fees by market
+        </h2>
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+        ) : byCurrency.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No premiums or fees recorded for {scope}.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {byCurrency.map((row) => (
+              <CurrencyFinancialsCard key={`${row.countryCode}-${row.currency}`} row={row} />
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Activity Feed */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent Activity</CardTitle>
+          <CardDescription>Across all markets</CardDescription>
         </CardHeader>
         <CardContent>
           <ActivityFeed activities={activities?.data ?? []} maxItems={5} />

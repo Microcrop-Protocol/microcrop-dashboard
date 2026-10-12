@@ -7,7 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { resolveFileUrl } from '@/lib/utils';
-import { FileText, Loader2, ShieldCheck, ShieldAlert, ExternalLink, ScanSearch } from 'lucide-react';
+import { FileText, Loader2, ShieldCheck, ShieldAlert, ExternalLink, ScanSearch, Globe2 } from 'lucide-react';
+import { KybChecklistPanel } from '@/components/platform/KybChecklistPanel';
+import { kybReviewMarket } from '@/lib/kyb-review';
+import { level1Label, marketOrNull } from '@/lib/market';
 // The PLATFORM-ADMIN verification type. The org-facing `OrgKybVerification` deliberately does
 // not declare the Sumsub verdict — the backend withholds it from the screened party — and this
 // page is the surface that is entitled to it. Using the org-facing type here would make the
@@ -97,7 +100,10 @@ export default function OrgKybReviewPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">KYB Review</h1>
-        <p className="text-sm text-muted-foreground">Organizations awaiting KYB verification.</p>
+        <p className="text-sm text-muted-foreground">
+          Organizations awaiting KYB verification. Each is reviewed against its own market's
+          regulator and required documents.
+        </p>
       </div>
 
       {items.length === 0 ? (
@@ -108,112 +114,139 @@ export default function OrgKybReviewPage() {
           </CardContent>
         </Card>
       ) : (
-        items.map((org) => (
-          <Card key={org.id}>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <CardTitle className="text-base">{org.name}</CardTitle>
-                  <CardDescription>
-                    {org.type} · Reg {org.registrationNumber}
-                    {org.county ? ` · ${org.county}` : ''}
-                  </CardDescription>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {org.contactPerson} · {org.contactEmail} · {org.contactPhone}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <Badge variant="secondary">{(org.kybStatus ?? '').replace(/_/g, ' ')}</Badge>
-                  <ScreeningBadge verification={org.kybVerification} />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {org.kybVerification?.regulatorLicenseNumber && (
-                <div className="rounded-md bg-muted/50 p-3 text-sm">
-                  <span className="font-medium">
-                    {org.kybVerification.regulator ?? 'Regulator'} license:
-                  </span>{' '}
-                  {org.kybVerification.regulatorLicenseNumber}
-                  {org.kybVerification.licenseExpiresAt && (
-                    <span className="text-muted-foreground">
-                      {' '}· expires {new Date(org.kybVerification.licenseExpiresAt).toLocaleDateString()}
-                    </span>
-                  )}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Check this number against the {org.kybVerification.regulator ?? 'regulator'}'s
-                    register of licensed insurers before approving.
-                  </p>
-                </div>
-              )}
-
-              {org.kybVerification?.sumsubReviewAnswer === 'RED' && (
-                <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
-                  <p className="font-medium text-destructive">Compliance screening flagged this organization</p>
-                  {(org.kybVerification.sumsubReviewPayload?.reviewResult?.rejectLabels?.length ?? 0) > 0 && (
-                    <p className="mt-1 text-muted-foreground">
-                      Reasons: {org.kybVerification.sumsubReviewPayload?.reviewResult?.rejectLabels?.join(', ')}
+        items.map((org) => {
+          const market = kybReviewMarket(org);
+          return (
+            <Card key={org.id}>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-base">{org.name}</CardTitle>
+                    <CardDescription>
+                      {org.type} · Reg {org.registrationNumber ?? 'not yet provided'}
+                      {org.county ? ` · ${level1Label(marketOrNull(market.countryCode))}: ${org.county}` : ''}
+                    </CardDescription>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {market.known ? (
+                        <Badge variant="outline" className="gap-1" data-testid="kyb-market">
+                          <Globe2 className="h-3 w-3" /> {market.countryName}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="gap-1" data-testid="kyb-market">
+                          <Globe2 className="h-3 w-3" />
+                          {market.countryCode ? `Unrecognised market (${market.countryCode})` : 'Market unknown'}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" data-testid="kyb-regulator">
+                        Regulator: {market.regulator ?? 'unknown'}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {org.contactPerson} · {org.contactEmail} · {org.contactPhone}
                     </p>
-                  )}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Approval is blocked until the screening is resolved in Sumsub and a new GREEN result arrives.
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                {(org.kybVerification?.documents ?? []).map((d) => (
-                  <a
-                    key={d.id}
-                    href={resolveFileUrl(d.fileUrl)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-primary hover:underline"
-                  >
-                    <FileText className="h-4 w-4" />
-                    {d.documentType.replace(/_/g, ' ')} — {d.fileName}
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                ))}
-                {(org.kybVerification?.documents?.length ?? 0) === 0 && (
-                  <p className="text-sm text-muted-foreground">No documents submitted.</p>
-                )}
-              </div>
-
-              {rejecting === org.id ? (
-                <div className="space-y-2">
-                  <Input
-                    placeholder="Reason for rejection (sent to the org)"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      variant="destructive"
-                      disabled={reviewMutation.isPending || !notes.trim()}
-                      onClick={() => reviewMutation.mutate({ orgId: org.id, decision: 'REJECTED', notes })}
-                    >
-                      Confirm rejection
-                    </Button>
-                    <Button variant="outline" onClick={() => { setRejecting(null); setNotes(''); }}>Cancel</Button>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="secondary">{(org.kybStatus ?? '').replace(/_/g, ' ')}</Badge>
+                    <ScreeningBadge verification={org.kybVerification} />
                   </div>
                 </div>
-              ) : (
-                <div className="flex gap-2">
-                  <Button
-                    disabled={reviewMutation.isPending || org.kybVerification?.sumsubReviewAnswer === 'RED'}
-                    onClick={() => reviewMutation.mutate({ orgId: org.id, decision: 'APPROVED' })}
-                  >
-                    <ShieldCheck className="mr-2 h-4 w-4" /> Approve
-                  </Button>
-                  <Button variant="outline" onClick={() => { setRejecting(org.id); setNotes(''); }}>
-                    <ShieldAlert className="mr-2 h-4 w-4" /> Reject
-                  </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {org.kybVerification?.regulatorLicenseNumber && (
+                  <div className="rounded-md bg-muted/50 p-3 text-sm">
+                    <span className="font-medium">
+                      {org.kybVerification.regulator ?? 'Regulator'} license:
+                    </span>{' '}
+                    {org.kybVerification.regulatorLicenseNumber}
+                    {org.kybVerification.licenseExpiresAt && (
+                      <span className="text-muted-foreground">
+                        {' '}· expires {new Date(org.kybVerification.licenseExpiresAt).toLocaleDateString()}
+                      </span>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Check this number against the {org.kybVerification.regulator ?? market.regulator ?? 'regulator'}'s
+                      register of licensed insurers before approving.
+                    </p>
+                    {market.regulator && org.kybVerification.regulator &&
+                      org.kybVerification.regulator.toUpperCase() !== market.regulator.toUpperCase() && (
+                      <p className="mt-1 text-xs text-destructive">
+                        The licence names {org.kybVerification.regulator}, but {market.countryName ?? 'this market'} is
+                        regulated by {market.regulator}.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <KybChecklistPanel orgId={org.id} expectedCountryCode={market.countryCode} />
+
+                {org.kybVerification?.sumsubReviewAnswer === 'RED' && (
+                  <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+                    <p className="font-medium text-destructive">Compliance screening flagged this organization</p>
+                    {(org.kybVerification.sumsubReviewPayload?.reviewResult?.rejectLabels?.length ?? 0) > 0 && (
+                      <p className="mt-1 text-muted-foreground">
+                        Reasons: {org.kybVerification.sumsubReviewPayload?.reviewResult?.rejectLabels?.join(', ')}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Approval is blocked until the screening is resolved in Sumsub and a new GREEN result arrives.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {(org.kybVerification?.documents ?? []).map((d) => (
+                    <a
+                      key={d.id}
+                      href={resolveFileUrl(d.fileUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-primary hover:underline"
+                    >
+                      <FileText className="h-4 w-4" />
+                      {d.documentType.replace(/_/g, ' ')} — {d.fileName}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ))}
+                  {(org.kybVerification?.documents?.length ?? 0) === 0 && (
+                    <p className="text-sm text-muted-foreground">No documents submitted.</p>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))
+
+                {rejecting === org.id ? (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Reason for rejection (sent to the org)"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="destructive"
+                        disabled={reviewMutation.isPending || !notes.trim()}
+                        onClick={() => reviewMutation.mutate({ orgId: org.id, decision: 'REJECTED', notes })}
+                      >
+                        Confirm rejection
+                      </Button>
+                      <Button variant="outline" onClick={() => { setRejecting(null); setNotes(''); }}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={reviewMutation.isPending || org.kybVerification?.sumsubReviewAnswer === 'RED'}
+                      onClick={() => reviewMutation.mutate({ orgId: org.id, decision: 'APPROVED' })}
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Approve
+                    </Button>
+                    <Button variant="outline" onClick={() => { setRejecting(org.id); setNotes(''); }}>
+                      <ShieldAlert className="mr-2 h-4 w-4" /> Reject
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
       )}
     </div>
   );

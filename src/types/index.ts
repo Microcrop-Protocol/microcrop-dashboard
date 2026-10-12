@@ -299,6 +299,14 @@ export interface OrgKybReview {
   contactEmail?: string | null;
   contactPhone?: string | null;
   county?: string | null;
+  /**
+   * The organization's market. Decides which regulator licenses it and which documents its KYB
+   * checklist requires. Absent on an older backend or a legacy row: the reviewer is then told the
+   * market is unknown rather than shown Kenya.
+   */
+  countryCode?: string | null;
+  /** The market's insurance regulator as the server names it (IRA, NIC). */
+  regulator?: string | null;
   kybStatus: KYBStatus;
   createdAt: string;
   kybVerification: OrgKybReviewVerification | null;
@@ -835,16 +843,37 @@ export interface PolicyExpireCheck {
   daysRemaining: number;
 }
 
-// Platform Stats
+// Platform Stats — GET /dashboard/platform/overview (dashboard.platform.service getOverview).
+//
+// The backend has always answered in this NESTED shape; the dashboard used to declare a flat one
+// (`totalOrganizations`, `premiumsCollected`, ...) that no response ever carried, so every tile
+// read `undefined ?? 0` and the platform dashboard showed zeros in production.
+
+/** One market's premium/fee totals, in THAT market's currency. Never summed across entries. */
+export interface PlatformCurrencyFinancials {
+  countryCode: string;
+  /** ISO 4217, as the server states it. */
+  currency: string;
+  totalPremiums: number;
+  totalFees: number;
+}
+
 export interface PlatformStats {
-  totalOrganizations: number;
-  activeOrganizations: number;
-  totalFarmers: number;
-  activePolicies: number;
-  newPoliciesPeriod: number;
-  totalRevenue: number;
-  premiumsCollected: number;
-  payoutsSent: number;
+  organizations: { total: number; active: number; inactive: number };
+  policies: { total: number; active: number; periodNew: number };
+  farmers: { total: number };
+  /**
+   * Deliberately NOT declared: the legacy `financials.totalPremiums` / `totalRevenue`, which sum
+   * KES and GHS rows into one number. A mixed-currency total has no unit, so it must not be
+   * renderable; money comes from `byCurrency` (local) and `totalPayoutsUsdc` (payouts settle in
+   * USDC in every market).
+   */
+  financials: {
+    byCurrency: PlatformCurrencyFinancials[];
+    totalPayoutsUsdc: number;
+    totalPayoutCount: number;
+  };
+  period: { start: string | null; end: string | null };
 }
 
 // Satellite Monitoring Types
@@ -1739,3 +1768,6 @@ export interface WithdrawConsentResponse {
   alreadyRevoked: boolean;
   status: ConsentStatus;
 }
+
+export * from './catalogue';
+export * from './platform-analytics';
