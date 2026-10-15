@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { isRoleAllowedOnSubdomain, getCorrectSubdomain } from "@/lib/subdomain";
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import type { UserRole } from '@/types';
+import { SessionReconnecting } from "./SessionReconnecting";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -14,7 +15,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles, requiredPermission, requiredCan }: ProtectedRouteProps) {
-  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const { isAuthenticated, user, isLoading, tokens, refreshError } = useAuthStore();
   const perms = usePermissions();
   const location = useLocation();
 
@@ -28,6 +29,12 @@ export function ProtectedRoute({ children, allowedRoles, requiredPermission, req
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Signed in, but the refresh after a reload couldn't reach the server, so there is no access
+  // token yet. Not a logout: hold the page (and its URL) until a retry succeeds.
+  if (refreshError && !tokens?.accessToken) {
+    return <SessionReconnecting message={refreshError} />;
   }
 
   // Enforce subdomain restrictions

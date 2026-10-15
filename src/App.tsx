@@ -1,4 +1,3 @@
-import { Suspense, lazy, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,23 +7,10 @@ import { useAuthStore } from "@/stores/authStore";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { getSubdomainContext } from "@/lib/subdomain";
-import { reloadOnceForStaleChunk } from "@/lib/chunk-reload";
-
-// Recover from stale route chunks after a deploy (see lib/chunk-reload).
-function lazyRetry(importFn: () => Promise<{ default: ComponentType }>) {
-  return lazy(() =>
-    importFn().catch((error) => {
-      // Not reloaded recently → reload to pick up the new build, and hang this
-      // import until the page navigates away. Otherwise surface the error.
-      if (reloadOnceForStaleChunk()) {
-        return new Promise<{ default: ComponentType }>(() => {});
-      }
-      throw error;
-    })
-  );
-}
+import { lazyRetry } from "@/lib/lazy-retry";
 
 // Auth pages
 const LoginPage = lazyRetry(() => import("@/pages/auth/LoginPage"));
@@ -84,15 +70,6 @@ const DocsPage = lazyRetry(() => import("@/pages/docs/DocsPage"));
 
 const NotFound = lazyRetry(() => import("@/pages/NotFound"));
 
-function PageLoader() {
-  return (
-    <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-label="Loading page">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      <span className="sr-only">Loading\u2026</span>
-    </div>
-  );
-}
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -149,7 +126,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Suspense fallback={<PageLoader />}>
+          {/* Resets on navigation, so a failed page is cleared by moving away from it. The
+              outer ErrorBoundary remains the last resort for anything outside the router. */}
+          <RouteErrorBoundary>
             <Routes>
               {/* Root redirect */}
               <Route path="/" element={<RootRedirect />} />
@@ -264,7 +243,7 @@ const App = () => (
               {/* 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </Suspense>
+          </RouteErrorBoundary>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

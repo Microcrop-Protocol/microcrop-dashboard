@@ -6,6 +6,9 @@ vi.mock('@/lib/api/client', () => ({
     setAccessToken: vi.fn(),
     onUnauthorized: vi.fn(),
     onOrgDeactivated: vi.fn(),
+    onRefreshNeeded: vi.fn(),
+    setAuthGate: vi.fn(),
+    getAccessToken: vi.fn(),
     refreshToken: vi.fn(),
   },
 }));
@@ -452,8 +455,10 @@ describe('authStore', () => {
       expect(useAuthStore.getState().user).toBeNull();
     });
 
-    it('should logout on refresh failure', async () => {
-      vi.mocked(apiClient.refreshToken).mockRejectedValue(new Error('Refresh failed'));
+    it('should logout when the server rejects the refresh token (401)', async () => {
+      vi.mocked(apiClient.refreshToken).mockRejectedValue(
+        Object.assign(new Error('Refresh token has been revoked'), { status: 401 })
+      );
 
       useAuthStore.getState().login(mockUser, mockTokens);
       vi.clearAllMocks();

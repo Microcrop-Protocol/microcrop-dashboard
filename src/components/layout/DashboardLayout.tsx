@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 interface DashboardLayoutProps {
   title?: string;
@@ -19,7 +20,11 @@ export function DashboardLayout({ title }: DashboardLayoutProps) {
       <div className="flex flex-1 flex-col">
         <AppHeader title={title} onMenuClick={() => setSidebarOpen(true)} />
         <main id="main-content" className="flex-1 overflow-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-6 md:pb-[max(1.5rem,env(safe-area-inset-bottom))] scroll-mt-16">
-          <Outlet />
+          {/* A page that throws or is still loading stays inside the shell: sidebar and
+              header remain usable, and navigating clears the error. */}
+          <RouteErrorBoundary>
+            <Outlet />
+          </RouteErrorBoundary>
         </main>
       </div>
     </div>
