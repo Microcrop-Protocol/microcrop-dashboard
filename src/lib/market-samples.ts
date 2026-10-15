@@ -29,6 +29,11 @@ export interface MarketSamples {
   /** A point inside the market, for a plot location example. Decimal-degree strings. */
   latitude: string;
   longitude: string;
+  /**
+   * A planting date inside the market's main crop season (KE long rains, March–May; GH major
+   * season, April–July), ISO `YYYY-MM-DD`, for the plot import template.
+   */
+  plantingDate: string;
 }
 
 const SAMPLES: Readonly<Record<CountryCode, MarketSamples>> = Object.freeze({
@@ -42,6 +47,7 @@ const SAMPLES: Readonly<Record<CountryCode, MarketSamples>> = Object.freeze({
     pastoralLevel2: 'Turkana Central',
     latitude: '-0.3031',
     longitude: '36.08',
+    plantingDate: '2026-03-15',
   },
   GH: {
     lastName: 'Mensah',
@@ -53,6 +59,7 @@ const SAMPLES: Readonly<Record<CountryCode, MarketSamples>> = Object.freeze({
     pastoralLevel2: '',
     latitude: '6.6885',
     longitude: '-1.6244',
+    plantingDate: '2026-04-15',
   },
 });
 
