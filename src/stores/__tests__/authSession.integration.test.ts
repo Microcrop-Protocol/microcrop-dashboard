@@ -168,6 +168,85 @@ describe('auth session over the real API client', () => {
     expect(window.location.href).toBe('/org/policies');
   });
 
+  it('requests queued behind a failed reload refresh fail fast instead of starting a second refresh', async () => {
+    seedPersisted('R1');
+    const be = installBackend('R1');
+    be.refreshResponse = () => ({
+      status: 429,
+      body: {
+        success: false,
+        error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests.', details: { limit: 30, retryAfter: 60 } },
+      },
+    });
+    const { useAuthStore, apiClient } = await freshModules();
+    // Fired while the post-reload refresh is in flight, so they wait behind it.
+    const pending = [apiClient.getMyOrganization(), apiClient.getMyOrganizationStats()];
+
+    for (const p of pending) await expect(p).rejects.toMatchObject({ status: 0 });
+    await vi.waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(be.refreshCalls).toEqual(['R1']); // retryAfter is honoured, no extra refresh
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(window.location.href).toBe('/org/policies');
+  });
+
+  it('a 401 while a refresh retry is scheduled does not jump the queue', async () => {
+    seedPersisted('R1');
+    const be = installBackend('R1');
+    const { useAuthStore, apiClient } = await freshModules();
+    await vi.waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+
+    be.validAccess.clear();
+    be.refreshResponse = () => ({
+      status: 429,
+      body: {
+        success: false,
+        error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests.', details: { limit: 30, retryAfter: 60 } },
+      },
+    });
+    await expect(apiClient.getMyOrganization()).rejects.toMatchObject({ status: 401 });
+    expect(be.refreshCalls).toEqual(['R1', 'R2']);
+
+    await expect(apiClient.getMyOrganizationStats()).rejects.toMatchObject({ status: 401 });
+    expect(be.refreshCalls).toEqual(['R1', 'R2']); // waits for the scheduled retry
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it('a refresh that never answers times out as a network error and keeps the session', async () => {
+    // AbortSignal.timeout is missing from jsdom (and runs on the platform's own timer where it
+    // exists), so stand in for it with a signal the test fires, and check the client asked for
+    // the 15-second budget.
+    const timeout = new AbortController();
+    const original = Object.getOwnPropertyDescriptor(AbortSignal, 'timeout');
+    const timeoutSpy = vi.fn(() => timeout.signal);
+    Object.defineProperty(AbortSignal, 'timeout', { value: timeoutSpy, configurable: true });
+    let useAuthStore: Awaited<ReturnType<typeof freshModules>>['useAuthStore'] | undefined;
+    try {
+      seedPersisted('R1');
+      globalThis.fetch = vi.fn((_url: string, init: RequestInit = {}) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('The operation timed out.', 'TimeoutError'))
+          );
+        })
+      ) as unknown as typeof fetch;
+      const store = (await freshModules()).useAuthStore;
+      useAuthStore = store;
+      expect(store.getState().isLoading).toBe(true);
+      expect(timeoutSpy).toHaveBeenCalledWith(15_000);
+
+      timeout.abort();
+      await vi.waitFor(() => expect(store.getState().isLoading).toBe(false));
+
+      expect(store.getState().isAuthenticated).toBe(true);
+      expect(store.getState().refreshError).toBeTruthy();
+      expect(window.location.href).toBe('/org/policies');
+    } finally {
+      if (original) Object.defineProperty(AbortSignal, 'timeout', original);
+      else delete (AbortSignal as unknown as Record<string, unknown>).timeout;
+      useAuthStore?.getState().logout(); // cancel the scheduled retry
+    }
+  });
+
   it('a reload whose refresh is rejected logs out to /login', async () => {
     seedPersisted('R-revoked');
     installBackend('R1');

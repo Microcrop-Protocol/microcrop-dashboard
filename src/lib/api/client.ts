@@ -88,13 +88,29 @@ function splitErrorDetails(
   return [undefined, undefined];
 }
 
+/**
+ * How a token refresh ended, as seen by requests held behind it (see setAuthGate).
+ * 'unavailable' means the server could not be asked (rate limit, network, 5xx).
+ */
+export type AuthGateOutcome = 'refreshed' | 'loggedOut' | 'unavailable';
+
+// A refresh that has not answered by now is treated as a network failure (status 0, transient),
+// so a stalled connection cannot hold the cross-tab refresh lock and the request gate forever.
+export const REFRESH_TIMEOUT_MS = 15 * 1000;
+
+function timeoutSignal(ms: number): AbortSignal | undefined {
+  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(ms)
+    : undefined;
+}
+
 class ApiClient {
   private baseUrl: string;
   private accessToken: string | null = null;
   private onAuthError: (() => void) | null = null;
   private onDeactivated: (() => void) | null = null;
   private refreshHandler: (() => Promise<string | null>) | null = null;
-  private authGate: Promise<unknown> | null = null;
+  private authGate: Promise<AuthGateOutcome> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -134,7 +150,7 @@ class ApiClient {
    * that follows a page reload (when there is no access token yet) is held instead of going
    * out bare, 401ing and logging the user out.
    */
-  setAuthGate(gate: Promise<unknown> | null) {
+  setAuthGate(gate: Promise<AuthGateOutcome> | null) {
     this.authGate = gate;
   }
 
@@ -163,10 +179,16 @@ class ApiClient {
     const authenticated = !this.isCredentialEndpoint(endpoint);
 
     if (authenticated && this.authGate) {
+      let outcome: AuthGateOutcome | undefined;
       try {
-        await this.authGate;
+        outcome = await this.authGate;
       } catch {
         // The gate only orders requests after the refresh; its outcome is handled elsewhere.
+      }
+      if (outcome === 'unavailable' && !this.accessToken) {
+        // The refresh we waited for could not reach the server and there is no token to send.
+        // Going out bare would only 401 and start a second refresh that ignores retryAfter.
+        throw new ApiError('Session refresh is temporarily unavailable.', 0);
       }
     }
 
@@ -437,6 +459,7 @@ class ApiClient {
     }>('/auth/refresh-token', {
       method: 'POST',
       body: JSON.stringify({ refreshToken }),
+      signal: timeoutSignal(REFRESH_TIMEOUT_MS),
     });
   }
 

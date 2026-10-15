@@ -161,12 +161,17 @@ function scheduleRetry(getState: () => AuthState, err: unknown): void {
  * else, including 429 from the rate limiter, a network failure (status 0) and 5xx, says nothing
  * about the token, so it must not log the user out.
  *
+ * 403 is deliberately NOT a rejection: the backend never sends it from /auth/refresh-token, but
+ * a Cloudflare WAF block or challenge page does. Likewise any non-JSON body (INVALID_RESPONSE)
+ * came from something in front of the API, not from the API judging the token.
+ *
  * Duck-typed on `status` rather than `instanceof ApiError` so it also holds for errors raised
  * by a mocked client.
  */
 function isSessionRejected(err: unknown): boolean {
-  const status = (err as { status?: unknown } | null)?.status;
-  return status === 400 || status === 401 || status === 403;
+  const e = err as { status?: unknown; code?: unknown } | null;
+  if (e?.code === 'INVALID_RESPONSE') return false;
+  return e?.status === 400 || e?.status === 401;
 }
 
 /**
@@ -175,13 +180,28 @@ function isSessionRejected(err: unknown): boolean {
  * storage could not be read, and the caller falls back to the in-memory token.
  */
 function readStoredRefreshToken(): string | null | undefined {
+  const stored = readStoredAuth();
+  return stored === undefined ? undefined : stored.refreshToken;
+}
+
+/**
+ * The persisted session: its refresh token (`null` = signed out) and the id of the user it
+ * belongs to. `undefined` when storage could not be read.
+ */
+function readStoredAuth(): { refreshToken: string | null; userId: string | null } | undefined {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return null;
-    const parsed = JSON.parse(raw) as { state?: { tokens?: { refreshToken?: unknown } | null } };
+    if (raw === null) return { refreshToken: null, userId: null };
+    const parsed = JSON.parse(raw) as {
+      state?: { tokens?: { refreshToken?: unknown } | null; user?: { id?: unknown } | null };
+    };
     if (!parsed?.state) return undefined;
     const token = parsed.state.tokens?.refreshToken;
-    return typeof token === 'string' && token ? token : null;
+    const userId = parsed.state.user?.id;
+    return {
+      refreshToken: typeof token === 'string' && token ? token : null,
+      userId: typeof userId === 'string' && userId ? userId : null,
+    };
   } catch {
     return undefined;
   }
@@ -295,6 +315,11 @@ apiClient.onUnauthorized(() => {
 // is over, so the client falls through to onUnauthorized; throws when the server could not be
 // reached, so the client surfaces the error without logging out.
 apiClient.onRefreshNeeded(async () => {
+  if (!refreshPromise && transientFailures > 0 && refreshTimer) {
+    // The last refresh failed transiently and a retry is already scheduled (honouring the
+    // server's retryAfter). Don't jump the queue with another one.
+    throw new Error('Session refresh is temporarily unavailable.');
+  }
   const outcome = await runRefresh(useAuthStore.getState, useAuthStore.setState);
   if (outcome === 'refreshed') return apiClient.getAccessToken();
   if (outcome === 'loggedOut') return null;
@@ -371,8 +396,9 @@ export const useAuthStore = create<AuthState>()(
       /**
        * Refresh policy:
        * - success: new tokens, next silent refresh armed.
-       * - 401/400/403 from /auth/refresh-token: the token is dead, log out and go to /login.
-       * - anything else (429, network, 5xx): keep the session, set `refreshError`, retry on a
+       * - 401/400 (a JSON answer from the API) on /auth/refresh-token: the token is dead, log
+       *   out and go to /login.
+       * - anything else (429, network, timeout, 5xx, a 403/HTML page from the CDN): keep the session, set `refreshError`, retry on a
        *   backoff (honouring the server's retryAfter). After a reload ProtectedRoute shows a
        *   "reconnecting" panel instead of the login page until a retry succeeds.
        */
@@ -454,12 +480,19 @@ if (typeof window !== 'undefined') {
     const state = useAuthStore.getState();
     if (!state.isAuthenticated) return;
 
-    const stored = readStoredRefreshToken();
-    if (stored === undefined) return;
+    const storedAuth = readStoredAuth();
+    if (storedAuth === undefined) return;
+    const stored = storedAuth.refreshToken;
     if (stored === null) {
       // Signed out in another tab.
       state.logout();
       redirectToLogin();
+      return;
+    }
+    if (storedAuth.userId !== (state.user?.id ?? null)) {
+      // Another tab signed in as someone else. Never graft their refresh token onto this tab's
+      // user and role; reload so this tab starts over from the stored session.
+      window.location.reload();
       return;
     }
     if (state.tokens && stored !== state.tokens.refreshToken) {

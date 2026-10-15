@@ -174,6 +174,42 @@ describe('page reload', () => {
     expect(window.location.href).toBe('/org/policies');
   });
 
+  it('a Cloudflare 403 page (HTML, not the API) keeps the session', async () => {
+    seedPersisted('R1');
+    refreshToken.mockRejectedValue(
+      new ApiError('Server returned invalid response (HTTP 403)', 403, 'INVALID_RESPONSE')
+    );
+
+    const store = await reload();
+
+    expect(store.getState().isAuthenticated).toBe(true);
+    expect(store.getState().tokens?.refreshToken).toBe('R1');
+    expect(store.getState().refreshError).toBeTruthy();
+    expect(window.location.href).toBe('/org/policies');
+  });
+
+  it('a 403 is never read as a rejected refresh token (the API does not send one)', async () => {
+    seedPersisted('R1');
+    refreshToken.mockRejectedValue(new ApiError('Forbidden', 403, 'FORBIDDEN'));
+
+    const store = await reload();
+
+    expect(store.getState().isAuthenticated).toBe(true);
+    expect(window.location.href).toBe('/org/policies');
+  });
+
+  it('a non-JSON 401 from a proxy is not read as a rejected refresh token', async () => {
+    seedPersisted('R1');
+    refreshToken.mockRejectedValue(
+      new ApiError('Server returned invalid response (HTTP 401)', 401, 'INVALID_RESPONSE')
+    );
+
+    const store = await reload();
+
+    expect(store.getState().isAuthenticated).toBe(true);
+    expect(window.location.href).toBe('/org/policies');
+  });
+
   it('an invalid or revoked refresh token (401) logs out cleanly to /login', async () => {
     seedPersisted('R1');
     refreshToken.mockRejectedValue(new ApiError('Refresh token has been revoked', 401, 'UNAUTHORIZED'));
@@ -249,6 +285,55 @@ describe('concurrent refreshes do not invalidate each other', () => {
     expect(tabB.getState().isAuthenticated).toBe(true);
     expect(window.location.href).toBe('/org/policies');
     expect(storedRefreshToken()).toBe('R5');
+  });
+
+  it("another tab signing in as a different user reloads this tab instead of taking that user's token", async () => {
+    seedPersisted('R1');
+    refreshToken.mockImplementation(rotatingServer('R1'));
+    const tab = await reload();
+    const reloadPage = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { href: '/org/policies', reload: reloadPage },
+      writable: true,
+    });
+
+    localStorage.setItem('microcrop-auth', JSON.stringify({
+      state: {
+        user: { ...user, id: 'u2', role: 'ORG_VIEWER' },
+        isAuthenticated: true,
+        tokens: { accessToken: '', refreshToken: 'RX', expiresAt: Date.now() + 30 * 60_000 },
+      },
+      version: 0,
+    }));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'microcrop-auth' }));
+
+    expect(reloadPage).toHaveBeenCalled();
+    expect(tab.getState().tokens?.refreshToken).not.toBe('RX');
+    expect(tab.getState().user?.id).toBe('u1');
+  });
+
+  it('a rotation by the same user in another tab is still adopted', async () => {
+    seedPersisted('R1');
+    refreshToken.mockImplementation(rotatingServer('R1'));
+    const tab = await reload();
+    const reloadPage = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { href: '/org/policies', reload: reloadPage },
+      writable: true,
+    });
+
+    localStorage.setItem('microcrop-auth', JSON.stringify({
+      state: {
+        user,
+        isAuthenticated: true,
+        tokens: { accessToken: '', refreshToken: 'R9', expiresAt: Date.now() + 30 * 60_000 },
+      },
+      version: 0,
+    }));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'microcrop-auth' }));
+
+    expect(reloadPage).not.toHaveBeenCalled();
+    expect(tab.getState().tokens?.refreshToken).toBe('R9');
   });
 
   it('a sign-out in another tab is picked up instead of refreshing with a dead token', async () => {
