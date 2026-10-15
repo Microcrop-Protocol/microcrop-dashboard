@@ -23,24 +23,49 @@ export const FARMER_HEADER_MAP: Record<string, string> = {
   nid: "nationalId",
   idnumber: "nationalId",
   county: "county",
+  // Ghana's names for the two division columns. The columns stay `county` / `subCounty` in every
+  // market (that is what the API takes); only the label differs.
+  region: "county",
   subcounty: "subCounty",
+  district: "subCounty",
   ward: "ward",
   village: "village",
+  // KYC: farmers arrive PENDING unless the file says APPROVED (which needs kyc:decide server-side).
+  kycstatus: "kycStatus",
+  kyc: "kycStatus",
+  // Consent, flattened for CSV. prepareFarmerRows folds these into the nested `consent` object the
+  // API takes; the backend contract stays nested.
+  consentdocumentids: "consentDocumentIds",
+  consentmethod: "consentMethod",
+  consentgrantedat: "consentGrantedAt",
+  consentevidenceref: "consentEvidenceRef",
+  consentlocale: "consentLocale",
 };
 
-export const PLOT_HEADER_MAP: Record<string, string> = {
+/** The two ways an imported plot or herd row may name its farmer. */
+const FARMER_KEY_ALIASES: Record<string, string> = {
   farmerphone: "farmerPhone",
   phone: "farmerPhone",
   phonenumber: "farmerPhone",
   mobile: "farmerPhone",
-  name: "name",
-  plotname: "name",
+  farmernationalid: "farmerNationalId",
+  nationalid: "farmerNationalId",
+};
+
+const COORDINATE_ALIASES: Record<string, string> = {
   latitude: "latitude",
   lat: "latitude",
   longitude: "longitude",
   lng: "longitude",
   lon: "longitude",
   long: "longitude",
+};
+
+export const PLOT_HEADER_MAP: Record<string, string> = {
+  ...FARMER_KEY_ALIASES,
+  name: "name",
+  plotname: "name",
+  ...COORDINATE_ALIASES,
   // Plot-size aliases. All collapse to the single canonical `acreage` field; the
   // *unit* is recovered separately from the original header (see detectAreaUnit)
   // and every value is normalized to acres before being stored.
@@ -66,10 +91,65 @@ export const PLOT_HEADER_MAP: Record<string, string> = {
   sizeacres: "acreage",
   croptype: "cropType",
   crop: "cropType",
+  // Optional, but the drought determination cannot run without it.
+  plantingdate: "plantingDate",
+  planted: "plantingDate",
+  dateplanted: "plantingDate",
+  plantedon: "plantingDate",
 };
 
-export const FARMER_REQUIRED = ["firstName", "lastName", "phoneNumber", "nationalId", "county"];
-export const PLOT_REQUIRED = ["farmerPhone", "name", "latitude", "longitude", "acreage", "cropType"];
+export const HERD_HEADER_MAP: Record<string, string> = {
+  ...FARMER_KEY_ALIASES,
+  name: "name",
+  herdname: "name",
+  livestocktype: "livestockType",
+  livestock: "livestockType",
+  animal: "livestockType",
+  species: "livestockType",
+  headcount: "headCount",
+  heads: "headCount",
+  count: "headCount",
+  numberofanimals: "headCount",
+  estimatedvalue: "estimatedValue",
+  valueperhead: "estimatedValue",
+  ...COORDINATE_ALIASES,
+};
+
+/**
+ * A required column, or a set of alternatives of which ONE must be present (a plot or herd row
+ * names its farmer by phone or by national ID).
+ */
+export type RequiredColumn = string | readonly string[];
+
+export const FARMER_REQUIRED: readonly RequiredColumn[] = ["firstName", "lastName", "phoneNumber", "nationalId", "county"];
+export const FARMER_OPTIONAL: readonly string[] = [
+  "subCounty", "ward", "village", "kycStatus",
+  "consentDocumentIds", "consentMethod", "consentGrantedAt", "consentEvidenceRef", "consentLocale",
+];
+const FARMER_KEY: readonly string[] = ["farmerPhone", "farmerNationalId"];
+export const PLOT_REQUIRED: readonly RequiredColumn[] = [FARMER_KEY, "name", "latitude", "longitude", "acreage", "cropType"];
+export const PLOT_OPTIONAL: readonly string[] = ["plantingDate"];
+export const HERD_REQUIRED: readonly RequiredColumn[] = [FARMER_KEY, "name", "livestockType", "headCount", "estimatedValue"];
+export const HERD_OPTIONAL: readonly string[] = ["latitude", "longitude"];
+
+/** The required columns a header row lacks, each alternative set reported as "a or b". */
+export function missingRequiredColumns(
+  headers: readonly string[],
+  required: readonly RequiredColumn[],
+): string[] {
+  return required
+    .filter((col) => (typeof col === "string" ? !headers.includes(col) : !col.some((c) => headers.includes(c))))
+    .map((col) => describeRequiredColumn(col));
+}
+
+/**
+ * How a column is named in help text and errors. The plot `name` column is shown as `plotName`,
+ * the header the template uses (the normalizer accepts both).
+ */
+export function describeRequiredColumn(col: RequiredColumn, labels: Record<string, string> = {}): string {
+  const label = (c: string) => labels[c] ?? c;
+  return typeof col === "string" ? label(col) : col.map(label).join(" or ");
+}
 
 export function makeHeaderNormalizer(map: Record<string, string>) {
   return (h: string): string => map[normalizeKey(h)] ?? h.trim();
@@ -77,6 +157,7 @@ export function makeHeaderNormalizer(map: Record<string, string>) {
 
 export const normalizeFarmerHeader = makeHeaderNormalizer(FARMER_HEADER_MAP);
 export const normalizePlotHeader = makeHeaderNormalizer(PLOT_HEADER_MAP);
+export const normalizeHerdHeader = makeHeaderNormalizer(HERD_HEADER_MAP);
 
 type AreaUnit = "acres" | "hectares";
 
@@ -117,7 +198,7 @@ const resolveAreaValue = (rawValue: string, unit: AreaUnit | null): string => {
 
 export interface ParseCsvOptions {
   normalizeHeader?: (h: string) => string;
-  required?: string[];
+  required?: readonly RequiredColumn[];
 }
 
 export function parseCsv(
@@ -199,7 +280,7 @@ export function parseCsv(
 
   if (options?.required) {
     const headers = Object.keys(rows[0]);
-    const missing = options.required.filter((f) => !headers.includes(f));
+    const missing = missingRequiredColumns(headers, options.required);
     if (missing.length > 0) {
       return { rows: [], error: `Missing required column(s): ${missing.join(", ")}` };
     }
