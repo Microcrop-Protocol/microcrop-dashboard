@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/select';
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { isSimulatedTransaction } from '@/lib/simulated';
 import { SimulatedBanner } from '@/components/ui/simulated-badge';
 import type {
@@ -31,6 +30,9 @@ import {
 } from '@/lib/validations/onboarding';
 import { BoundaryWalkStep } from './BoundaryWalkStep';
 import { BoundaryReviewMap } from './BoundaryReviewMap';
+import { OnboardingStepper } from './OnboardingStepper';
+import { SavedRecordNote } from './SavedRecordNote';
+import { BUSY_REASON, fieldStepLockReason, useStepProgress } from './step-access';
 import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
 import { useOrgMarket } from '@/hooks/useOrgMarket';
 import {
@@ -109,7 +111,7 @@ export function OnboardingWizard() {
   const queryClient = useQueryClient();
 
   // Wizard state
-  const [currentStep, setCurrentStep] = useState(0);
+  const { currentStep, furthestStep, setCurrentStep } = useStepProgress();
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [plot, setPlot] = useState<Plot | null>(null);
   const [boundaryResult, setBoundaryResult] = useState<GpsTrackResponse | null>(null);
@@ -204,7 +206,11 @@ export function OnboardingWizard() {
   // ── Mutations ──────────────────────────────────────────
 
   const registerMutation = useMutation({
-    mutationFn: (data: FarmerRegistrationData) => api.registerFarmer(data),
+    mutationFn: (data: FarmerRegistrationData) => {
+      // The register step closes once a farmer exists; this is the backstop.
+      if (farmer) throw new Error('This farmer is already registered');
+      return api.registerFarmer(data);
+    },
     onSuccess: (result) => {
       setFarmer(result);
       setCurrentStep(stepIndex('consent'));
@@ -230,6 +236,7 @@ export function OnboardingWizard() {
   const createPlotMutation = useMutation({
     mutationFn: (data: PlotCreationData) => {
       if (!farmer) throw new Error('No farmer registered');
+      if (plot) throw new Error('This plot is already registered');
       return api.createPlot(farmer.id, {
         name: data.name,
         latitude: data.latitude,
@@ -271,6 +278,7 @@ export function OnboardingWizard() {
   const purchaseMutation = useMutation({
     mutationFn: () => {
       if (!farmer || !plot) throw new Error('Missing data');
+      if (policy) throw new Error('This policy has already been purchased');
       const values = quoteForm.getValues();
       return api.purchasePolicy({
         farmerId: farmer.id,
@@ -411,53 +419,30 @@ export function OnboardingWizard() {
   const handleBoundaryComplete = useCallback((result: GpsTrackResponse) => {
     setBoundaryResult(result);
     setCurrentStep(stepIndex('review'));
-  }, []);
+  }, [setCurrentStep]);
 
   // ── Stepper ────────────────────────────────────────────
 
+  /**
+   * Once the policy exists, nothing before it may be submitted again: a second POST would
+   * register a second farmer, plot or policy. Those steps render their saved values read-only.
+   * The same holds for any record already saved — the wizard has no edit path, so revisiting
+   * the register or plot step shows the saved record instead of a form that would POST again.
+   */
+  const purchased = policy != null;
+  const busy = registerMutation.isPending || kycMutation.isPending || createPlotMutation.isPending
+    || quoteMutation.isPending || purchaseMutation.isPending || paymentMutation.isPending;
+
   const renderStepper = () => (
-    <nav aria-label="Onboarding progress" className="mb-8">
-      <ol className="flex items-center">
-        {STEPS.map((step, index) => {
-          const Icon = step.icon;
-          const isCompleted = index < currentStep;
-          const isCurrent = index === currentStep;
-          return (
-            <li
-              key={step.id}
-              className={cn(
-                'flex items-center',
-                index < STEPS.length - 1 && 'flex-1',
-                index < STEPS.length - 1 && 'after:mx-2 after:h-0.5 after:flex-1 after:bg-border',
-                isCompleted && 'after:bg-primary',
-              )}
-            >
-              <div
-                className={cn(
-                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                  isCompleted && 'border-primary bg-primary text-primary-foreground',
-                  isCurrent && 'border-primary bg-background text-primary animate-pulse ring-4 ring-primary/20',
-                  !isCompleted && !isCurrent && 'border-muted-foreground/25 bg-background text-muted-foreground/50',
-                )}
-                aria-current={isCurrent ? 'step' : undefined}
-              >
-                {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-              </div>
-              <span
-                className={cn(
-                  'ml-2 hidden text-sm font-medium lg:inline',
-                  isCurrent && 'text-foreground',
-                  isCompleted && 'text-primary',
-                  !isCompleted && !isCurrent && 'text-muted-foreground',
-                )}
-              >
-                {step.title}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
+    <OnboardingStepper
+      steps={STEPS}
+      currentIndex={currentStep}
+      furthestIndex={furthestStep}
+      lockedReason={(id) => (busy
+        ? BUSY_REASON
+        : fieldStepLockReason(id, { farmer, plot, boundaryResult, quote, policy }))}
+      onSelect={setCurrentStep}
+    />
   );
 
   // ══════════════════════════════════════════════════════
@@ -466,7 +451,36 @@ export function OnboardingWizard() {
 
   // ── Step: Register Farmer ──────────────────────────────
 
-  const renderRegisterStep = () => (
+  const renderRegisterStep = () => (farmer ? renderSavedFarmer() : renderRegisterForm());
+
+  /** The register step once the farmer exists: re-submitting would register a second farmer. */
+  const renderSavedFarmer = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Farmer Registered</CardTitle>
+        <CardDescription>The details saved for this farmer</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {farmer && (
+          <dl className="grid gap-2 rounded-lg border p-4 text-sm sm:grid-cols-2">
+            <div><dt className="inline text-muted-foreground">Name:</dt> <dd className="inline">{farmer.firstName} {farmer.lastName}</dd></div>
+            <div><dt className="inline text-muted-foreground">Phone:</dt> <dd className="inline">{farmer.phoneNumber}</dd></div>
+            <div><dt className="inline text-muted-foreground">National ID:</dt> <dd className="inline">{farmer.nationalId}</dd></div>
+            <div><dt className="inline text-muted-foreground">{level1Label}:</dt> <dd className="inline">{farmer.county}</dd></div>
+          </dl>
+        )}
+        <SavedRecordNote>
+          This farmer is already registered, so the form is closed. Correct their details from the
+          farmer&apos;s page — registering again here would create a second farmer.
+        </SavedRecordNote>
+        <Button className="w-full" onClick={() => setCurrentStep(stepIndex('consent'))}>
+          Continue
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const renderRegisterForm = () => (
     <Card>
       <CardHeader>
         <CardTitle>Register Farmer</CardTitle>
@@ -625,27 +639,38 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-4">
-          <div className="flex gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium text-amber-800 dark:text-amber-200">Field Verification Required</p>
-              <p className="text-amber-700 dark:text-amber-300 mt-1">
-                Confirm the farmer is physically present and their identity documents match the registered details.
-              </p>
+        {farmer?.kycStatus === 'APPROVED' ? (
+          <>
+            <SavedRecordNote>This farmer&apos;s identity has been verified.</SavedRecordNote>
+            <Button className="w-full" onClick={() => setCurrentStep(stepIndex('plot'))}>
+              Continue
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-4">
+              <div className="flex gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-200">Field Verification Required</p>
+                  <p className="text-amber-700 dark:text-amber-300 mt-1">
+                    Confirm the farmer is physically present and their identity documents match the registered details.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <Button
-          onClick={() => farmer && kycMutation.mutate(farmer.id)}
-          className="w-full"
-          disabled={kycMutation.isPending || !farmer}
-        >
-          {kycMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-          <ShieldCheck className="mr-2 h-4 w-4" />
-          Confirm Identity Verification
-        </Button>
+            <Button
+              onClick={() => farmer && kycMutation.mutate(farmer.id)}
+              className="w-full"
+              disabled={kycMutation.isPending || !farmer}
+            >
+              {kycMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Confirm Identity Verification
+            </Button>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -656,7 +681,39 @@ export function OnboardingWizard() {
   const chosenCrop = findCatalogueItem(catalogueMarket, 'CROP', plotForm.watch('cropType'));
   const chosenCropNote = chosenCrop ? notSellableNote(chosenCrop, countryName, 'register') : null;
 
-  const renderPlotStep = () => (
+  const renderPlotStep = () => (plot ? renderSavedPlot() : renderPlotForm());
+
+  /** The plot step once the plot exists: re-submitting would register a second plot. */
+  const renderSavedPlot = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Plot Created</CardTitle>
+        <CardDescription>The details saved for this plot</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {plot && (
+          <dl className="grid gap-2 rounded-lg border p-4 text-sm sm:grid-cols-2">
+            <div><dt className="inline text-muted-foreground">Name:</dt> <dd className="inline">{plot.name}</dd></div>
+            <div><dt className="inline text-muted-foreground">Crop:</dt> <dd className="inline">{productLabel(catalogueMarket, 'CROP', plot.cropType)}</dd></div>
+            <div><dt className="inline text-muted-foreground">Acreage:</dt> <dd className="inline">{plot.acreage}</dd></div>
+            <div><dt className="inline text-muted-foreground">Location:</dt> <dd className="inline">{plot.latitude}, {plot.longitude}</dd></div>
+          </dl>
+        )}
+        <SavedRecordNote>
+          This plot is already registered, so the form is closed. Creating it again here would
+          register a second plot.
+        </SavedRecordNote>
+        <Button
+          className="w-full"
+          onClick={() => setCurrentStep(stepIndex(boundaryResult ? 'review' : 'walk'))}
+        >
+          Continue
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const renderPlotForm = () => (
     <Card>
       <CardHeader>
         <CardTitle>Create Plot</CardTitle>
@@ -836,14 +893,25 @@ export function OnboardingWizard() {
               </div>
             )}
 
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => { setBoundaryResult(null); setCurrentStep(stepIndex('walk')); }}>
-                Re-walk Boundary
-              </Button>
-              <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('quote'))}>
-                Confirm Boundary
-              </Button>
-            </div>
+            {purchased ? (
+              <>
+                <SavedRecordNote>
+                  The policy has been purchased on this boundary, so it can no longer be re-walked here.
+                </SavedRecordNote>
+                <Button className="w-full" onClick={() => setCurrentStep(stepIndex('quote'))}>
+                  Continue
+                </Button>
+              </>
+            ) : (
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => { setBoundaryResult(null); setCurrentStep(stepIndex('walk')); }}>
+                  Re-walk Boundary
+                </Button>
+                <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('quote'))}>
+                  Confirm Boundary
+                </Button>
+              </div>
+            )}
           </>
         )}
       </CardContent>
@@ -860,7 +928,41 @@ export function OnboardingWizard() {
   const plotCropReason = notSellableReason(catalogueMarket, 'CROP', plot?.cropType);
   const plotCropItem = findCatalogueItem(catalogueMarket, 'CROP', plot?.cropType);
 
-  const renderQuoteStep = () => (
+  const renderQuoteStep = () => (purchased ? renderPurchasedQuote() : renderQuoteForm());
+
+  /**
+   * The quote step once the policy is bought. The form is closed: the purchase summary reads
+   * these same form values, so editing them now would misstate what was bought.
+   */
+  const renderPurchasedQuote = () => {
+    const values = quoteForm.getValues();
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Insurance Coverage</CardTitle>
+          <CardDescription>The coverage the policy was purchased with</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg bg-muted p-4 space-y-2 text-sm">
+            <div className="flex justify-between"><span>Coverage</span><span>{values.coverageType} &middot; {values.durationDays} days</span></div>
+            <div className="flex justify-between"><span>Sum Insured</span><span>{formatMoney(values.sumInsured)}</span></div>
+            {quote && (
+              <div className="flex justify-between border-t pt-2 font-bold">
+                <span>Total</span>
+                <span>{formatMoney(quote.totalCost)}</span>
+              </div>
+            )}
+          </div>
+          <SavedRecordNote>The policy has been purchased, so this quote can no longer be changed.</SavedRecordNote>
+          <Button className="w-full" onClick={() => setCurrentStep(stepIndex('purchase'))}>
+            Continue
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderQuoteForm = () => (
     <Card>
       <CardHeader>
         <CardTitle>Insurance Coverage</CardTitle>
@@ -1016,15 +1118,27 @@ export function OnboardingWizard() {
             )}
           </div>
 
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setCurrentStep(stepIndex('quote'))} disabled={purchaseMutation.isPending}>
-              Back
-            </Button>
-            <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Boolean(plotCropReason)}>
-              {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-              Purchase Policy
-            </Button>
-          </div>
+          {policy ? (
+            <>
+              <SavedRecordNote>
+                Policy <span className="font-mono">{policy.policyNumber}</span> has been purchased.
+                Purchasing again here would create a second policy.
+              </SavedRecordNote>
+              <Button className="w-full" onClick={() => setCurrentStep(stepIndex('payment'))}>
+                Continue to Payment
+              </Button>
+            </>
+          ) : (
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setCurrentStep(stepIndex('quote'))} disabled={purchaseMutation.isPending}>
+                Back
+              </Button>
+              <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Boolean(plotCropReason)}>
+                {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                Purchase Policy
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -1183,6 +1297,7 @@ export function OnboardingWizard() {
       case 'plot': return renderPlotStep();
       case 'walk': {
         if (!plot) return <Card><CardContent className="py-8 text-center text-muted-foreground">Plot data missing. Please go back and create a plot first.</CardContent></Card>;
+        if (purchased) return <Card><CardContent className="py-8 text-center text-muted-foreground">The policy has been purchased, so the boundary can no longer be re-walked here.</CardContent></Card>;
         return <BoundaryWalkStep plotId={plot.id} onComplete={handleBoundaryComplete} />;
       }
       case 'review': return renderReviewStep();
