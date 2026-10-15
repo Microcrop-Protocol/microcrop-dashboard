@@ -93,6 +93,8 @@ class ApiClient {
   private accessToken: string | null = null;
   private onAuthError: (() => void) | null = null;
   private onDeactivated: (() => void) | null = null;
+  private refreshHandler: (() => Promise<string | null>) | null = null;
+  private authGate: Promise<unknown> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -116,6 +118,93 @@ class ApiClient {
     this.onDeactivated = callback;
   }
 
+  /**
+   * Register how to obtain a fresh access token after a 401. The handler resolves to the new
+   * access token, or to null when the session is over (the caller then falls through to
+   * onUnauthorized). It throws when the refresh could not be completed for a transient reason
+   * (rate limit, network), in which case the 401 is surfaced WITHOUT logging the user out.
+   */
+  onRefreshNeeded(handler: () => Promise<string | null>) {
+    this.refreshHandler = handler;
+  }
+
+  /**
+   * While set, authenticated requests wait for this promise before they are sent. The auth
+   * store sets it for the duration of a token refresh, so a request fired during the refresh
+   * that follows a page reload (when there is no access token yet) is held instead of going
+   * out bare, 401ing and logging the user out.
+   */
+  setAuthGate(gate: Promise<unknown> | null) {
+    this.authGate = gate;
+  }
+
+  /** The unauthenticated credential endpoints: never gated, never refresh-and-retried. */
+  private isCredentialEndpoint(endpoint: string): boolean {
+    return /^\/auth\/(login|register|register-organization|refresh-token|forgot-password|reset-password)(\?|$)/.test(
+      endpoint
+    );
+  }
+
+  /**
+   * Send a request with the current access token. For authenticated endpoints:
+   * - waits for an in-flight token refresh first (see setAuthGate);
+   * - on 401, asks for ONE refresh (shared with any refresh already running) and retries once
+   *   with the new token. If the token changed while the request was in flight, it just retries.
+   *
+   * `logoutOn401` is false when a 401 must not end the session: a credential endpoint, or a
+   * refresh that failed for a transient reason. The caller still throws the 401 as an ApiError.
+   */
+  private async send(
+    endpoint: string,
+    init: RequestInit,
+    baseHeaders: Record<string, string>
+  ): Promise<{ response: Response; logoutOn401: boolean }> {
+    const url = `${this.baseUrl}/api${endpoint}`;
+    const authenticated = !this.isCredentialEndpoint(endpoint);
+
+    if (authenticated && this.authGate) {
+      try {
+        await this.authGate;
+      } catch {
+        // The gate only orders requests after the refresh; its outcome is handled elsewhere.
+      }
+    }
+
+    const attempt = async (): Promise<{ response: Response; tokenUsed: string | null }> => {
+      const tokenUsed = this.accessToken;
+      const headers: Record<string, string> = { ...baseHeaders };
+      if (tokenUsed) {
+        headers['Authorization'] = `Bearer ${tokenUsed}`;
+      }
+      try {
+        return { response: await fetch(url, { ...init, headers }), tokenUsed };
+      } catch {
+        throw new ApiError('Network error. Please check your connection.', 0);
+      }
+    };
+
+    const first = await attempt();
+    if (first.response.status !== 401 || !authenticated || !this.refreshHandler) {
+      return { response: first.response, logoutOn401: authenticated };
+    }
+
+    let token: string | null = this.accessToken;
+    if (!token || token === first.tokenUsed) {
+      try {
+        token = await this.refreshHandler();
+      } catch {
+        // Could not refresh right now (rate limit, network). Keep the session.
+        return { response: first.response, logoutOn401: false };
+      }
+    }
+    if (!token) {
+      return { response: first.response, logoutOn401: true };
+    }
+
+    const retried = await attempt();
+    return { response: retried.response, logoutOn401: true };
+  }
+
   private handleAuthError() {
     if (this.onAuthError) {
       this.onAuthError();
@@ -136,26 +225,10 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}/api${endpoint}`;
-
-    const headers: HeadersInit = {
+    const { response, logoutOn401 } = await this.send(endpoint, options, {
       'Content-Type': 'application/json',
-      ...options.headers,
-    };
-
-    if (this.accessToken) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        ...options,
-        headers,
-      });
-    } catch (err) {
-      throw new ApiError('Network error. Please check your connection.', 0);
-    }
+      ...(options.headers as Record<string, string> | undefined),
+    });
 
     let data: unknown;
     try {
@@ -172,7 +245,7 @@ class ApiClient {
       const error = data as ApiErrorResponse;
       const message = error.error?.message || 'An error occurred';
 
-      if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+      if (response.status === 401 && logoutOn401 && !endpoint.startsWith('/auth/')) {
         this.handleAuthError();
       } else if (this.isDeactivatedError(response.status, message)) {
         this.handleDeactivatedError();
@@ -188,26 +261,10 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<{ data: T; pagination?: ApiResponse<T>['pagination'] }> {
-    const url = `${this.baseUrl}/api${endpoint}`;
-
-    const headers: HeadersInit = {
+    const { response, logoutOn401 } = await this.send(endpoint, options, {
       'Content-Type': 'application/json',
-      ...options.headers,
-    };
-
-    if (this.accessToken) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        ...options,
-        headers,
-      });
-    } catch (err) {
-      throw new ApiError('Network error. Please check your connection.', 0);
-    }
+      ...(options.headers as Record<string, string> | undefined),
+    });
 
     let result: unknown;
     try {
@@ -224,7 +281,7 @@ class ApiClient {
       const error = result as ApiErrorResponse;
       const message = error.error?.message || 'An error occurred';
 
-      if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+      if (response.status === 401 && logoutOn401 && !endpoint.startsWith('/auth/')) {
         this.handleAuthError();
       } else if (this.isDeactivatedError(response.status, message)) {
         this.handleDeactivatedError();
@@ -244,25 +301,12 @@ class ApiClient {
     endpoint: string,
     formData: FormData
   ): Promise<T> {
-    const url = `${this.baseUrl}/api${endpoint}`;
-
-    const headers: HeadersInit = {};
-
-    if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
-    }
-
-    let response: Response;
-    try {
-      // Don't set Content-Type for FormData - browser will set it with boundary
-      response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-    } catch (err) {
-      throw new ApiError('Network error. Please check your connection.', 0);
-    }
+    // Don't set Content-Type for FormData - browser will set it with boundary
+    const { response, logoutOn401 } = await this.send(
+      endpoint,
+      { method: 'POST', body: formData },
+      {}
+    );
 
     let data: unknown;
     try {
@@ -279,7 +323,7 @@ class ApiClient {
       const error = data as ApiErrorResponse;
       const message = error.error?.message || 'An error occurred';
 
-      if (response.status === 401) {
+      if (response.status === 401 && logoutOn401) {
         this.handleAuthError();
       } else if (this.isDeactivatedError(response.status, message)) {
         this.handleDeactivatedError();
@@ -1345,22 +1389,10 @@ class ApiClient {
   }
 
   private async downloadFile(endpoint: string): Promise<Blob> {
-    const url = `${this.baseUrl}/api${endpoint}`;
-
-    const headers: HeadersInit = {};
-    if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(url, { headers });
-    } catch (err) {
-      throw new ApiError('Network error. Please check your connection.', 0);
-    }
+    const { response, logoutOn401 } = await this.send(endpoint, {}, {});
 
     if (!response.ok) {
-      if (response.status === 401) {
+      if (response.status === 401 && logoutOn401) {
         this.handleAuthError();
       }
       throw new ApiError('Failed to download file', response.status);
