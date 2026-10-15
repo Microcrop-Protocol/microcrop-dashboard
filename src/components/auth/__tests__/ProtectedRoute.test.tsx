@@ -24,10 +24,15 @@ const mockState = vi.hoisted(() => ({
   isLoading: false,
   isAuthenticated: false,
   user: null as User | null,
+  tokens: null as { accessToken: string; refreshToken: string; expiresAt: number } | null,
+  refreshError: null as string | null,
+  refreshAccessToken: vi.fn(),
+  logout: vi.fn(),
 }));
 
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: () => mockState,
+  useAuthStore: (selector?: (s: typeof mockState) => unknown) =>
+    selector ? selector(mockState) : mockState,
 }));
 
 import { ProtectedRoute } from '../ProtectedRoute';
@@ -74,6 +79,8 @@ describe('ProtectedRoute', () => {
     mockState.isLoading = false;
     mockState.isAuthenticated = false;
     mockState.user = null;
+    mockState.tokens = null;
+    mockState.refreshError = null;
   });
 
   it('shows loading spinner when isLoading is true', () => {
@@ -128,5 +135,29 @@ describe('ProtectedRoute', () => {
     renderProtected(<div>Any user</div>);
 
     expect(screen.getByText('Any user')).toBeInTheDocument();
+  });
+
+  it('holds the page with a reconnect panel, not the login page, when the post-reload refresh could not reach the server', () => {
+    mockState.isAuthenticated = true;
+    mockState.user = makeUser({ role: 'ORG_ADMIN' });
+    mockState.tokens = { accessToken: '', refreshToken: 'R1', expiresAt: Date.now() + 60_000 };
+    mockState.refreshError = 'Too many requests. Please try again later.';
+
+    renderProtected(<div>Protected</div>);
+
+    expect(screen.getByText('Reconnecting to MicroCrop')).toBeInTheDocument();
+    expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
+    expect(screen.queryByText('Protected')).not.toBeInTheDocument();
+  });
+
+  it('keeps rendering the page when a background refresh fails but the access token is still held', () => {
+    mockState.isAuthenticated = true;
+    mockState.user = makeUser({ role: 'ORG_ADMIN' });
+    mockState.tokens = { accessToken: 'still-valid', refreshToken: 'R1', expiresAt: Date.now() + 60_000 };
+    mockState.refreshError = 'Network error. Please check your connection.';
+
+    renderProtected(<div>Protected</div>);
+
+    expect(screen.getByText('Protected')).toBeInTheDocument();
   });
 });
