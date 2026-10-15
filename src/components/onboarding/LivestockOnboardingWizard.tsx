@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -19,7 +19,6 @@ import {
 import { notifySuccess, notifyError } from '@/lib/notify';
 import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { isSimulatedTransaction } from '@/lib/simulated';
 import { SimulatedBanner } from '@/components/ui/simulated-badge';
 import type {
@@ -39,6 +38,9 @@ import {
 import {
   CatalogueItemDetails, CatalogueSelectItems, CatalogueStatusBadge, CatalogueUnknownNote,
 } from '@/components/catalogue/CatalogueOptions';
+import { OnboardingStepper } from './OnboardingStepper';
+import { SavedRecordNote } from './SavedRecordNote';
+import { livestockStepLockReason, quoteInputsMatch, useStepProgress } from './step-access';
 
 /**
  * IBLI premiums, herd values and fees are LOCAL currency — the backend prices livestock per TLU
@@ -91,10 +93,12 @@ export function LivestockOnboardingWizard() {
   const queryClient = useQueryClient();
 
   // Wizard state
-  const [currentStep, setCurrentStep] = useState(0);
+  const { currentStep, furthestStep, setCurrentStep } = useStepProgress();
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [herd, setHerd] = useState<Herd | null>(null);
   const [quote, setQuote] = useState<LivestockPolicyQuote | null>(null);
+  // The season and peril `quote` was calculated from. Purchase sends these, not the live form.
+  const [quotedValues, setQuotedValues] = useState<LivestockPolicyConfigData | null>(null);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [paymentInstructions, setPaymentInstructions] = useState<PaymentInstructions | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
@@ -194,15 +198,29 @@ export function LivestockOnboardingWizard() {
     mode: 'onChange',
   });
 
+  /**
+   * The quote, while it still prices what the season and peril selects say. Changing either
+   * after a quote makes this null: the breakdown goes, and Purchase locks until it is
+   * recalculated. Once the policy exists the selects are closed, so the bought quote stands.
+   */
+  const watchedQuoteValues = useWatch({ control: quoteForm.control });
+  const currentQuote = quote && (policy != null || quoteInputsMatch(watchedQuoteValues, quotedValues))
+    ? quote
+    : null;
+
   // ── Mutations ──────────────────────────────────────────
 
   const registerMutation = useMutation({
-    mutationFn: (data: PastoralistRegistrationData) => api.registerFarmer({
-      ...data,
-      subCounty: data.subCounty || undefined,
-      ward: data.ward || undefined,
-      village: data.village || undefined,
-    }),
+    mutationFn: (data: PastoralistRegistrationData) => {
+      // The register step closes once a pastoralist exists; this is the backstop.
+      if (farmer) throw new Error('This pastoralist is already registered');
+      return api.registerFarmer({
+        ...data,
+        subCounty: data.subCounty || undefined,
+        ward: data.ward || undefined,
+        village: data.village || undefined,
+      });
+    },
     onSuccess: (result) => {
       setFarmer(result);
       setCurrentStep(stepIndex('consent'));
@@ -228,6 +246,7 @@ export function LivestockOnboardingWizard() {
   const createHerdMutation = useMutation({
     mutationFn: (data: HerdRegistrationData) => {
       if (!farmer) throw new Error('No pastoralist registered');
+      if (herd) throw new Error('This herd is already registered');
       return api.createHerd({
         farmerId: farmer.id,
         name: data.name,
@@ -261,8 +280,9 @@ export function LivestockOnboardingWizard() {
         season: data.season as IBLISeason,
       }) as unknown as Promise<LivestockPolicyQuote>;
     },
-    onSuccess: (result) => {
+    onSuccess: (result, data) => {
       setQuote(result);
+      setQuotedValues(data);
     },
     onError: (error) => {
       notifyError(error, "Couldn't get a premium quote.");
@@ -271,13 +291,17 @@ export function LivestockOnboardingWizard() {
 
   const purchaseMutation = useMutation({
     mutationFn: () => {
-      if (!farmer || !herd || !quote) throw new Error('Missing data');
-      const values = quoteForm.getValues();
+      if (!farmer || !herd) throw new Error('Missing data');
+      if (policy) throw new Error('This policy has already been purchased');
+      // Buy exactly what was quoted. Selects changed since the quote leave `currentQuote` null,
+      // which locks this step; this is the backstop.
+      const values = quotedValues;
+      if (!currentQuote || !values) throw new Error('Calculate the premium for these values first');
       return api.purchasePolicy({
         farmerId: farmer.id,
         herdId: herd.id,
         productType: 'LIVESTOCK',
-        sumInsured: quote.sumInsured,
+        sumInsured: currentQuote.sumInsured,
         durationDays: 180,
         coverageType: values.coverageType as CoverageType,
         season: values.season as IBLISeason,
@@ -393,49 +417,28 @@ export function LivestockOnboardingWizard() {
 
   // ── Stepper ────────────────────────────────────────────
 
+  /**
+   * Once the policy exists, nothing before it may be submitted again: a second POST would
+   * register a second pastoralist, herd or policy. Those steps render their saved values
+   * read-only. The same holds for any record already saved — the wizard has no edit path, so
+   * revisiting the register or herd step shows the saved record instead of a form that would
+   * POST again.
+   */
+  const purchased = policy != null;
+  const busy = registerMutation.isPending || kycMutation.isPending || createHerdMutation.isPending
+    || quoteMutation.isPending || purchaseMutation.isPending || paymentMutation.isPending;
+
   const renderStepper = () => (
-    <nav aria-label="Onboarding progress" className="mb-8 overflow-x-auto pb-4">
-      <ol className="flex items-center min-w-[600px]">
-        {STEPS.map((step, index) => {
-          const Icon = step.icon;
-          const isCompleted = index < currentStep;
-          const isCurrent = index === currentStep;
-          return (
-            <li
-              key={step.id}
-              className={cn(
-                'flex items-center',
-                index < STEPS.length - 1 && 'flex-1',
-                index < STEPS.length - 1 && 'after:mx-2 after:h-0.5 after:flex-1 after:bg-border',
-                isCompleted && 'after:bg-primary',
-              )}
-            >
-              <div
-                className={cn(
-                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                  isCompleted && 'border-primary bg-primary text-primary-foreground',
-                  isCurrent && 'border-primary bg-background text-primary animate-pulse ring-4 ring-primary/20',
-                  !isCompleted && !isCurrent && 'border-muted-foreground/25 bg-background text-muted-foreground/50',
-                )}
-                aria-current={isCurrent ? 'step' : undefined}
-              >
-                {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-              </div>
-              <span
-                className={cn(
-                  'ml-2 hidden text-sm font-medium lg:inline',
-                  isCurrent && 'text-foreground',
-                  isCompleted && 'text-primary',
-                  !isCompleted && !isCurrent && 'text-muted-foreground',
-                )}
-              >
-                {step.title}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
+    <OnboardingStepper
+      steps={STEPS}
+      currentIndex={currentStep}
+      furthestIndex={furthestStep}
+      busy={busy}
+      lockedReason={(id) => livestockStepLockReason(id, { farmer, herd, quote: currentQuote, policy })}
+      onSelect={setCurrentStep}
+      className="overflow-x-auto pb-4"
+      listClassName="min-w-[600px]"
+    />
   );
 
   // ══════════════════════════════════════════════════════
@@ -444,7 +447,40 @@ export function LivestockOnboardingWizard() {
 
   // ── Step: Register Pastoralist ──────────────────────────
 
-  const renderRegisterStep = () => (
+  const renderRegisterStep = () => (farmer ? renderSavedFarmer() : renderRegisterForm());
+
+  /** The register step once the pastoralist exists: re-submitting would register them twice. */
+  const renderSavedFarmer = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Pastoralist Registered</CardTitle>
+        <CardDescription>The details saved for this pastoralist</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {farmer && (
+          <dl className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-4 text-sm">
+            <dt className="text-muted-foreground">Name</dt>
+            <dd className="font-medium">{farmer.firstName} {farmer.lastName}</dd>
+            <dt className="text-muted-foreground">ID Number</dt>
+            <dd className="font-medium">{farmer.nationalId}</dd>
+            <dt className="text-muted-foreground">Phone</dt>
+            <dd className="font-medium">{farmer.phoneNumber}</dd>
+            <dt className="text-muted-foreground">{level1Label}</dt>
+            <dd className="font-medium">{farmer.county}</dd>
+          </dl>
+        )}
+        <SavedRecordNote>
+          This pastoralist is already registered, so the form is closed. Correct their details from
+          the farmer&apos;s page — registering again here would create a second record.
+        </SavedRecordNote>
+        <Button className="w-full" onClick={() => setCurrentStep(stepIndex('consent'))}>
+          Continue
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const renderRegisterForm = () => (
     <Card>
       <CardHeader>
         <CardTitle>Register Pastoralist</CardTitle>
@@ -582,33 +618,73 @@ export function LivestockOnboardingWizard() {
           </div>
         )}
 
-        <div className="rounded-lg border border-warning/50 bg-warning/10 p-4 text-warning">
-          <div className="flex items-center gap-2 font-medium">
-            <ShieldCheck className="h-5 w-5" /> Physical Verification Required
-          </div>
-          <p className="mt-1 text-sm">
-            By proceeding, you confirm that you have physically verified the pastoralist&apos;s original national ID card and that the details match.
-          </p>
-        </div>
+        {farmer?.kycStatus === 'APPROVED' ? (
+          <>
+            <SavedRecordNote>This pastoralist&apos;s identity has been verified.</SavedRecordNote>
+            <div className="flex gap-4">
+              <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(stepIndex('consent'))}>Back</Button>
+              <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('herd'))}>Continue</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-lg border border-warning/50 bg-warning/10 p-4 text-warning">
+              <div className="flex items-center gap-2 font-medium">
+                <ShieldCheck className="h-5 w-5" /> Physical Verification Required
+              </div>
+              <p className="mt-1 text-sm">
+                By proceeding, you confirm that you have physically verified the pastoralist&apos;s original national ID card and that the details match.
+              </p>
+            </div>
 
-        <div className="flex gap-4">
-          <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(stepIndex('consent'))}>Back</Button>
-          <Button
-            className="flex-1"
-            onClick={() => { if (farmer) kycMutation.mutate(farmer.id); }}
-            disabled={kycMutation.isPending || !farmer}
-          >
-            {kycMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Approve & Continue
-          </Button>
-        </div>
+            <div className="flex gap-4">
+              <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(stepIndex('consent'))}>Back</Button>
+              <Button
+                className="flex-1"
+                onClick={() => { if (farmer) kycMutation.mutate(farmer.id); }}
+                disabled={kycMutation.isPending || !farmer}
+              >
+                {kycMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Approve & Continue
+              </Button>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
 
   // ── Step: Register Herd ─────────────────────────────────
 
+  /** The herd step once the herd exists: re-submitting would register a second herd. */
+  const renderSavedHerd = (saved: Herd) => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Herd Registered</CardTitle>
+        <CardDescription>The details saved for this herd</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <dl className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-4 text-sm">
+          <dt className="text-muted-foreground">Herd</dt>
+          <dd className="font-medium">{saved.name}</dd>
+          <dt className="text-muted-foreground">Animals</dt>
+          <dd className="font-medium">{saved.headCount} × {productLabel(catalogueMarket, 'LIVESTOCK', saved.livestockType)}</dd>
+          <dt className="text-muted-foreground">Value per head</dt>
+          <dd className="font-medium">{formatMoney(saved.estimatedValue)}</dd>
+        </dl>
+        <SavedRecordNote>
+          This herd is already registered, so the form is closed. Registering it again here would
+          create a second herd.
+        </SavedRecordNote>
+        <Button className="w-full" onClick={() => setCurrentStep(stepIndex('quote'))}>
+          Continue
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
   const renderHerdStep = () => {
+    if (herd) return renderSavedHerd(herd);
     const headCount = herdForm.watch('headCount');
     const livestockType = herdForm.watch('livestockType');
     const estimatedValue = herdForm.watch('estimatedValue');
@@ -746,6 +822,7 @@ export function LivestockOnboardingWizard() {
   const herdItem = findCatalogueItem(catalogueMarket, 'LIVESTOCK', herd?.livestockType);
 
   const renderQuoteStep = () => {
+    if (purchased) return renderPurchasedQuote();
     // Determine the current season dynamically
     const currentMonth = new Date().getMonth() + 1; // 1-12
     const suggestedSeason = (currentMonth >= 3 && currentMonth <= 9) ? 'LRLD' : 'SRSD';
@@ -804,7 +881,7 @@ export function LivestockOnboardingWizard() {
                 )} />
               </div>
 
-              {!quote ? (
+              {!currentQuote ? (
                 <Button type="submit" className="w-full" disabled={quoteMutation.isPending || Boolean(herdReason)}>
                   {quoteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Calculate Premium
@@ -817,31 +894,31 @@ export function LivestockOnboardingWizard() {
                       <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Tropical Livestock Units (TLU)</span>
-                          <span className="font-medium">{Number(quote.tluCount).toFixed(2)} TLU</span>
+                          <span className="font-medium">{Number(currentQuote.tluCount).toFixed(2)} TLU</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Premium Rate (per TLU)</span>
-                          <span className="font-medium">{formatMoney(quote.premiumPerTLU)}</span>
+                          <span className="font-medium">{formatMoney(currentQuote.premiumPerTLU)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Base Premium</span>
-                          <span className="font-medium">{formatMoney(quote.premium)}</span>
+                          <span className="font-medium">{formatMoney(currentQuote.premium)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Platform Fee</span>
-                          <span className="font-medium">{formatMoney(quote.platformFee)}</span>
+                          <span className="font-medium">{formatMoney(currentQuote.platformFee)}</span>
                         </div>
                         <div className="my-2 h-px bg-border" />
                         <div className="flex justify-between text-base font-bold">
                           <span>Total Amount Due</span>
-                          <span className="text-primary">{formatMoney(quote.totalCost)}</span>
+                          <span className="text-primary">{formatMoney(currentQuote.totalCost)}</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex gap-4">
-                    <Button variant="outline" className="flex-1" onClick={() => setQuote(null)} type="button">
+                    <Button variant="outline" className="flex-1" onClick={() => { setQuote(null); setQuotedValues(null); }} type="button">
                       Recalculate
                     </Button>
                     <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))} type="button" disabled={Boolean(herdReason)}>
@@ -857,12 +934,44 @@ export function LivestockOnboardingWizard() {
     );
   };
 
+  /**
+   * The quote step once the policy is bought: Recalculate would clear the quote the purchase
+   * was made on, and the season and peril selects feed the purchase summary.
+   */
+  const renderPurchasedQuote = () => {
+    const values = quotedValues ?? quoteForm.getValues();
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Policy Quote</CardTitle>
+          <CardDescription>The coverage the policy was created with</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border p-4 space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Season</span><span>{values.season}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Coverage</span><span>{values.coverageType}</span></div>
+            {quote && (
+              <div className="flex justify-between border-t pt-2 font-bold">
+                <span>Total Amount Due</span>
+                <span>{formatMoney(quote.totalCost)}</span>
+              </div>
+            )}
+          </div>
+          <SavedRecordNote>The policy has been created, so this quote can no longer be changed.</SavedRecordNote>
+          <Button className="w-full" onClick={() => setCurrentStep(stepIndex('purchase'))}>
+            Continue
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  };
+
   // ── Step: Purchase Policy ───────────────────────────────
 
   const renderPurchaseStep = () => {
-    if (!farmer || !herd || !quote) return null;
-    
-    const season = quoteForm.getValues('season');
+    if (!farmer || !herd || !currentQuote) return null;
+    const quote = currentQuote;
+    const season = (quotedValues ?? quoteForm.getValues()).season;
     
     return (
       <Card>
@@ -893,15 +1002,27 @@ export function LivestockOnboardingWizard() {
             </div>
           </div>
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={() => purchaseMutation.mutate()}
-            disabled={purchaseMutation.isPending || Boolean(herdReason)}
-          >
-            {purchaseMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Create Policy
-          </Button>
+          {policy ? (
+            <>
+              <SavedRecordNote>
+                Policy <span className="font-mono">{policy.policyNumber}</span> has been created.
+                Creating it again here would issue a second policy.
+              </SavedRecordNote>
+              <Button className="w-full" size="lg" onClick={() => setCurrentStep(stepIndex('payment'))}>
+                Continue to Payment
+              </Button>
+            </>
+          ) : (
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => purchaseMutation.mutate()}
+              disabled={purchaseMutation.isPending || Boolean(herdReason)}
+            >
+              {purchaseMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Create Policy
+            </Button>
+          )}
         </CardContent>
       </Card>
     );

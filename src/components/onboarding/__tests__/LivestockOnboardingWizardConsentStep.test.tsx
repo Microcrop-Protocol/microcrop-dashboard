@@ -4,7 +4,7 @@
  * skipped consent, anyone onboarded through the livestock product would never have
  * been asked at all.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -55,7 +55,7 @@ describe('LivestockOnboardingWizard consent step', () => {
   it('places consent second, straight after registration', () => {
     renderWizard();
     const stepper = screen.getByRole('navigation', { name: /onboarding progress/i });
-    const titles = Array.from(stepper.querySelectorAll('li span')).map((el) => el.textContent);
+    const titles = within(stepper).getAllByRole('button').map((el) => el.textContent);
     expect(titles).toEqual([
       'Register', 'Consent', 'Verify', 'Herd', 'Quote', 'Purchase', 'Payment',
     ]);
