@@ -1,8 +1,8 @@
 /**
- * THE LIVESTOCK WIZARD'S NAVIGABLE STEPPER — the same contract as the crop wizard's, through the
- * same shared component: completed steps reopen with state intact, future steps open only when
- * what they read exists, locked steps say why, and nothing before the policy can be submitted a
- * second time once it is created.
+ * THE LIVESTOCK WIZARD'S FREELY NAVIGABLE STEPPER — the same contract as the crop wizard's,
+ * through the same shared component: every step opens at any time, prerequisites are checked
+ * when an action is submitted (no request, one message listing every gap as links), saved
+ * records reopen read-only, and nothing before the policy can be submitted a second time.
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -57,6 +57,34 @@ async function chooseIn(label: RegExp, option: RegExp) {
   fireEvent.click(await screen.findByRole('option', { name: option }));
 }
 
+const STEP_TITLES = ['Register', 'Consent', 'Verify', 'Herd', 'Quote', 'Purchase', 'Payment'];
+
+const writes = () => [
+  mocks.registerFarmer, mocks.fieldVerifyKyc, mocks.createHerd, mocks.getPolicyQuote,
+  mocks.purchasePolicy, mocks.initiatePayment,
+];
+
+function gapLinks(container: HTMLElement) {
+  return within(container).getAllByRole('button').map((b) => b.textContent);
+}
+
+async function fillRegistration() {
+  await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Ekai' } });
+  fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Lokol' } });
+  fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: '+254712345678' } });
+  fireEvent.change(screen.getByLabelText(/national id/i), { target: { value: '30000001' } });
+  fireEvent.change(screen.getByLabelText(/^county/i), { target: { value: 'Turkana' } });
+  fireEvent.change(screen.getByLabelText(/^sub-county/i), { target: { value: 'Turkana Central' } });
+}
+
+async function fillHerdForm() {
+  fireEvent.change(screen.getByLabelText(/herd name/i), { target: { value: 'Main herd' } });
+  await waitFor(() => expect(mocks.getActiveInsuranceUnits).toHaveBeenCalled());
+  await chooseIn(/coverage region/i, /KE-10/);
+  await chooseIn(/livestock type/i, /Cattle/);
+}
+
 /** Register → consent → KYC, landing on the herd step. */
 async function reachHerdStep() {
   await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
@@ -75,10 +103,7 @@ async function reachHerdStep() {
 /** …→ herd, landing on the quote step with no quote yet. */
 async function reachQuoteStep() {
   await reachHerdStep();
-  fireEvent.change(screen.getByLabelText(/herd name/i), { target: { value: 'Main herd' } });
-  await waitFor(() => expect(mocks.getActiveInsuranceUnits).toHaveBeenCalled());
-  await chooseIn(/coverage region/i, /KE-10/);
-  await chooseIn(/livestock type/i, /Cattle/);
+  await fillHerdForm();
   fireEvent.click(screen.getByRole('button', { name: /register herd/i }));
   await screen.findByRole('button', { name: /calculate premium/i });
 }
@@ -123,32 +148,132 @@ describe('LivestockOnboardingWizard stepper', () => {
   it('renders every step as a button and marks the current one', () => {
     renderWizard();
     const nav = screen.getByRole('navigation', { name: /onboarding progress/i });
-    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'Register', 'Consent', 'Verify', 'Herd', 'Quote', 'Purchase', 'Payment',
-    ]);
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(STEP_TITLES);
     expect(stepButton('Register')).toHaveAttribute('aria-current', 'step');
   });
 
-  it('keeps a locked future step shut and says why', async () => {
+  it('opens every step from a fresh wizard, in any order, without crashing', async () => {
     renderWizard();
     await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
-    const herd = stepButton('Herd');
-    expect(herd).toHaveAttribute('aria-disabled', 'true');
-    expect(herd).toHaveAccessibleDescription('Register the pastoralist first');
-    fireEvent.click(herd);
-    expect(stepButton('Register')).toHaveAttribute('aria-current', 'step');
+    for (const title of ['Payment', 'Purchase', 'Herd', 'Consent', 'Quote', 'Verify', 'Register', 'Purchase']) {
+      expect(stepButton(title)).not.toHaveAttribute('aria-disabled');
+      fireEvent.click(stepButton(title));
+      expect(stepButton(title)).toHaveAttribute('aria-current', 'step');
+      expect(screen.getByRole('heading', { name: /livestock onboarding/i })).toBeInTheDocument();
+    }
+    for (const title of STEP_TITLES) expect(stepButton(title)).not.toHaveAccessibleName(/completed/);
+    for (const fn of writes()) expect(fn).not.toHaveBeenCalled();
   });
 
-  it('goes back to a completed step with state intact, and opens a reachable future step', async () => {
+  it('renders the herd, quote and purchase steps with earlier data missing', async () => {
+    renderWizard();
+    await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
+    fireEvent.click(stepButton('Herd'));
+    expect(screen.getByLabelText(/herd name/i)).toBeInTheDocument();
+    fireEvent.click(stepButton('Quote'));
+    expect(screen.getByRole('button', { name: /calculate premium/i })).toBeEnabled();
+    fireEvent.click(stepButton('Purchase'));
+    // It used to render nothing at all here.
+    expect(screen.getByText('Confirm Purchase')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create policy/i })).toBeEnabled();
+
+    fireEvent.click(stepButton('Payment'));
+    const notice = screen.getByTestId('step-missing-notice');
+    expect(notice).toHaveTextContent('Before you can collect payment:');
+    expect(gapLinks(notice)).toEqual([
+      'Register the pastoralist (Register)',
+      "Verify the pastoralist's identity (Verify)",
+      'Register the herd (Herd)',
+      'Calculate the premium (Quote)',
+      'Create the policy (Purchase)',
+    ]);
+    fireEvent.click(within(notice).getByRole('button', { name: /register the herd/i }));
+    expect(stepButton('Herd')).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('submits with missing prerequisites make no request and list exactly what is missing', async () => {
+    renderWizard();
+    await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
+
+    fireEvent.click(stepButton('Quote'));
+    fireEvent.click(screen.getByRole('button', { name: /calculate premium/i }));
+    let message = await screen.findByTestId('submit-blocked');
+    expect(message).toHaveAttribute('role', 'alert');
+    expect(message).toHaveTextContent('Before you can get a quote:');
+    expect(gapLinks(message)).toEqual([
+      'Register the pastoralist (Register)', "Verify the pastoralist's identity (Verify)", 'Register the herd (Herd)',
+    ]);
+
+    fireEvent.click(stepButton('Purchase'));
+    fireEvent.click(screen.getByRole('button', { name: /create policy/i }));
+    message = await screen.findByTestId('submit-blocked');
+    expect(gapLinks(message)).toHaveLength(4);
+    expect(gapLinks(message).at(-1)).toBe('Calculate the premium (Quote)');
+
+    fireEvent.click(stepButton('Verify'));
+    fireEvent.click(screen.getByRole('button', { name: /approve & continue/i }));
+    message = await screen.findByTestId('submit-blocked');
+    expect(gapLinks(message)).toEqual(['Register the pastoralist (Register)']);
+    fireEvent.click(within(message).getByRole('button', { name: /register the pastoralist/i }));
+    expect(stepButton('Register')).toHaveAttribute('aria-current', 'step');
+
+    for (const fn of writes()) expect(fn).not.toHaveBeenCalled();
+  });
+
+  it('keeps verification a requirement for the herd', async () => {
+    renderWizard();
+    await fillRegistration();
+    fireEvent.click(screen.getByRole('button', { name: /register pastoralist/i }));
+    await screen.findByText(/consent is not enforced/i);
+
+    fireEvent.click(stepButton('Herd'));
+    await fillHerdForm();
+    fireEvent.click(screen.getByRole('button', { name: /register herd/i }));
+    const message = await screen.findByTestId('submit-blocked');
+    expect(gapLinks(message)).toEqual(["Verify the pastoralist's identity (Verify)"]);
+    expect(mocks.createHerd).not.toHaveBeenCalled();
+
+    fireEvent.click(within(message).getByRole('button', { name: /verify/i }));
+    fireEvent.click(screen.getByRole('button', { name: /approve & continue/i }));
+    await screen.findByLabelText(/herd name/i);
+    expect(screen.getByLabelText(/herd name/i)).toHaveValue('Main herd');
+    fireEvent.click(screen.getByRole('button', { name: /register herd/i }));
+    await screen.findByRole('button', { name: /calculate premium/i });
+    expect(mocks.createHerd).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists invalid herd fields alongside the missing steps', async () => {
+    renderWizard();
+    await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
+    fireEvent.click(stepButton('Herd'));
+    fireEvent.click(screen.getByRole('button', { name: /register herd/i }));
+    const message = await screen.findByTestId('submit-blocked');
+    expect(message).toHaveTextContent('Complete the highlighted fields on this step');
+    expect(gapLinks(message)).toEqual(['Register the pastoralist (Register)', "Verify the pastoralist's identity (Verify)"]);
+    expect(mocks.createHerd).not.toHaveBeenCalled();
+  });
+
+  it('a double-tapped submit sends one request', async () => {
+    renderWizard();
+    await fillRegistration();
+    const submit = screen.getByRole('button', { name: /register pastoralist/i });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    await screen.findByText(/consent is not enforced/i);
+    expect(mocks.registerFarmer).toHaveBeenCalledTimes(1);
+  });
+
+  it('goes back to a completed step with state intact, and forward again', async () => {
     renderWizard();
     await reachHerdStep();
     fireEvent.change(screen.getByLabelText(/herd name/i), { target: { value: 'Main herd' } });
-    expect(stepButton('Quote')).toHaveAccessibleDescription('Register the herd first');
 
     fireEvent.click(stepButton('Register'));
     expect(await screen.findByText('Pastoralist Registered')).toBeInTheDocument();
     expect(screen.getByText('Ekai Lokol')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /register pastoralist/i })).not.toBeInTheDocument();
+    expect(stepButton('Verify')).toHaveAccessibleName('Verify (completed)');
+    expect(stepButton('Herd')).toHaveAccessibleName('Herd');
 
     fireEvent.click(stepButton('Herd'));
     expect(stepButton('Herd')).toHaveAttribute('aria-current', 'step');
@@ -179,7 +304,6 @@ describe('LivestockOnboardingWizard stepper', () => {
     fireEvent.click(stepButton('Register'));
     expect(screen.queryByRole('button', { name: /register pastoralist/i })).not.toBeInTheDocument();
 
-    // And forward again to the payment step, which is still reachable.
     fireEvent.click(stepButton('Payment'));
     expect(await screen.findByRole('button', { name: /send payment prompt/i })).toBeInTheDocument();
 
@@ -198,30 +322,32 @@ describe('LivestockOnboardingWizard stepper', () => {
     await user.keyboard('{Enter}');
     expect(stepButton('Consent')).toHaveAttribute('aria-current', 'step');
 
-    const purchase = stepButton('Purchase');
-    purchase.focus();
+    stepButton('Purchase').focus();
     await user.keyboard('{Enter}');
-    expect(stepButton('Consent')).toHaveAttribute('aria-current', 'step');
+    expect(stepButton('Purchase')).toHaveAttribute('aria-current', 'step');
 
     stepButton('Herd').focus();
     await user.keyboard(' ');
     expect(stepButton('Herd')).toHaveAttribute('aria-current', 'step');
   });
 
-  it('drops a quote once the season or peril changes, and buys only what was quoted', async () => {
+  it('drops a quote once the season or peril changes, and Purchase asks for a new one', async () => {
     renderWizard();
     await reachQuoteStep();
     fireEvent.click(screen.getByRole('button', { name: /calculate premium/i }));
     await screen.findByRole('button', { name: /proceed to purchase/i });
-    expect(stepButton('Purchase')).not.toHaveAttribute('aria-disabled');
 
-    // Change the peril after the quote: the DROUGHT quote no longer prices the form.
     await chooseIn(/coverage peril/i, /Comprehensive/);
     await waitFor(() => expect(screen.queryByRole('button', { name: /proceed to purchase/i })).not.toBeInTheDocument());
     expect(screen.queryByText(/premium breakdown/i)).not.toBeInTheDocument();
-    expect(stepButton('Purchase')).toHaveAttribute('aria-disabled', 'true');
-    expect(stepButton('Purchase')).toHaveAccessibleDescription('Calculate the premium first');
 
+    fireEvent.click(stepButton('Purchase'));
+    fireEvent.click(screen.getByRole('button', { name: /create policy/i }));
+    const message = await screen.findByTestId('submit-blocked');
+    expect(gapLinks(message)).toEqual(['Get a new quote — the season or peril changed since the last one (Quote)']);
+    expect(mocks.purchasePolicy).not.toHaveBeenCalled();
+
+    fireEvent.click(within(message).getByRole('button', { name: /get a new quote/i }));
     fireEvent.click(screen.getByRole('button', { name: /calculate premium/i }));
     fireEvent.click(await screen.findByRole('button', { name: /proceed to purchase/i }));
     fireEvent.click(await screen.findByRole('button', { name: /create policy/i }));
@@ -233,20 +359,52 @@ describe('LivestockOnboardingWizard stepper', () => {
     expect(mocks.purchasePolicy).toHaveBeenCalledWith(expect.objectContaining({ coverageType: 'COMPREHENSIVE', season: 'LRLD' }));
   });
 
-  it('announces the current step and shows why a tapped step is locked', async () => {
+  it('announces the current step, and pauses navigation while a request is in flight', async () => {
     renderWizard();
     await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
     const nav = screen.getByRole('navigation', { name: /onboarding progress/i });
     const [live] = within(nav).getAllByRole('status');
     expect(live).toHaveTextContent('Step 1 of 7: Register');
-
     fireEvent.click(stepButton('Quote'));
+    expect(live).toHaveTextContent('Step 5 of 7: Quote');
+    fireEvent.click(stepButton('Register'));
+
+    let resolveRegister: (v: unknown) => void = () => {};
+    mocks.registerFarmer.mockReturnValueOnce(new Promise((resolve) => { resolveRegister = resolve; }));
+    await fillRegistration();
+    fireEvent.click(screen.getByRole('button', { name: /register pastoralist/i }));
+    await waitFor(() => expect(stepButton('Herd')).toHaveAttribute('aria-disabled', 'true'));
+    fireEvent.click(stepButton('Herd'));
+    expect(stepButton('Register')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByTestId('stepper-locked-notice')).toHaveTextContent(
-      "Can't open Quote. Register the pastoralist first.",
+      "Can't open Herd yet. Wait for the current request to finish.",
     );
 
-    await reachHerdStep();
-    expect(live).toHaveTextContent('Step 4 of 7: Herd');
+    resolveRegister({
+      id: 'farmer-1', firstName: 'Ekai', lastName: 'Lokol', phoneNumber: '+254712345678',
+      nationalId: '30000001', county: 'Turkana', kycStatus: 'PENDING',
+    });
+    await screen.findByText(/consent is not enforced/i);
+    expect(live).toHaveTextContent('Step 2 of 7: Consent');
     expect(screen.getByTestId('stepper-locked-notice')).toBeEmptyDOMElement();
+  });
+
+  it('survives pressing every action on every step in a scrambled order', async () => {
+    renderWizard();
+    await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
+    const actions = /register pastoralist|approve & continue|register herd|calculate premium|create policy|send payment prompt|^continue$|^back$/i;
+    let pressed = 0;
+    for (const title of ['Purchase', 'Payment', 'Quote', 'Herd', 'Verify', 'Consent', 'Register', 'Purchase', 'Quote']) {
+      fireEvent.click(stepButton(title));
+      const main = screen.getByRole('heading', { name: /livestock onboarding/i }).parentElement?.parentElement as HTMLElement;
+      for (const button of within(main).queryAllByRole('button', { name: actions })) {
+        if (!document.body.contains(button)) continue;
+        fireEvent.click(button);
+        pressed += 1;
+        await waitFor(() => expect(screen.getByRole('navigation', { name: /onboarding progress/i })).toBeInTheDocument());
+      }
+    }
+    expect(pressed).toBeGreaterThan(5);
+    for (const fn of writes()) expect(fn).not.toHaveBeenCalled();
   });
 });

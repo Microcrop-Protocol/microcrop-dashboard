@@ -1,52 +1,111 @@
 /**
- * The reachability rules on their own. Each locked step names the EARLIEST thing missing, and
- * the only step a purchase locks is the boundary walk — everything else stays viewable, read-only.
+ * The submit-time prerequisite rules on their own. Each action lists EVERYTHING it still needs,
+ * earliest first, each item pointing at the step that provides it; the stepper ticks a step only
+ * when its record really exists.
  */
 import { describe, expect, it } from 'vitest';
 import {
-  fieldStepLockReason, fieldStepPrerequisiteGap, livestockStepLockReason, quoteInputsMatch, type FieldStepId,
+  fieldActionMissing, fieldStepDone, livestockActionMissing, livestockStepDone, quoteInputsMatch,
+  type FieldStepId, type LivestockStepId,
 } from '../step-access';
 
 const approved = { kycStatus: 'APPROVED' };
 const pending = { kycStatus: 'PENDING' };
+const steps = (list: { step: string }[]) => list.map((m) => m.step);
 
-describe('fieldStepLockReason', () => {
+describe('fieldActionMissing', () => {
   const empty = { farmer: null, plot: null, boundaryResult: null, quote: null, policy: null };
 
-  it('opens only registration on a fresh wizard', () => {
-    const open = (['register', 'consent', 'kyc', 'plot', 'walk', 'review', 'quote', 'purchase', 'payment'] as FieldStepId[])
-      .filter((id) => fieldStepLockReason(id, empty) == null);
-    expect(open).toEqual(['register']);
-    expect(fieldStepLockReason('quote', empty)).toBe('Register the farmer first');
+  it('lets only registration through on a fresh wizard, and lists every gap for the rest', () => {
+    expect(fieldActionMissing('register', empty)).toEqual([]);
+    expect(steps(fieldActionMissing('kyc', empty))).toEqual(['register']);
+    expect(steps(fieldActionMissing('plot', empty))).toEqual(['register', 'kyc']);
+    expect(steps(fieldActionMissing('walk', empty))).toEqual(['register', 'kyc', 'plot']);
+    expect(steps(fieldActionMissing('quote', empty))).toEqual(['register', 'kyc', 'plot', 'walk']);
+    expect(steps(fieldActionMissing('purchase', empty))).toEqual(['register', 'kyc', 'plot', 'walk', 'quote']);
+    expect(steps(fieldActionMissing('payment', empty))).toEqual(['register', 'kyc', 'plot', 'walk', 'quote', 'purchase']);
   });
 
-  it('opens consent and KYC once a farmer exists, and the plot only once they are verified', () => {
-    expect(fieldStepLockReason('consent', { ...empty, farmer: pending })).toBeNull();
-    expect(fieldStepLockReason('kyc', { ...empty, farmer: pending })).toBeNull();
-    expect(fieldStepLockReason('plot', { ...empty, farmer: pending })).toBe("Verify the farmer's identity first");
-    expect(fieldStepLockReason('plot', { ...empty, farmer: approved })).toBeNull();
+  it('phrases each gap as the thing to do', () => {
+    expect(fieldActionMissing('quote', empty).map((m) => m.label)).toEqual([
+      'Register the farmer', "Verify the farmer's identity", 'Create the plot', 'Walk the plot boundary',
+    ]);
   });
 
-  it('needs the plot for the walk, the walk for review and quote, and a quote for purchase', () => {
-    const s = { ...empty, farmer: approved, plot: {} };
-    expect(fieldStepLockReason('walk', s)).toBeNull();
-    expect(fieldStepLockReason('review', s)).toBe('Walk the plot boundary first');
-    expect(fieldStepLockReason('quote', s)).toBe('Walk the plot boundary first');
-    const walked = { ...s, boundaryResult: {} };
-    expect(fieldStepLockReason('quote', walked)).toBeNull();
-    expect(fieldStepLockReason('purchase', walked)).toBe('Get a premium quote first');
-    expect(fieldStepLockReason('purchase', { ...walked, quote: {} })).toBeNull();
-    expect(fieldStepLockReason('payment', { ...walked, quote: {} })).toBe('Purchase the policy first');
+  it('keeps verification a requirement for the plot, and the walk one for the quote', () => {
+    expect(steps(fieldActionMissing('plot', { ...empty, farmer: pending }))).toEqual(['kyc']);
+    expect(fieldActionMissing('plot', { ...empty, farmer: approved })).toEqual([]);
+    const planted = { ...empty, farmer: approved, plot: {} };
+    expect(fieldActionMissing('walk', planted)).toEqual([]);
+    expect(steps(fieldActionMissing('quote', planted))).toEqual(['walk']);
+    expect(fieldActionMissing('quote', { ...planted, boundaryResult: {} })).toEqual([]);
   });
 
-  it('locks only the boundary walk once the policy exists', () => {
-    const bought = { farmer: approved, plot: {}, boundaryResult: {}, quote: {}, policy: {} };
-    expect(fieldStepLockReason('walk', bought)).toMatch(/policy has been purchased/);
-    for (const id of ['register', 'consent', 'kyc', 'plot', 'review', 'quote', 'purchase', 'payment'] as FieldStepId[]) {
-      expect(fieldStepLockReason(id, bought)).toBeNull();
+  it('asks for a new quote when the coverage changed since the last one', () => {
+    const walked = { farmer: approved, plot: {}, boundaryResult: {}, quote: null, policy: null };
+    expect(fieldActionMissing('purchase', walked)[0].label).toBe('Get a premium quote');
+    expect(fieldActionMissing('purchase', { ...walked, staleQuote: true })[0].label).toMatch(/^Get a new quote/);
+    expect(fieldActionMissing('purchase', { ...walked, quote: {} })).toEqual([]);
+    expect(steps(fieldActionMissing('payment', { ...walked, quote: {} }))).toEqual(['purchase']);
+  });
+
+  it('has nothing missing anywhere once the policy exists', () => {
+    const bought = { farmer: approved, plot: {}, boundaryResult: {}, quote: null, policy: {} };
+    for (const id of ['register', 'consent', 'kyc', 'plot', 'walk', 'review', 'quote', 'purchase', 'payment'] as FieldStepId[]) {
+      expect(fieldActionMissing(id, bought)).toEqual([]);
     }
-    // The walk is locked but done: its prerequisites are all there, so it keeps its tick.
-    expect(fieldStepPrerequisiteGap('walk', bought)).toBeNull();
+  });
+});
+
+describe('fieldStepDone', () => {
+  const none = () => false;
+  const all = () => true;
+
+  it('ticks a step only when its record exists', () => {
+    const empty = { farmer: null, plot: null, boundaryResult: null, quote: null, policy: null };
+    for (const id of ['register', 'consent', 'kyc', 'plot', 'walk', 'review', 'quote', 'purchase', 'payment'] as FieldStepId[]) {
+      expect(fieldStepDone(id, empty, all)).toBe(false);
+    }
+    expect(fieldStepDone('kyc', { ...empty, farmer: pending }, all)).toBe(false);
+    expect(fieldStepDone('kyc', { ...empty, farmer: approved }, all)).toBe(true);
+  });
+
+  it('ticks consent and review once visited with their data in place', () => {
+    const s = { farmer: approved, plot: {}, boundaryResult: {}, quote: null, policy: null };
+    expect(fieldStepDone('consent', s, none)).toBe(false);
+    expect(fieldStepDone('consent', s, all)).toBe(true);
+    expect(fieldStepDone('review', s, all)).toBe(true);
+    expect(fieldStepDone('review', { ...s, boundaryResult: null }, all)).toBe(false);
+    expect(fieldStepDone('payment', { ...s, policy: {} }, all)).toBe(false);
+    expect(fieldStepDone('payment', { ...s, policy: {}, paymentCompleted: true }, all)).toBe(true);
+  });
+});
+
+describe('livestockActionMissing', () => {
+  const empty = { farmer: null, herd: null, quote: null, policy: null };
+
+  it('walks the same chain: pastoralist, verification, herd, quote, policy', () => {
+    expect(livestockActionMissing('register', empty)).toEqual([]);
+    expect(steps(livestockActionMissing('herd', empty))).toEqual(['register', 'kyc']);
+    expect(steps(livestockActionMissing('herd', { ...empty, farmer: pending }))).toEqual(['kyc']);
+    expect(steps(livestockActionMissing('quote', { ...empty, farmer: approved }))).toEqual(['herd']);
+    expect(steps(livestockActionMissing('purchase', { ...empty, farmer: approved, herd: {} }))).toEqual(['quote']);
+    expect(livestockActionMissing('purchase', { ...empty, farmer: approved, herd: {}, quote: {} })).toEqual([]);
+    expect(steps(livestockActionMissing('payment', { ...empty, farmer: approved, herd: {}, quote: {} }))).toEqual(['purchase']);
+    expect(steps(livestockActionMissing('payment', empty))).toEqual(['register', 'kyc', 'herd', 'quote', 'purchase']);
+  });
+
+  it('asks for a new quote when the season or peril changed', () => {
+    const s = { farmer: approved, herd: {}, quote: null, policy: null, staleQuote: true };
+    expect(livestockActionMissing('purchase', s)[0].label).toMatch(/^Get a new quote/);
+  });
+
+  it('ticks only steps whose record exists', () => {
+    const empty2 = { farmer: null, herd: null, quote: null, policy: null };
+    for (const id of ['register', 'consent', 'kyc', 'herd', 'quote', 'purchase', 'payment'] as LivestockStepId[]) {
+      expect(livestockStepDone(id, empty2, () => true)).toBe(false);
+    }
+    expect(livestockStepDone('herd', { ...empty2, herd: {} }, () => false)).toBe(true);
   });
 });
 
@@ -63,19 +122,5 @@ describe('quoteInputsMatch', () => {
     expect(quoteInputsMatch({ ...quoted, coverageType: 'FLOOD' }, quoted)).toBe(false);
     expect(quoteInputsMatch({ ...quoted, durationDays: undefined }, quoted)).toBe(false);
     expect(quoteInputsMatch(quoted, null)).toBe(false);
-  });
-});
-
-describe('livestockStepLockReason', () => {
-  const empty = { farmer: null, herd: null, quote: null, policy: null };
-
-  it('walks the same chain: pastoralist, verification, herd, quote, policy', () => {
-    expect(livestockStepLockReason('consent', empty)).toBe('Register the pastoralist first');
-    expect(livestockStepLockReason('herd', { ...empty, farmer: pending })).toBe("Verify the pastoralist's identity first");
-    expect(livestockStepLockReason('quote', { ...empty, farmer: approved })).toBe('Register the herd first');
-    expect(livestockStepLockReason('purchase', { ...empty, farmer: approved, herd: {} })).toBe('Calculate the premium first');
-    expect(livestockStepLockReason('purchase', { ...empty, farmer: approved, herd: {}, quote: {} })).toBeNull();
-    expect(livestockStepLockReason('payment', { ...empty, farmer: approved, herd: {}, quote: {} })).toBe('Create the policy first');
-    expect(livestockStepLockReason('payment', { farmer: approved, herd: {}, quote: {}, policy: {} })).toBeNull();
   });
 });

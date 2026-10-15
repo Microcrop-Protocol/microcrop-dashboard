@@ -12,19 +12,11 @@ export interface OnboardingStepperStep<Id extends string = string> {
 interface OnboardingStepperProps<Id extends string> {
   steps: readonly OnboardingStepperStep<Id>[];
   currentIndex: number;
-  /** Steps before this index are drawn as completed, unless they are locked. */
-  furthestIndex: number;
-  /** Why a step cannot be opened right now, or null when it can. */
-  lockedReason: (id: Id) => string | null;
+  /** Whether a step's record really exists. A done step (other than the current one) is ticked. */
+  isComplete: (id: Id) => boolean;
   /**
-   * Which of a step's prerequisites is missing, or null. A step before `furthestIndex` is drawn
-   * as completed only while this is null. Defaults to `lockedReason`; a wizard passes it apart
-   * when a step can be done yet locked (the crop boundary, once the policy is bought).
-   */
-  prerequisiteGap?: (id: Id) => string | null;
-  /**
-   * A request is in flight. Every other step is locked with BUSY_REASON until it settles,
-   * because the request's success handler moves the wizard on its own.
+   * A request is in flight. Every other step waits with BUSY_REASON until it settles, because
+   * the request's success handler moves the wizard on its own.
    */
   busy?: boolean;
   onSelect: (index: number) => void;
@@ -34,30 +26,27 @@ interface OnboardingStepperProps<Id extends string> {
 
 /**
  * The progress strip shared by the crop and livestock onboarding wizards. Every step is a
- * button: a completed or reachable one opens that step, a locked one stays put and says why.
+ * button and every step opens, in any order: what a step still needs is checked when its
+ * action is submitted, not when it is opened (see step-access).
  *
- * The reason is given three ways: the title tooltip (pointer), aria-describedby (screen
- * readers), and a visible status line under the strip once the locked step is clicked or
- * tapped. The last one is the only one a field agent on a phone sees: touch screens show no
- * tooltips and the step labels are hidden below `lg`.
+ * The one exception is a request in flight. Then the other steps say why they wait, three
+ * ways: the title tooltip (pointer), aria-describedby (screen readers), and a visible status
+ * line under the strip once one is clicked or tapped — the only one a field agent on a phone
+ * sees, since touch screens show no tooltips and the step labels are hidden below `lg`.
  *
- * `aria-disabled` is used instead of `disabled` so a locked step stays focusable and its reason
- * can be read. The "Step N of M" line is a live region, so a screen-reader user who opens a
- * step hears which screen they are now on.
+ * `aria-disabled` is used instead of `disabled` so a waiting step stays focusable and its
+ * reason can be read. The "Step N of M" line is a live region, so a screen-reader user who
+ * opens a step hears which screen they are now on.
  */
 export function OnboardingStepper<Id extends string>({
-  steps, currentIndex, furthestIndex, lockedReason, prerequisiteGap = lockedReason, busy = false, onSelect, className, listClassName,
+  steps, currentIndex, isComplete, busy = false, onSelect, className, listClassName,
 }: OnboardingStepperProps<Id>) {
   const baseId = useId();
-  // The locked step the agent last tried, and the step they were on when they tried it. The
-  // notice reads the step's reason live, so it disappears as soon as the step opens up, and it
-  // belongs to the step the agent was on: moving anywhere clears it.
+  // The step the agent tried while a request was in flight, and the step they were on. The
+  // notice disappears when the request settles, and belongs to the step the agent was on.
   const [tried, setTried] = useState<{ index: number; from: number } | null>(null);
 
-  const reasonFor = (id: Id) => (busy ? BUSY_REASON : lockedReason(id));
-
-  const triedStep = tried && tried.from === currentIndex ? steps[tried.index] : undefined;
-  const triedReason = triedStep ? reasonFor(triedStep.id) : null;
+  const triedStep = busy && tried && tried.from === currentIndex ? steps[tried.index] : undefined;
 
   return (
     <nav aria-label="Onboarding progress" className={cn('mb-8', className)}>
@@ -68,12 +57,10 @@ export function OnboardingStepper<Id extends string>({
         {steps.map((step, index) => {
           const Icon = step.icon;
           const isCurrent = index === currentIndex;
-          const reason = isCurrent ? null : reasonFor(step.id);
-          const locked = reason != null;
+          const waiting = busy && !isCurrent;
           // Completion ignores `busy`: a request in flight does not undo the steps before it.
-          // A step whose prerequisites are gone (a quote went stale) is not drawn as completed.
-          const isCompleted = !isCurrent && index < furthestIndex && prerequisiteGap(step.id) == null;
-          const reasonId = `${baseId}-${step.id}-locked`;
+          const isCompleted = !isCurrent && isComplete(step.id);
+          const reasonId = `${baseId}-${step.id}-waiting`;
 
           return (
             <li
@@ -89,16 +76,16 @@ export function OnboardingStepper<Id extends string>({
                 type="button"
                 className={cn(
                   'group flex items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                  locked ? 'cursor-not-allowed' : !isCurrent && 'cursor-pointer',
+                  waiting ? 'cursor-wait' : !isCurrent && 'cursor-pointer',
                 )}
                 aria-current={isCurrent ? 'step' : undefined}
-                aria-disabled={locked || undefined}
-                aria-describedby={locked ? reasonId : undefined}
+                aria-disabled={waiting || undefined}
+                aria-describedby={waiting ? reasonId : undefined}
                 aria-label={isCompleted ? `${step.title} (completed)` : step.title}
-                title={reason ?? undefined}
+                title={waiting ? BUSY_REASON : undefined}
                 onClick={() => {
                   if (isCurrent) return;
-                  if (locked) {
+                  if (waiting) {
                     setTried({ index, from: currentIndex });
                     return;
                   }
@@ -112,7 +99,7 @@ export function OnboardingStepper<Id extends string>({
                     isCompleted && 'border-primary bg-primary text-primary-foreground',
                     isCurrent && 'border-primary bg-background text-primary animate-pulse ring-4 ring-primary/20',
                     !isCompleted && !isCurrent && 'border-muted-foreground/25 bg-background text-muted-foreground/50',
-                    !isCurrent && !locked && 'group-hover:ring-4 group-hover:ring-primary/20',
+                    !isCurrent && !waiting && 'group-hover:ring-4 group-hover:ring-primary/20',
                   )}
                 >
                   {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
@@ -128,18 +115,18 @@ export function OnboardingStepper<Id extends string>({
                   {step.title}
                 </span>
               </button>
-              {locked && <span id={reasonId} className="sr-only">{reason}</span>}
+              {waiting && <span id={reasonId} className="sr-only">{BUSY_REASON}</span>}
             </li>
           );
         })}
       </ol>
       <p
-        className={cn('text-sm text-amber-700 dark:text-amber-300', triedReason && 'mt-3')}
+        className={cn('text-sm text-amber-700 dark:text-amber-300', triedStep && 'mt-3')}
         role="status"
         aria-live="polite"
         data-testid="stepper-locked-notice"
       >
-        {triedStep && triedReason ? `Can't open ${triedStep.title}. ${triedReason}.` : null}
+        {triedStep ? `Can't open ${triedStep.title} yet. ${BUSY_REASON}.` : null}
       </p>
     </nav>
   );

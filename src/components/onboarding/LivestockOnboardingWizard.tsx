@@ -40,7 +40,11 @@ import {
 } from '@/components/catalogue/CatalogueOptions';
 import { OnboardingStepper } from './OnboardingStepper';
 import { SavedRecordNote } from './SavedRecordNote';
-import { livestockStepLockReason, quoteInputsMatch, useStepProgress } from './step-access';
+import { MissingPrerequisites } from './MissingPrerequisites';
+import {
+  livestockActionMissing, livestockStepDone, quoteInputsMatch, useSingleFlight, useStepProgress,
+  type LivestockStepState,
+} from './step-access';
 
 /**
  * IBLI premiums, herd values and fees are LOCAL currency — the backend prices livestock per TLU
@@ -88,12 +92,24 @@ function stepIndex(id: StepId): number {
   return STEPS.findIndex((step) => step.id === id);
 }
 
+function stepTitle(id: StepId): string {
+  return STEPS[stepIndex(id)]?.title ?? id;
+}
+
+function hasErrors(errors: object): boolean {
+  return Object.keys(errors).length > 0;
+}
+
 export function LivestockOnboardingWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   // Wizard state
-  const { currentStep, furthestStep, setCurrentStep } = useStepProgress();
+  const {
+    currentStep, visitedSteps, submitBlocked, setCurrentStep, showSubmitBlocked, clearSubmitBlocked,
+  } = useStepProgress();
+  // One request at a time from the click that starts it; every mutation releases on settle.
+  const flight = useSingleFlight();
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [herd, setHerd] = useState<Herd | null>(null);
   const [quote, setQuote] = useState<LivestockPolicyQuote | null>(null);
@@ -208,6 +224,21 @@ export function LivestockOnboardingWizard() {
     ? quote
     : null;
 
+  /**
+   * What each step's action reads. `livestockActionMissing(step, stepState)` is the one answer
+   * to "can this be submitted?" — the submit handlers, the inline notices and the mutation
+   * backstops below all ask it.
+   */
+  const stepState: LivestockStepState = {
+    farmer, herd, quote: currentQuote, staleQuote: quote != null && currentQuote == null, policy,
+  };
+  const missingFor = (id: StepId) => livestockActionMissing(id, stepState);
+  /** Backstop inside a mutation: never send a request whose prerequisites are missing. */
+  const assertReady = (id: StepId) => {
+    const missing = missingFor(id);
+    if (missing.length) throw new Error(`${missing[0].label} first`);
+  };
+
   // ── Mutations ──────────────────────────────────────────
 
   const registerMutation = useMutation({
@@ -229,10 +260,15 @@ export function LivestockOnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't register the pastoralist.");
     },
+    onSettled: flight.release,
   });
 
   const kycMutation = useMutation({
-    mutationFn: (farmerId: string) => api.fieldVerifyKyc(farmerId),
+    mutationFn: () => {
+      assertReady('kyc');
+      if (!farmer) throw new Error('No pastoralist registered');
+      return api.fieldVerifyKyc(farmer.id);
+    },
     onSuccess: () => {
       if (farmer) setFarmer({ ...farmer, kycStatus: 'APPROVED' });
       setCurrentStep(stepIndex('herd'));
@@ -241,10 +277,13 @@ export function LivestockOnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't verify the pastoralist's identity.");
     },
+    onSettled: flight.release,
   });
 
   const createHerdMutation = useMutation({
     mutationFn: (data: HerdRegistrationData) => {
+      // The submit handler checks these first and says what is missing; this is the backstop.
+      assertReady('herd');
       if (!farmer) throw new Error('No pastoralist registered');
       if (herd) throw new Error('This herd is already registered');
       return api.createHerd({
@@ -264,10 +303,12 @@ export function LivestockOnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't register the herd.");
     },
+    onSettled: flight.release,
   });
 
   const quoteMutation = useMutation({
     mutationFn: (data: LivestockPolicyConfigData) => {
+      assertReady('quote');
       if (!farmer || !herd) throw new Error('Missing pastoralist or herd data');
       return api.getPolicyQuote({
         farmerId: farmer.id,
@@ -287,14 +328,16 @@ export function LivestockOnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't get a premium quote.");
     },
+    onSettled: flight.release,
   });
 
   const purchaseMutation = useMutation({
     mutationFn: () => {
-      if (!farmer || !herd) throw new Error('Missing data');
       if (policy) throw new Error('This policy has already been purchased');
+      assertReady('purchase');
+      if (!farmer || !herd) throw new Error('Missing data');
       // Buy exactly what was quoted. Selects changed since the quote leave `currentQuote` null,
-      // which locks this step; this is the backstop.
+      // and the purchase click asks for a new quote; this is the backstop.
       const values = quotedValues;
       if (!currentQuote || !values) throw new Error('Calculate the premium for these values first');
       return api.purchasePolicy({
@@ -318,6 +361,7 @@ export function LivestockOnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't create the policy.");
     },
+    onSettled: flight.release,
   });
 
   const paymentMutation = useMutation({
@@ -350,6 +394,7 @@ export function LivestockOnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't send the payment request.");
     },
+    onSettled: flight.release,
   });
 
   // ── Payment status polling ─────────────────────────────
@@ -428,13 +473,57 @@ export function LivestockOnboardingWizard() {
   const busy = registerMutation.isPending || kycMutation.isPending || createHerdMutation.isPending
     || quoteMutation.isPending || purchaseMutation.isPending || paymentMutation.isPending;
 
+  const doneState = { ...stepState, paymentCompleted: paymentStatus === 'completed' };
+  const visited = (id: StepId) => visitedSteps.includes(stepIndex(id));
+
+  /** In-step navigation. Like the stepper, it waits while a request is in flight. */
+  const goTo = (id: StepId) => {
+    if (!busy) setCurrentStep(stepIndex(id));
+  };
+
+  /**
+   * Start a step's action only when nothing it needs is missing; otherwise make no request and
+   * say what is missing instead. `start` runs at most once until its mutation settles.
+   */
+  const submitIfReady = (id: StepId, start: () => void) => {
+    if (missingFor(id).length) {
+      showSubmitBlocked();
+      return;
+    }
+    clearSubmitBlocked();
+    flight.run(start);
+  };
+
+  /** The refusal shown on the current step after a submit with gaps, read live. */
+  const renderSubmitBlocked = (id: StepId, action: string, fieldsIncomplete = false) => (
+    submitBlocked && STEPS[currentStep]?.id === id ? (
+      <MissingPrerequisites
+        action={action}
+        missing={missingFor(id)}
+        fieldsIncomplete={fieldsIncomplete}
+        stepTitle={stepTitle}
+        onGoTo={goTo}
+      />
+    ) : null
+  );
+
+  /** Shown on arrival at a step that has nothing meaningful to show without earlier data. */
+  const renderMissingNotice = (id: StepId, action: string) => (
+    <MissingPrerequisites
+      variant="notice"
+      action={action}
+      missing={missingFor(id)}
+      stepTitle={stepTitle}
+      onGoTo={goTo}
+    />
+  );
+
   const renderStepper = () => (
     <OnboardingStepper
       steps={STEPS}
       currentIndex={currentStep}
-      furthestIndex={furthestStep}
       busy={busy}
-      lockedReason={(id) => livestockStepLockReason(id, { farmer, herd, quote: currentQuote, policy })}
+      isComplete={(id) => livestockStepDone(id, doneState, visited)}
       onSelect={setCurrentStep}
       className="overflow-x-auto pb-4"
       listClassName="min-w-[600px]"
@@ -473,7 +562,7 @@ export function LivestockOnboardingWizard() {
           This pastoralist is already registered, so the form is closed. Correct their details from
           the farmer&apos;s page — registering again here would create a second record.
         </SavedRecordNote>
-        <Button className="w-full" onClick={() => setCurrentStep(stepIndex('consent'))}>
+        <Button className="w-full" onClick={() => goTo('consent')}>
           Continue
         </Button>
       </CardContent>
@@ -488,7 +577,13 @@ export function LivestockOnboardingWizard() {
       </CardHeader>
       <CardContent>
         <Form {...farmerForm}>
-          <form onSubmit={farmerForm.handleSubmit((data) => registerMutation.mutate(data))} className="space-y-4">
+          <form
+            onSubmit={farmerForm.handleSubmit(
+              (data) => submitIfReady('register', () => registerMutation.mutate(data)),
+              showSubmitBlocked,
+            )}
+            className="space-y-4"
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField control={farmerForm.control} name="firstName" render={({ field }) => (
                 <FormItem>
@@ -542,6 +637,7 @@ export function LivestockOnboardingWizard() {
               )} />
             </div>
 
+            {renderSubmitBlocked('register', 'register the pastoralist', hasErrors(farmerForm.formState.errors))}
             <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
               {registerMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Register Pastoralist
@@ -571,17 +667,11 @@ export function LivestockOnboardingWizard() {
         {farmer ? (
           <FarmerConsentPanel farmerId={farmer.id} />
         ) : (
-          <p className="text-muted-foreground">
-            Pastoralist data missing. Please go back and register them first.
-          </p>
+          renderMissingNotice('consent', 'record consent')
         )}
 
         <div className="space-y-2">
-          <Button
-            className="w-full"
-            onClick={() => setCurrentStep(stepIndex('kyc'))}
-            disabled={!farmer}
-          >
+          <Button className="w-full" onClick={() => goTo('kyc')}>
             Continue
           </Button>
           <p className="text-xs text-muted-foreground text-center">
@@ -622,8 +712,8 @@ export function LivestockOnboardingWizard() {
           <>
             <SavedRecordNote>This pastoralist&apos;s identity has been verified.</SavedRecordNote>
             <div className="flex gap-4">
-              <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(stepIndex('consent'))}>Back</Button>
-              <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('herd'))}>Continue</Button>
+              <Button variant="outline" className="flex-1" onClick={() => goTo('consent')}>Back</Button>
+              <Button className="flex-1" onClick={() => goTo('herd')}>Continue</Button>
             </div>
           </>
         ) : (
@@ -637,12 +727,13 @@ export function LivestockOnboardingWizard() {
               </p>
             </div>
 
+            {renderSubmitBlocked('kyc', "verify the pastoralist's identity")}
             <div className="flex gap-4">
-              <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(stepIndex('consent'))}>Back</Button>
+              <Button variant="outline" className="flex-1" onClick={() => goTo('consent')}>Back</Button>
               <Button
                 className="flex-1"
-                onClick={() => { if (farmer) kycMutation.mutate(farmer.id); }}
-                disabled={kycMutation.isPending || !farmer}
+                onClick={() => submitIfReady('kyc', () => kycMutation.mutate())}
+                disabled={kycMutation.isPending}
               >
                 {kycMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve & Continue
@@ -676,7 +767,7 @@ export function LivestockOnboardingWizard() {
           This herd is already registered, so the form is closed. Registering it again here would
           create a second herd.
         </SavedRecordNote>
-        <Button className="w-full" onClick={() => setCurrentStep(stepIndex('quote'))}>
+        <Button className="w-full" onClick={() => goTo('quote')}>
           Continue
         </Button>
       </CardContent>
@@ -704,7 +795,13 @@ export function LivestockOnboardingWizard() {
         </CardHeader>
         <CardContent>
           <Form {...herdForm}>
-            <form onSubmit={herdForm.handleSubmit((data) => createHerdMutation.mutate(data))} className="space-y-4">
+            <form
+              onSubmit={herdForm.handleSubmit(
+                (data) => submitIfReady('herd', () => createHerdMutation.mutate(data)),
+                showSubmitBlocked,
+              )}
+              className="space-y-4"
+            >
               <FormField control={herdForm.control} name="name" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Herd Name/Identifier <span className="text-destructive">*</span></FormLabel>
@@ -804,6 +901,7 @@ export function LivestockOnboardingWizard() {
                 </div>
               </div>
 
+              {renderSubmitBlocked('herd', 'register the herd', hasErrors(herdForm.formState.errors))}
               <Button type="submit" className="w-full" disabled={createHerdMutation.isPending}>
                 {createHerdMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Register Herd
@@ -841,7 +939,13 @@ export function LivestockOnboardingWizard() {
           )}
           <CatalogueItemDetails item={herdItem} countryName={countryName} className="mb-4" />
           <Form {...quoteForm}>
-            <form onSubmit={quoteForm.handleSubmit((data) => quoteMutation.mutate(data))} className="space-y-6">
+            <form
+              onSubmit={quoteForm.handleSubmit(
+                (data) => submitIfReady('quote', () => quoteMutation.mutate(data)),
+                showSubmitBlocked,
+              )}
+              className="space-y-6"
+            >
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField control={quoteForm.control} name="season" render={({ field }) => (
                   <FormItem>
@@ -881,6 +985,7 @@ export function LivestockOnboardingWizard() {
                 )} />
               </div>
 
+              {renderSubmitBlocked('quote', 'get a quote', hasErrors(quoteForm.formState.errors))}
               {!currentQuote ? (
                 <Button type="submit" className="w-full" disabled={quoteMutation.isPending || Boolean(herdReason)}>
                   {quoteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -921,7 +1026,7 @@ export function LivestockOnboardingWizard() {
                     <Button variant="outline" className="flex-1" onClick={() => { setQuote(null); setQuotedValues(null); }} type="button">
                       Recalculate
                     </Button>
-                    <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))} type="button" disabled={Boolean(herdReason)}>
+                    <Button className="flex-1" onClick={() => goTo('purchase')} type="button" disabled={Boolean(herdReason)}>
                       Proceed to Purchase
                     </Button>
                   </div>
@@ -958,7 +1063,7 @@ export function LivestockOnboardingWizard() {
             )}
           </div>
           <SavedRecordNote>The policy has been created, so this quote can no longer be changed.</SavedRecordNote>
-          <Button className="w-full" onClick={() => setCurrentStep(stepIndex('purchase'))}>
+          <Button className="w-full" onClick={() => goTo('purchase')}>
             Continue
           </Button>
         </CardContent>
@@ -969,8 +1074,7 @@ export function LivestockOnboardingWizard() {
   // ── Step: Purchase Policy ───────────────────────────────
 
   const renderPurchaseStep = () => {
-    if (!farmer || !herd || !currentQuote) return null;
-    const quote = currentQuote;
+    // Rendered even with gaps: the summary shows what exists, and Create Policy says what is missing.
     const season = (quotedValues ?? quoteForm.getValues()).season;
     
     return (
@@ -983,21 +1087,25 @@ export function LivestockOnboardingWizard() {
           <div className="rounded-lg bg-muted p-4 space-y-4">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Policyholder</h4>
-              <p className="font-medium">{farmer.firstName} {farmer.lastName} ({farmer.phoneNumber})</p>
+              <p className="font-medium">
+                {farmer ? `${farmer.firstName} ${farmer.lastName} (${farmer.phoneNumber})` : '—'}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Herd</h4>
-                <p className="font-medium">{herd.name}</p>
-                <p className="flex flex-wrap items-center gap-1 text-sm">
-                  {herd.headCount} × {productLabel(catalogueMarket, 'LIVESTOCK', herd.livestockType)}
-                  <CatalogueStatusBadge status={herdItem?.status} />
-                </p>
+                <p className="font-medium">{herd?.name ?? '—'}</p>
+                {herd && (
+                  <p className="flex flex-wrap items-center gap-1 text-sm">
+                    {herd.headCount} × {productLabel(catalogueMarket, 'LIVESTOCK', herd.livestockType)}
+                    <CatalogueStatusBadge status={herdItem?.status} />
+                  </p>
+                )}
               </div>
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Coverage</h4>
                 <p className="font-medium">IBLI {season}</p>
-                <p className="text-sm">Unit: {quote.insuranceUnitCode}</p>
+                <p className="text-sm">Unit: {currentQuote?.insuranceUnitCode ?? '—'}</p>
               </div>
             </div>
           </div>
@@ -1008,20 +1116,23 @@ export function LivestockOnboardingWizard() {
                 Policy <span className="font-mono">{policy.policyNumber}</span> has been created.
                 Creating it again here would issue a second policy.
               </SavedRecordNote>
-              <Button className="w-full" size="lg" onClick={() => setCurrentStep(stepIndex('payment'))}>
+              <Button className="w-full" size="lg" onClick={() => goTo('payment')}>
                 Continue to Payment
               </Button>
             </>
           ) : (
+            <>
+            {renderSubmitBlocked('purchase', 'create the policy')}
             <Button
               className="w-full"
               size="lg"
-              onClick={() => purchaseMutation.mutate()}
+              onClick={() => submitIfReady('purchase', () => purchaseMutation.mutate())}
               disabled={purchaseMutation.isPending || Boolean(herdReason)}
             >
               {purchaseMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Create Policy
             </Button>
+            </>
           )}
         </CardContent>
       </Card>
@@ -1031,7 +1142,17 @@ export function LivestockOnboardingWizard() {
   // ── Step: Payment ───────────────────────────────────────
 
   const renderPaymentStep = () => {
-    if (!policy) return null;
+    if (!policy) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>{mobileMoneyLabel} payment</CardTitle>
+            <CardDescription>Send a {mobileMoneyLabel} prompt to the pastoralist</CardDescription>
+          </CardHeader>
+          <CardContent>{renderMissingNotice('payment', 'collect payment')}</CardContent>
+        </Card>
+      );
+    }
 
     if (paymentStatus === 'completed') {
       return (
@@ -1114,7 +1235,9 @@ export function LivestockOnboardingWizard() {
               <Button
                 className="w-full"
                 onClick={() => {
-                  if (paymentPhone && amountDue != null) paymentMutation.mutate(paymentPhone);
+                  if (paymentPhone && amountDue != null) {
+                    submitIfReady('payment', () => paymentMutation.mutate(paymentPhone));
+                  }
                 }}
                 disabled={paymentMutation.isPending || !paymentPhone || amountDue == null}
               >
