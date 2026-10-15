@@ -230,6 +230,34 @@ describe('prepareFarmerRows', () => {
     expect(blocking?.issues[0]).toMatch(/^Row 1 · consent: Consent is incomplete — missing consentEvidenceRef/);
   });
 
+  it('checks consent document ids, method and date against what the server accepts', () => {
+    const { rows, blocking } = prepareFarmerRows(
+      [
+        farmer({ ...consent, consentDocumentIds: 'FARMER_DATA_PROCESSING; MARKETING' }),
+        farmer({ ...consent, consentMethod: 'Email' }),
+        farmer({ ...consent, consentGrantedAt: '2999-01-01' }),
+        farmer({ ...consent, consentGrantedAt: '01/05/2026' }),
+      ],
+      MARKETS.KE,
+    );
+    expect(rows).toEqual([]);
+    expect(blocking?.issues).toEqual([
+      'Row 1 · consentDocumentIds: Unknown consent document MARKETING. Use FARMER_DATA_PROCESSING and/or FARMER_POLICY_TERMS',
+      expect.stringMatching(/^Row 2 · consentMethod: "Email" is not a consent method — use one of IN_PERSON_VERBAL_ATTESTED, /),
+      'Row 3 · consentGrantedAt: 2999-01-01 is in the future — consent is dated when the farmer gave it',
+      'Row 4 · consentGrantedAt: "01/05/2026" is not a date — use YYYY-MM-DD',
+    ]);
+  });
+
+  it('uppercases and de-duplicates consent document ids', () => {
+    const { rows, blocking } = prepareFarmerRows(
+      [farmer({ ...consent, consentDocumentIds: 'farmer_data_processing;FARMER_DATA_PROCESSING' })],
+      MARKETS.KE,
+    );
+    expect(blocking).toBeNull();
+    expect(rows[0].consent).toMatchObject({ documentIds: ['FARMER_DATA_PROCESSING'] });
+  });
+
   it('passes a JSON row’s nested consent object through', () => {
     const nested = { documentIds: ['FARMER_DATA_PROCESSING'], method: 'WEB_FORM', grantedAt: '2026-05-01', evidenceRef: 'x' };
     expect(prepareFarmerRows([farmer({ consent: nested })], MARKETS.KE).rows[0].consent).toEqual(nested);
@@ -407,6 +435,9 @@ describe('prepareHerdRows', () => {
       latitude: 2.1, longitude: 36.5,
     });
     expect(prepareHerdRows([herd({ latitude: 0, longitude: 0 })], KE_CATALOGUE, MARKETS.KE).blocking).not.toBeNull();
+    const half = prepareHerdRows([herd({ latitude: '2.1' })], KE_CATALOGUE, MARKETS.KE);
+    expect(half.rows).toEqual([]);
+    expect(half.blocking?.issues).toEqual(['Row 1 · longitude: Give both latitude and longitude, or leave both empty']);
   });
 
   it('blocks a market with no livestock, and holds while the catalogue loads', () => {

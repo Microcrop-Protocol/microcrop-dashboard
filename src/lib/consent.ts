@@ -27,6 +27,12 @@ export const CONSENT_METHOD_OPTIONS: { value: ConsentMethod; label: string }[] =
   { value: 'PAPER_RECORD_IMPORT', label: 'Paper record import (backfill)' },
 ];
 
+/**
+ * The consent document ids the backend registry knows (`src/config/consent.js`). Bulk import
+ * refuses the whole file on any other id, so the import preparer checks rows against this list.
+ */
+export const CONSENT_DOCUMENT_IDS = ['FARMER_DATA_PROCESSING', 'FARMER_POLICY_TERMS'] as const;
+
 export function consentMethodLabel(method: ConsentMethod | string): string {
   return CONSENT_METHOD_OPTIONS.find((m) => m.value === method)?.label ?? String(method);
 }

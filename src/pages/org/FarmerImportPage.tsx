@@ -40,6 +40,7 @@ import {
   herdCsvTemplate,
   importableCrops,
   plotCsvTemplate,
+  CONSENT_METHOD_CODES,
   prepareFarmerRows,
   prepareHerdRows,
   preparePlotRows,
@@ -47,6 +48,8 @@ import {
 } from "./importTemplates";
 import type { BulkImportResult } from "@/lib/api/client";
 import { level1Label } from "@/lib/market";
+import { catalogueItems } from "@/lib/catalogue";
+import { CONSENT_DOCUMENT_IDS } from "@/lib/consent";
 
 /** The server's per-request cap, enforced here for CSV and JSON alike. */
 const MAX_ROWS = 500;
@@ -485,6 +488,12 @@ export default function FarmerImportPage() {
                   consentGrantedAt and consentEvidenceRef for a farmer who consented, or leave them all
                   empty. A yes/no consented column is refused.
                 </p>
+                <p>
+                  consentDocumentIds:{" "}
+                  <span className="font-mono">{CONSENT_DOCUMENT_IDS.join(", ")}</span>. consentMethod:{" "}
+                  <span className="font-mono">{CONSENT_METHOD_CODES.join(", ")}</span>.
+                  consentGrantedAt is a YYYY-MM-DD date, not in the future.
+                </p>
               </>
             }
           />
@@ -582,7 +591,7 @@ export default function FarmerImportPage() {
                   </p>
                   <p className="font-mono">
                     {catalogue
-                      ? catalogue.lines.LIVESTOCK.map((l) => l.code).join(", ")
+                      ? catalogueItems(catalogue, "LIVESTOCK").map((l) => l.code).join(", ")
                       : "loading…"}
                   </p>
                 </>

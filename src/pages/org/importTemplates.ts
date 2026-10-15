@@ -8,6 +8,7 @@ import {
   type CatalogueState,
 } from "@/lib/catalogue";
 import type { CatalogueItem, CatalogueMarket } from "@/types/catalogue";
+import { CONSENT_DOCUMENT_IDS, CONSENT_METHOD_OPTIONS } from "@/lib/consent";
 import { capIssues, summarizeIssues, type ImportIssue, type ImportReport } from "./importIssues";
 import {
   acreageField,
@@ -248,6 +249,16 @@ function coordinates(row: Row, index: number, issues: ImportIssue[], required: b
     if (check(schema, value, index, field, issues)) out[field] = value;
     else ok = false;
   }
+  // Optional means "both or neither": one coordinate alone is not a location.
+  if (!required && (lat === undefined) !== (lng === undefined)) {
+    const missing = lat === undefined ? "latitude" : "longitude";
+    issues.push({
+      row: index,
+      field: missing,
+      message: "Give both latitude and longitude, or leave both empty",
+    });
+    return {};
+  }
   if (ok && isNullIsland(out.latitude, out.longitude)) {
     issues.push({ row: index, field: "latitude", message: NULL_ISLAND_MESSAGE });
   }
@@ -275,6 +286,12 @@ const CONSENT_COLUMNS = {
 const CONSENT_REQUIRED = ["documentIds", "method", "grantedAt", "evidenceRef"] as const;
 
 const KYC_STATUSES = new Set(["PENDING", "APPROVED"]);
+
+const CONSENT_ISO_DATE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/;
+const VALID_DOCUMENT_IDS = new Set<string>(CONSENT_DOCUMENT_IDS);
+/** Consent method codes the API takes, in the order the help text lists them. */
+export const CONSENT_METHOD_CODES: string[] = CONSENT_METHOD_OPTIONS.map((m) => m.value);
+const VALID_METHODS = new Set(CONSENT_METHOD_CODES);
 
 /**
  * Fold the flattened consent columns into the nested `consent` object the API takes.
@@ -311,7 +328,8 @@ function foldConsent(row: Row, index: number, issues: ImportIssue[]): Record<str
     });
     return undefined;
   }
-  if (Number.isNaN(Date.parse(flat.grantedAt))) {
+  // The server takes ISO dates only (Joi date().iso()) and refuses one later than now.
+  if (!CONSENT_ISO_DATE.test(flat.grantedAt) || Number.isNaN(Date.parse(flat.grantedAt))) {
     issues.push({
       row: index,
       field: "consentGrantedAt",
@@ -319,10 +337,41 @@ function foldConsent(row: Row, index: number, issues: ImportIssue[]): Record<str
     });
     return undefined;
   }
+  if (Date.parse(flat.grantedAt) > Date.now()) {
+    issues.push({
+      row: index,
+      field: "consentGrantedAt",
+      message: `${flat.grantedAt} is in the future — consent is dated when the farmer gave it`,
+    });
+    return undefined;
+  }
+  const documentIds = [
+    ...new Set(flat.documentIds.split(/[;|]/).map((d) => d.trim().toUpperCase()).filter(Boolean)),
+  ];
+  const unknownIds = documentIds.filter((id) => !VALID_DOCUMENT_IDS.has(id));
+  if (documentIds.length === 0 || unknownIds.length > 0) {
+    issues.push({
+      row: index,
+      field: "consentDocumentIds",
+      message:
+        (unknownIds.length > 0 ? `Unknown consent document ${unknownIds.join(", ")}. ` : "") +
+        `Use ${CONSENT_DOCUMENT_IDS.join(" and/or ")}`,
+    });
+    return undefined;
+  }
+  // The API's method codes are upper snake case (IN_PERSON_SIGNATURE); accept "In person signature".
+  const method = flat.method.toUpperCase().replace(/[\s-]+/g, "_");
+  if (!VALID_METHODS.has(method)) {
+    issues.push({
+      row: index,
+      field: "consentMethod",
+      message: `"${flat.method}" is not a consent method — use one of ${CONSENT_METHOD_CODES.join(", ")}`,
+    });
+    return undefined;
+  }
   const consent: Record<string, unknown> = {
-    documentIds: flat.documentIds.split(/[;|]/).map((d) => d.trim()).filter(Boolean),
-    // The API's method codes are upper snake case (IN_PERSON_SIGNATURE); accept "In person signature".
-    method: flat.method.toUpperCase().replace(/[\s-]+/g, "_"),
+    documentIds,
+    method,
     grantedAt: flat.grantedAt,
     evidenceRef: flat.evidenceRef,
   };
