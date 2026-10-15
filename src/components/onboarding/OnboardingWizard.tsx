@@ -32,8 +32,10 @@ import { BoundaryWalkStep } from './BoundaryWalkStep';
 import { BoundaryReviewMap } from './BoundaryReviewMap';
 import { OnboardingStepper } from './OnboardingStepper';
 import { SavedRecordNote } from './SavedRecordNote';
+import { MissingPrerequisites } from './MissingPrerequisites';
 import {
-  fieldStepLockReason, fieldStepPrerequisiteGap, quoteInputsMatch, useStepProgress,
+  fieldActionMissing, fieldStepDone, quoteInputsMatch, useSingleFlight, useStepProgress,
+  type FieldStepState,
 } from './step-access';
 import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
 import { useOrgMarket } from '@/hooks/useOrgMarket';
@@ -108,12 +110,24 @@ function stepIndex(id: StepId): number {
   return STEPS.findIndex((step) => step.id === id);
 }
 
+function stepTitle(id: StepId): string {
+  return STEPS[stepIndex(id)]?.title ?? id;
+}
+
+function hasErrors(errors: object): boolean {
+  return Object.keys(errors).length > 0;
+}
+
 export function OnboardingWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   // Wizard state
-  const { currentStep, furthestStep, setCurrentStep } = useStepProgress();
+  const {
+    currentStep, visitedSteps, submitBlocked, setCurrentStep, showSubmitBlocked, clearSubmitBlocked,
+  } = useStepProgress();
+  // One request at a time from the click that starts it; every mutation releases on settle.
+  const flight = useSingleFlight();
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [plot, setPlot] = useState<Plot | null>(null);
   const [boundaryResult, setBoundaryResult] = useState<GpsTrackResponse | null>(null);
@@ -217,6 +231,21 @@ export function OnboardingWizard() {
     ? quote
     : null;
 
+  /**
+   * What each step's action reads. `fieldActionMissing(step, stepState)` is the one answer to
+   * "can this be submitted?" — the submit handlers, the inline notices and the mutation
+   * backstops below all ask it.
+   */
+  const stepState: FieldStepState = {
+    farmer, plot, boundaryResult, quote: currentQuote, staleQuote: quote != null && currentQuote == null, policy,
+  };
+  const missingFor = (id: StepId) => fieldActionMissing(id, stepState);
+  /** Backstop inside a mutation: never send a request whose prerequisites are missing. */
+  const assertReady = (id: StepId) => {
+    const missing = missingFor(id);
+    if (missing.length) throw new Error(`${missing[0].label} first`);
+  };
+
   // ── Mutations ──────────────────────────────────────────
 
   const registerMutation = useMutation({
@@ -233,10 +262,15 @@ export function OnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't register the farmer.");
     },
+    onSettled: flight.release,
   });
 
   const kycMutation = useMutation({
-    mutationFn: (farmerId: string) => api.fieldVerifyKyc(farmerId),
+    mutationFn: () => {
+      assertReady('kyc');
+      if (!farmer) throw new Error('No farmer registered');
+      return api.fieldVerifyKyc(farmer.id);
+    },
     onSuccess: () => {
       if (farmer) setFarmer({ ...farmer, kycStatus: 'APPROVED' });
       setCurrentStep(stepIndex('plot'));
@@ -245,10 +279,13 @@ export function OnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't verify the farmer's identity.");
     },
+    onSettled: flight.release,
   });
 
   const createPlotMutation = useMutation({
     mutationFn: (data: PlotCreationData) => {
+      // The submit handler checks these first and says what is missing; this is the backstop.
+      assertReady('plot');
       if (!farmer) throw new Error('No farmer registered');
       if (plot) throw new Error('This plot is already registered');
       return api.createPlot(farmer.id, {
@@ -268,10 +305,12 @@ export function OnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't create the plot.");
     },
+    onSettled: flight.release,
   });
 
   const quoteMutation = useMutation({
     mutationFn: (data: PolicyConfigData) => {
+      assertReady('quote');
       if (!farmer || !plot) throw new Error('Missing farmer or plot data');
       return api.getPolicyQuote({
         farmerId: farmer.id,
@@ -288,14 +327,16 @@ export function OnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't get a premium quote.");
     },
+    onSettled: flight.release,
   });
 
   const purchaseMutation = useMutation({
     mutationFn: () => {
-      if (!farmer || !plot) throw new Error('Missing data');
       if (policy) throw new Error('This policy has already been purchased');
+      assertReady('purchase');
+      if (!farmer || !plot) throw new Error('Missing data');
       // Buy exactly what was quoted. A form edited since the quote leaves `currentQuote` null,
-      // which locks this step; this is the backstop.
+      // and the purchase click asks for a new quote; this is the backstop.
       const values = quotedValues;
       if (!currentQuote || !values) throw new Error('Get a premium quote for these values first');
       return api.purchasePolicy({
@@ -317,6 +358,7 @@ export function OnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't create the policy.");
     },
+    onSettled: flight.release,
   });
 
   const paymentMutation = useMutation({
@@ -349,6 +391,7 @@ export function OnboardingWizard() {
     onError: (error) => {
       notifyError(error, "Couldn't send the payment request.");
     },
+    onSettled: flight.release,
   });
 
   // ── Payment status polling ─────────────────────────────
@@ -448,6 +491,9 @@ export function OnboardingWizard() {
     // A boundary saved after purchase must not replace the one the policy was bought on.
     if (latest.policy) return;
     setBoundaryResult(result);
+    // A quote priced the plot as it was; a new boundary can move it, so the agent quotes again.
+    setQuote(null);
+    setQuotedValues(null);
     // Only move the agent on if they are still waiting on the walk.
     if (STEPS[latest.currentStep]?.id === 'walk') setCurrentStep(stepIndex('review'));
   }, [setCurrentStep]);
@@ -463,16 +509,60 @@ export function OnboardingWizard() {
   const purchased = policy != null;
   const busy = registerMutation.isPending || kycMutation.isPending || createPlotMutation.isPending
     || boundarySaving || quoteMutation.isPending || purchaseMutation.isPending || paymentMutation.isPending;
-  const stepState = { farmer, plot, boundaryResult, quote: currentQuote, policy };
+  const doneState = { ...stepState, paymentCompleted: paymentStatus === 'completed' };
+  const visited = (id: StepId) => visitedSteps.includes(stepIndex(id));
+
+  /** In-step navigation. Like the stepper, it waits while a request is in flight. */
+  const goTo = (id: StepId) => {
+    if (!busy) setCurrentStep(stepIndex(id));
+  };
+
+  /**
+   * Start a step's action only when nothing it needs is missing; otherwise make no request and
+   * say what is missing instead. `start` runs at most once until its mutation settles.
+   */
+  const submitIfReady = (id: StepId, start: () => void) => {
+    if (missingFor(id).length) {
+      showSubmitBlocked();
+      return;
+    }
+    clearSubmitBlocked();
+    flight.run(start);
+  };
+
+  /**
+   * The refusal shown on the current step after a submit with gaps. Read live, so each item
+   * disappears as it is filled and the whole message goes once nothing is missing.
+   */
+  const renderSubmitBlocked = (id: StepId, action: string, fieldsIncomplete = false) => (
+    submitBlocked && STEPS[currentStep]?.id === id ? (
+      <MissingPrerequisites
+        action={action}
+        missing={missingFor(id)}
+        fieldsIncomplete={fieldsIncomplete}
+        stepTitle={stepTitle}
+        onGoTo={goTo}
+      />
+    ) : null
+  );
+
+  /** Shown on arrival at a step that has nothing meaningful to show without earlier data. */
+  const renderMissingNotice = (id: StepId, action: string) => (
+    <MissingPrerequisites
+      variant="notice"
+      action={action}
+      missing={missingFor(id)}
+      stepTitle={stepTitle}
+      onGoTo={goTo}
+    />
+  );
 
   const renderStepper = () => (
     <OnboardingStepper
       steps={STEPS}
       currentIndex={currentStep}
-      furthestIndex={furthestStep}
       busy={busy}
-      lockedReason={(id) => fieldStepLockReason(id, stepState)}
-      prerequisiteGap={(id) => fieldStepPrerequisiteGap(id, stepState)}
+      isComplete={(id) => fieldStepDone(id, doneState, visited)}
       onSelect={setCurrentStep}
     />
   );
@@ -505,7 +595,7 @@ export function OnboardingWizard() {
           This farmer is already registered, so the form is closed. Correct their details from the
           farmer&apos;s page — registering again here would create a second farmer.
         </SavedRecordNote>
-        <Button className="w-full" onClick={() => setCurrentStep(stepIndex('consent'))}>
+        <Button className="w-full" onClick={() => goTo('consent')}>
           Continue
         </Button>
       </CardContent>
@@ -520,7 +610,13 @@ export function OnboardingWizard() {
       </CardHeader>
       <CardContent>
         <Form {...farmerForm}>
-          <form onSubmit={farmerForm.handleSubmit((data) => registerMutation.mutate(data))} className="space-y-4">
+          <form
+            onSubmit={farmerForm.handleSubmit(
+              (data) => submitIfReady('register', () => registerMutation.mutate(data)),
+              showSubmitBlocked,
+            )}
+            className="space-y-4"
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField control={farmerForm.control} name="firstName" render={({ field }) => (
                 <FormItem>
@@ -591,6 +687,7 @@ export function OnboardingWizard() {
               )} />
             </div>
 
+            {renderSubmitBlocked('register', 'register the farmer', hasErrors(farmerForm.formState.errors))}
             <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
               {registerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
               Register Farmer
@@ -629,17 +726,11 @@ export function OnboardingWizard() {
         {farmer ? (
           <FarmerConsentPanel farmerId={farmer.id} />
         ) : (
-          <p className="text-muted-foreground">
-            Farmer data missing. Please go back and register the farmer first.
-          </p>
+          renderMissingNotice('consent', 'record consent')
         )}
 
         <div className="space-y-2">
-          <Button
-            className="w-full"
-            onClick={() => setCurrentStep(stepIndex('kyc'))}
-            disabled={!farmer}
-          >
+          <Button className="w-full" onClick={() => goTo('kyc')}>
             Continue
           </Button>
           <p className="text-xs text-muted-foreground text-center">
@@ -674,7 +765,7 @@ export function OnboardingWizard() {
         {farmer?.kycStatus === 'APPROVED' ? (
           <>
             <SavedRecordNote>This farmer&apos;s identity has been verified.</SavedRecordNote>
-            <Button className="w-full" onClick={() => setCurrentStep(stepIndex('plot'))}>
+            <Button className="w-full" onClick={() => goTo('plot')}>
               Continue
             </Button>
           </>
@@ -692,10 +783,11 @@ export function OnboardingWizard() {
               </div>
             </div>
 
+            {renderSubmitBlocked('kyc', "verify the farmer's identity")}
             <Button
-              onClick={() => farmer && kycMutation.mutate(farmer.id)}
+              onClick={() => submitIfReady('kyc', () => kycMutation.mutate())}
               className="w-full"
-              disabled={kycMutation.isPending || !farmer}
+              disabled={kycMutation.isPending}
             >
               {kycMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
               <ShieldCheck className="mr-2 h-4 w-4" />
@@ -737,7 +829,7 @@ export function OnboardingWizard() {
         </SavedRecordNote>
         <Button
           className="w-full"
-          onClick={() => setCurrentStep(stepIndex(boundaryResult ? 'review' : 'walk'))}
+          onClick={() => goTo(boundaryResult ? 'review' : 'walk')}
         >
           Continue
         </Button>
@@ -753,7 +845,13 @@ export function OnboardingWizard() {
       </CardHeader>
       <CardContent>
         <Form {...plotForm}>
-          <form onSubmit={plotForm.handleSubmit((data) => createPlotMutation.mutate(data))} className="space-y-4">
+          <form
+            onSubmit={plotForm.handleSubmit(
+              (data) => submitIfReady('plot', () => createPlotMutation.mutate(data)),
+              showSubmitBlocked,
+            )}
+            className="space-y-4"
+          >
             <FormField control={plotForm.control} name="name" render={({ field }) => (
               <FormItem>
                 <FormLabel>Plot Name <span className="text-destructive">*</span></FormLabel>
@@ -865,6 +963,7 @@ export function OnboardingWizard() {
               </FormItem>
             )} />
 
+            {renderSubmitBlocked('plot', 'create the plot', hasErrors(plotForm.formState.errors))}
             <Button type="submit" className="w-full" disabled={createPlotMutation.isPending}>
               {createPlotMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
               Create Plot
@@ -884,6 +983,7 @@ export function OnboardingWizard() {
         <CardDescription>Verify the plot boundary captured during the walk</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!boundaryResult && renderMissingNotice('review', 'review the boundary')}
         {boundaryResult && (
           <>
             <div className="rounded-lg overflow-hidden border" style={{ height: '400px' }}>
@@ -930,16 +1030,16 @@ export function OnboardingWizard() {
                 <SavedRecordNote>
                   The policy has been purchased on this boundary, so it can no longer be re-walked here.
                 </SavedRecordNote>
-                <Button className="w-full" onClick={() => setCurrentStep(stepIndex('quote'))}>
+                <Button className="w-full" onClick={() => goTo('quote')}>
                   Continue
                 </Button>
               </>
             ) : (
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setCurrentStep(stepIndex('walk'))}>
+                <Button variant="outline" onClick={() => goTo('walk')}>
                   Re-walk Boundary
                 </Button>
-                <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('quote'))}>
+                <Button className="flex-1" onClick={() => goTo('quote')}>
                   Confirm Boundary
                 </Button>
               </div>
@@ -986,7 +1086,7 @@ export function OnboardingWizard() {
             )}
           </div>
           <SavedRecordNote>The policy has been purchased, so this quote can no longer be changed.</SavedRecordNote>
-          <Button className="w-full" onClick={() => setCurrentStep(stepIndex('purchase'))}>
+          <Button className="w-full" onClick={() => goTo('purchase')}>
             Continue
           </Button>
         </CardContent>
@@ -1009,7 +1109,10 @@ export function OnboardingWizard() {
         <CatalogueItemDetails item={plotCropItem} countryName={countryName} className="mb-4" />
         <Form {...quoteForm}>
           <form
-            onSubmit={quoteForm.handleSubmit((data) => quoteMutation.mutate(data))}
+            onSubmit={quoteForm.handleSubmit(
+              (data) => submitIfReady('quote', () => quoteMutation.mutate(data)),
+              showSubmitBlocked,
+            )}
             className="space-y-4"
           >
             <FormField control={quoteForm.control} name="sumInsured" render={({ field }) => (
@@ -1091,6 +1194,7 @@ export function OnboardingWizard() {
               </div>
             )}
 
+            {renderSubmitBlocked('quote', 'get a quote', hasErrors(quoteForm.formState.errors))}
             <div className="flex gap-3">
               <Button type="submit" variant={currentQuote ? 'outline' : 'default'} disabled={quoteMutation.isPending || Boolean(plotCropReason)} className={currentQuote ? '' : 'w-full'}>
                 {quoteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -1099,7 +1203,7 @@ export function OnboardingWizard() {
               {currentQuote && !plotCropReason && (
                 // type="button": inside the quote form, a default submit button would also send a
                 // second quote request on its way to the purchase step.
-                <Button type="button" className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))}>
+                <Button type="button" className="flex-1" onClick={() => goTo('purchase')}>
                   Continue to Purchase
                 </Button>
               )}
@@ -1124,18 +1228,23 @@ export function OnboardingWizard() {
           <div className="rounded-lg border divide-y">
             <div className="p-4">
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Farmer</h4>
-              <p className="font-medium">{farmer?.firstName} {farmer?.lastName}</p>
-              <p className="text-sm text-muted-foreground">{farmer?.phoneNumber} &middot; {farmer?.county}</p>
+              {/* Rendered even with gaps: the summary shows what exists, and Purchase says what is missing. */}
+              <p className="font-medium">{farmer ? `${farmer.firstName} ${farmer.lastName}` : '—'}</p>
+              {farmer && (
+                <p className="text-sm text-muted-foreground">{farmer.phoneNumber} &middot; {farmer.county}</p>
+              )}
             </div>
             <div className="p-4">
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Plot</h4>
-              <p className="font-medium">{plot?.name}</p>
-              <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-                {productLabel(catalogueMarket, 'CROP', plot?.cropType)}
-                <CatalogueStatusBadge status={plotCropItem?.status} />
-                &middot; {plot?.acreage} acres
-                {boundaryResult && ` \u00B7 ${Number(boundaryResult.plot.areaHectares).toFixed(2)} ha (measured)`}
-              </p>
+              <p className="font-medium">{plot?.name ?? '—'}</p>
+              {plot && (
+                <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+                  {productLabel(catalogueMarket, 'CROP', plot.cropType)}
+                  <CatalogueStatusBadge status={plotCropItem?.status} />
+                  &middot; {plot.acreage} acres
+                  {boundaryResult && ` \u00B7 ${Number(boundaryResult.plot.areaHectares).toFixed(2)} ha (measured)`}
+                </p>
+              )}
             </div>
             <div className="p-4">
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Coverage</h4>
@@ -1158,20 +1267,23 @@ export function OnboardingWizard() {
                 Policy <span className="font-mono">{policy.policyNumber}</span> has been purchased.
                 Purchasing again here would create a second policy.
               </SavedRecordNote>
-              <Button className="w-full" onClick={() => setCurrentStep(stepIndex('payment'))}>
+              <Button className="w-full" onClick={() => goTo('payment')}>
                 Continue to Payment
               </Button>
             </>
           ) : (
+            <>
+            {renderSubmitBlocked('purchase', 'purchase the policy')}
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setCurrentStep(stepIndex('quote'))} disabled={purchaseMutation.isPending}>
+              <Button variant="outline" onClick={() => goTo('quote')} disabled={purchaseMutation.isPending}>
                 Back
               </Button>
-              <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Boolean(plotCropReason) || !currentQuote}>
+              <Button className="flex-1" onClick={() => submitIfReady('purchase', () => purchaseMutation.mutate())} disabled={purchaseMutation.isPending || Boolean(plotCropReason)}>
                 {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 Purchase Policy
               </Button>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -1181,6 +1293,17 @@ export function OnboardingWizard() {
   // ── Step: mobile-money payment ─────────────────────────
 
   const renderPaymentStep = () => {
+    if (!policy) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>{mobileMoneyLabel} payment</CardTitle>
+            <CardDescription>Send a {mobileMoneyLabel} payment request to the farmer&apos;s phone</CardDescription>
+          </CardHeader>
+          <CardContent>{renderMissingNotice('payment', 'collect payment')}</CardContent>
+        </Card>
+      );
+    }
     return (
       <Card>
         <CardHeader>
@@ -1233,7 +1356,11 @@ export function OnboardingWizard() {
               )}
               <Button
                 className="w-full"
-                onClick={() => { if (paymentPhone && amountDue != null) paymentMutation.mutate(paymentPhone); }}
+                onClick={() => {
+                  if (paymentPhone && amountDue != null) {
+                    submitIfReady('payment', () => paymentMutation.mutate(paymentPhone));
+                  }
+                }}
                 disabled={paymentMutation.isPending || !paymentPhone || amountDue == null}
               >
                 {paymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -1330,8 +1457,18 @@ export function OnboardingWizard() {
       case 'kyc': return renderKycStep();
       case 'plot': return renderPlotStep();
       case 'walk': {
-        if (!plot) return <Card><CardContent className="py-8 text-center text-muted-foreground">Plot data missing. Please go back and create a plot first.</CardContent></Card>;
         if (purchased) return <Card><CardContent className="py-8 text-center text-muted-foreground">The policy has been purchased, so the boundary can no longer be re-walked here.</CardContent></Card>;
+        if (!plot) {
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Walk the Boundary</CardTitle>
+                <CardDescription>The walk is saved onto the plot, so the plot has to exist first</CardDescription>
+              </CardHeader>
+              <CardContent>{renderMissingNotice('walk', 'walk the boundary')}</CardContent>
+            </Card>
+          );
+        }
         return (
           <BoundaryWalkStep plotId={plot.id} onComplete={handleBoundaryComplete} onSubmittingChange={setBoundarySaving} />
         );
