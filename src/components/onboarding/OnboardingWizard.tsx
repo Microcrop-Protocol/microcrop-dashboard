@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -32,7 +32,9 @@ import { BoundaryWalkStep } from './BoundaryWalkStep';
 import { BoundaryReviewMap } from './BoundaryReviewMap';
 import { OnboardingStepper } from './OnboardingStepper';
 import { SavedRecordNote } from './SavedRecordNote';
-import { BUSY_REASON, fieldStepLockReason, useStepProgress } from './step-access';
+import {
+  fieldStepLockReason, fieldStepPrerequisiteGap, quoteInputsMatch, useStepProgress,
+} from './step-access';
 import { FarmerConsentPanel } from '@/components/farmers/FarmerConsentPanel';
 import { useOrgMarket } from '@/hooks/useOrgMarket';
 import {
@@ -116,6 +118,8 @@ export function OnboardingWizard() {
   const [plot, setPlot] = useState<Plot | null>(null);
   const [boundaryResult, setBoundaryResult] = useState<GpsTrackResponse | null>(null);
   const [quote, setQuote] = useState<PolicyQuote | null>(null);
+  // The coverage values `quote` was calculated from. Purchase sends these, not the live form.
+  const [quotedValues, setQuotedValues] = useState<PolicyConfigData | null>(null);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [paymentInstructions, setPaymentInstructions] = useState<PaymentInstructions | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
@@ -203,6 +207,16 @@ export function OnboardingWizard() {
     mode: 'onChange',
   });
 
+  /**
+   * The quote, while it still prices what the coverage form says. Editing the form after a
+   * quote makes this null: the quote stops showing, and Purchase locks until it is recalculated.
+   * Once the policy exists the form is closed, so the bought quote always stands.
+   */
+  const watchedQuoteValues = useWatch({ control: quoteForm.control });
+  const currentQuote = quote && (policy != null || quoteInputsMatch(watchedQuoteValues, quotedValues))
+    ? quote
+    : null;
+
   // ── Mutations ──────────────────────────────────────────
 
   const registerMutation = useMutation({
@@ -267,8 +281,9 @@ export function OnboardingWizard() {
         durationDays: data.durationDays,
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, data) => {
       setQuote(result);
+      setQuotedValues(data);
     },
     onError: (error) => {
       notifyError(error, "Couldn't get a premium quote.");
@@ -279,7 +294,10 @@ export function OnboardingWizard() {
     mutationFn: () => {
       if (!farmer || !plot) throw new Error('Missing data');
       if (policy) throw new Error('This policy has already been purchased');
-      const values = quoteForm.getValues();
+      // Buy exactly what was quoted. A form edited since the quote leaves `currentQuote` null,
+      // which locks this step; this is the backstop.
+      const values = quotedValues;
+      if (!currentQuote || !values) throw new Error('Get a premium quote for these values first');
       return api.purchasePolicy({
         farmerId: farmer.id,
         plotId: plot.id,
@@ -416,9 +434,22 @@ export function OnboardingWizard() {
     );
   }, [plotForm]);
 
+  // The walk's save can resolve after the agent has moved on (TanStack runs a mutation's
+  // onSuccess even once its component unmounts), so the handler reads the wizard's latest state
+  // from a ref rather than the render that created it.
+  const latestRef = useRef({ policy, currentStep });
+  useEffect(() => {
+    latestRef.current = { policy, currentStep };
+  }, [policy, currentStep]);
+  const [boundarySaving, setBoundarySaving] = useState(false);
+
   const handleBoundaryComplete = useCallback((result: GpsTrackResponse) => {
+    const latest = latestRef.current;
+    // A boundary saved after purchase must not replace the one the policy was bought on.
+    if (latest.policy) return;
     setBoundaryResult(result);
-    setCurrentStep(stepIndex('review'));
+    // Only move the agent on if they are still waiting on the walk.
+    if (STEPS[latest.currentStep]?.id === 'walk') setCurrentStep(stepIndex('review'));
   }, [setCurrentStep]);
 
   // ── Stepper ────────────────────────────────────────────
@@ -431,16 +462,17 @@ export function OnboardingWizard() {
    */
   const purchased = policy != null;
   const busy = registerMutation.isPending || kycMutation.isPending || createPlotMutation.isPending
-    || quoteMutation.isPending || purchaseMutation.isPending || paymentMutation.isPending;
+    || boundarySaving || quoteMutation.isPending || purchaseMutation.isPending || paymentMutation.isPending;
+  const stepState = { farmer, plot, boundaryResult, quote: currentQuote, policy };
 
   const renderStepper = () => (
     <OnboardingStepper
       steps={STEPS}
       currentIndex={currentStep}
       furthestIndex={furthestStep}
-      lockedReason={(id) => (busy
-        ? BUSY_REASON
-        : fieldStepLockReason(id, { farmer, plot, boundaryResult, quote, policy }))}
+      busy={busy}
+      lockedReason={(id) => fieldStepLockReason(id, stepState)}
+      prerequisiteGap={(id) => fieldStepPrerequisiteGap(id, stepState)}
       onSelect={setCurrentStep}
     />
   );
@@ -904,7 +936,7 @@ export function OnboardingWizard() {
               </>
             ) : (
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => { setBoundaryResult(null); setCurrentStep(stepIndex('walk')); }}>
+                <Button variant="outline" onClick={() => setCurrentStep(stepIndex('walk'))}>
                   Re-walk Boundary
                 </Button>
                 <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('quote'))}>
@@ -935,7 +967,7 @@ export function OnboardingWizard() {
    * these same form values, so editing them now would misstate what was bought.
    */
   const renderPurchasedQuote = () => {
-    const values = quoteForm.getValues();
+    const values = quotedValues ?? quoteForm.getValues();
     return (
       <Card>
         <CardHeader>
@@ -1036,36 +1068,38 @@ export function OnboardingWizard() {
               </FormItem>
             )} />
 
-            {quote && (
+            {currentQuote && (
               <div className="rounded-lg bg-muted p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Premium</span>
-                  <span className="font-medium">{formatMoney(quote.premium)}</span>
+                  <span className="font-medium">{formatMoney(currentQuote.premium)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Platform Fee</span>
-                  <span>{formatMoney(quote.platformFee)}</span>
+                  <span>{formatMoney(currentQuote.platformFee)}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2 font-bold">
                   <span>Total</span>
-                  <span>{formatMoney(quote.totalCost)}</span>
+                  <span>{formatMoney(currentQuote.totalCost)}</span>
                 </div>
-                {quote.riskScore != null && (
+                {currentQuote.riskScore != null && (
                   <div className="flex justify-between text-xs text-muted-foreground pt-1">
                     <span>Risk Score</span>
-                    <span>{(quote.riskScore * 100).toFixed(1)}%</span>
+                    <span>{(currentQuote.riskScore * 100).toFixed(1)}%</span>
                   </div>
                 )}
               </div>
             )}
 
             <div className="flex gap-3">
-              <Button type="submit" variant={quote ? 'outline' : 'default'} disabled={quoteMutation.isPending || Boolean(plotCropReason)} className={quote ? '' : 'w-full'}>
+              <Button type="submit" variant={currentQuote ? 'outline' : 'default'} disabled={quoteMutation.isPending || Boolean(plotCropReason)} className={currentQuote ? '' : 'w-full'}>
                 {quoteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-                {quote ? 'Recalculate' : 'Get Quote'}
+                {currentQuote ? 'Recalculate' : 'Get Quote'}
               </Button>
-              {quote && !plotCropReason && (
-                <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))}>
+              {currentQuote && !plotCropReason && (
+                // type="button": inside the quote form, a default submit button would also send a
+                // second quote request on its way to the purchase step.
+                <Button type="button" className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))}>
                   Continue to Purchase
                 </Button>
               )}
@@ -1079,7 +1113,7 @@ export function OnboardingWizard() {
   // ── Step: Purchase Policy ──────────────────────────────
 
   const renderPurchaseStep = () => {
-    const quoteValues = quoteForm.getValues();
+    const quoteValues = quotedValues ?? quoteForm.getValues();
     return (
       <Card>
         <CardHeader>
@@ -1108,11 +1142,11 @@ export function OnboardingWizard() {
               <p className="font-medium">{quoteValues.coverageType} &middot; {quoteValues.durationDays} days</p>
               <p className="text-sm text-muted-foreground">Sum Insured: {formatMoney(quoteValues.sumInsured)}</p>
             </div>
-            {quote && (
+            {currentQuote && (
               <div className="p-4 bg-muted">
                 <div className="flex justify-between font-bold">
                   <span>Total Cost</span>
-                  <span>{formatMoney(quote.totalCost)}</span>
+                  <span>{formatMoney(currentQuote.totalCost)}</span>
                 </div>
               </div>
             )}
@@ -1133,7 +1167,7 @@ export function OnboardingWizard() {
               <Button variant="outline" onClick={() => setCurrentStep(stepIndex('quote'))} disabled={purchaseMutation.isPending}>
                 Back
               </Button>
-              <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Boolean(plotCropReason)}>
+              <Button className="flex-1" onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || Boolean(plotCropReason) || !currentQuote}>
                 {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                 Purchase Policy
               </Button>
@@ -1298,7 +1332,9 @@ export function OnboardingWizard() {
       case 'walk': {
         if (!plot) return <Card><CardContent className="py-8 text-center text-muted-foreground">Plot data missing. Please go back and create a plot first.</CardContent></Card>;
         if (purchased) return <Card><CardContent className="py-8 text-center text-muted-foreground">The policy has been purchased, so the boundary can no longer be re-walked here.</CardContent></Card>;
-        return <BoundaryWalkStep plotId={plot.id} onComplete={handleBoundaryComplete} />;
+        return (
+          <BoundaryWalkStep plotId={plot.id} onComplete={handleBoundaryComplete} onSubmittingChange={setBoundarySaving} />
+        );
       }
       case 'review': return renderReviewStep();
       case 'quote': return renderQuoteStep();
@@ -1312,9 +1348,6 @@ export function OnboardingWizard() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Field Onboarding</h1>
-        <p className="text-muted-foreground" role="status" aria-live="polite">
-          Step {currentStep + 1} of {STEPS.length}: {STEPS[currentStep].title}
-        </p>
       </div>
       {renderStepper()}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

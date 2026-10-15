@@ -3,7 +3,9 @@
  * the only step a purchase locks is the boundary walk — everything else stays viewable, read-only.
  */
 import { describe, expect, it } from 'vitest';
-import { fieldStepLockReason, livestockStepLockReason, type FieldStepId } from '../step-access';
+import {
+  fieldStepLockReason, fieldStepPrerequisiteGap, livestockStepLockReason, quoteInputsMatch, type FieldStepId,
+} from '../step-access';
 
 const approved = { kycStatus: 'APPROVED' };
 const pending = { kycStatus: 'PENDING' };
@@ -43,6 +45,24 @@ describe('fieldStepLockReason', () => {
     for (const id of ['register', 'consent', 'kyc', 'plot', 'review', 'quote', 'purchase', 'payment'] as FieldStepId[]) {
       expect(fieldStepLockReason(id, bought)).toBeNull();
     }
+    // The walk is locked but done: its prerequisites are all there, so it keeps its tick.
+    expect(fieldStepPrerequisiteGap('walk', bought)).toBeNull();
+  });
+});
+
+describe('quoteInputsMatch', () => {
+  const quoted = { sumInsured: 10000, coverageType: 'DROUGHT', durationDays: 90 };
+
+  it('matches the values the quote was calculated from, numbers and strings alike', () => {
+    expect(quoteInputsMatch(quoted, quoted)).toBe(true);
+    expect(quoteInputsMatch({ ...quoted, sumInsured: '10000' } as never, quoted)).toBe(true);
+  });
+
+  it('fails once any value moves, and when there is no quote', () => {
+    expect(quoteInputsMatch({ ...quoted, sumInsured: 50000 }, quoted)).toBe(false);
+    expect(quoteInputsMatch({ ...quoted, coverageType: 'FLOOD' }, quoted)).toBe(false);
+    expect(quoteInputsMatch({ ...quoted, durationDays: undefined }, quoted)).toBe(false);
+    expect(quoteInputsMatch(quoted, null)).toBe(false);
   });
 });
 

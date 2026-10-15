@@ -32,6 +32,18 @@ export type FieldStepId =
   | 'register' | 'consent' | 'kyc' | 'plot' | 'walk' | 'review' | 'quote' | 'purchase' | 'payment';
 
 export function fieldStepLockReason(id: FieldStepId, s: FieldStepState): string | null {
+  // Re-walking rewrites the boundary of a plot that now carries a policy.
+  if (id === 'walk' && s.policy) {
+    return 'The policy has been purchased, so the boundary can no longer be re-walked here';
+  }
+  return fieldStepPrerequisiteGap(id, s);
+}
+
+/**
+ * The earliest missing prerequisite of a crop step, or null. Unlike fieldStepLockReason it does
+ * not lock the boundary walk after purchase, so the stepper keeps that step's tick.
+ */
+export function fieldStepPrerequisiteGap(id: FieldStepId, s: FieldStepState): string | null {
   const farmer = s.farmer ? null : 'Register the farmer first';
   const kyc = farmer ?? (s.farmer?.kycStatus === 'APPROVED' ? null : "Verify the farmer's identity first");
   const plot = kyc ?? (s.plot ? null : 'Create the plot first');
@@ -43,10 +55,7 @@ export function fieldStepLockReason(id: FieldStepId, s: FieldStepState): string 
     case 'consent':
     case 'kyc': return farmer;
     case 'plot': return kyc;
-    case 'walk':
-      // Re-walking rewrites the boundary of a plot that now carries a policy.
-      if (s.policy) return 'The policy has been purchased, so the boundary can no longer be re-walked here';
-      return plot;
+    case 'walk': return plot;
     case 'review':
     case 'quote': return boundary;
     case 'purchase': return quote;
@@ -78,6 +87,19 @@ export function livestockStepLockReason(id: LivestockStepId, s: LivestockStepSta
     case 'purchase': return quote;
     case 'payment': return s.policy ? null : 'Create the policy first';
   }
+}
+
+/**
+ * True when the form values a quote was calculated from still match the form. A quote is only
+ * good for the inputs it priced: once the agent edits the coverage form, the wizard treats the
+ * quote as gone, which also locks Purchase again until it is recalculated. Values are compared
+ * as strings because a number input can hand back "10000" for the 10000 that was quoted.
+ */
+export function quoteInputsMatch<T extends object>(current: Partial<T>, quoted: T | null): boolean {
+  if (!quoted) return false;
+  return (Object.keys(quoted) as (keyof T)[]).every(
+    (key) => String(current[key] ?? '') === String(quoted[key] ?? ''),
+  );
 }
 
 /** Shown on every other step while a request is in flight: its success handler moves the wizard. */

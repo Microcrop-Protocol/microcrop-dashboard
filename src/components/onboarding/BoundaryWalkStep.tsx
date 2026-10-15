@@ -11,11 +11,17 @@ import type { GpsPoint, GpsTrackResponse } from '@/types';
 interface BoundaryWalkStepProps {
   plotId: string;
   onComplete: (result: GpsTrackResponse) => void;
+  /**
+   * Told when the walk's save request starts and settles, so the wizard can hold its stepper
+   * while it is in flight. Reset to false on unmount, so a step left mid-save cannot leave the
+   * wizard stuck as busy.
+   */
+  onSubmittingChange?: (pending: boolean) => void;
 }
 
 type WalkState = 'idle' | 'requesting' | 'tracking' | 'submitting';
 
-export function BoundaryWalkStep({ plotId, onComplete }: BoundaryWalkStepProps) {
+export function BoundaryWalkStep({ plotId, onComplete, onSubmittingChange }: BoundaryWalkStepProps) {
   const [walkState, setWalkState] = useState<WalkState>('idle');
   const [pointCount, setPointCount] = useState(0);
   const [lastAccuracy, setLastAccuracy] = useState<number | null>(null);
@@ -47,6 +53,12 @@ export function BoundaryWalkStep({ plotId, onComplete }: BoundaryWalkStepProps) 
       notifyError(error, "Couldn't submit the plot boundary.");
     },
   });
+
+  const savePending = submitMutation.isPending;
+  useEffect(() => {
+    onSubmittingChange?.(savePending);
+  }, [savePending, onSubmittingChange]);
+  useEffect(() => () => onSubmittingChange?.(false), [onSubmittingChange]);
 
   // Initialize mini-map
   useEffect(() => {

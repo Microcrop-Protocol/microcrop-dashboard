@@ -34,18 +34,24 @@ vi.mock('@/stores/authStore', () => {
 vi.mock('@/components/farmers/FarmerConsentPanel', () => ({ FarmerConsentPanel: () => <div /> }));
 vi.mock('@/components/onboarding/BoundaryReviewMap', () => ({ BoundaryReviewMap: () => <div /> }));
 vi.mock('@/components/onboarding/BoundaryWalkStep', () => ({
-  BoundaryWalkStep: ({ onComplete }: { onComplete: (r: GpsTrackResponse) => void }) => (
-    <button
-      type="button"
-      onClick={() =>
-        onComplete({
-          plot: { boundary: { type: 'Polygon', coordinates: [] }, centroidLat: -0.3, centroidLon: 36.1, areaHectares: 1 },
-          metadata: { finalVertices: 4, avgAccuracy: 3, pointsFilteredOut: 0, totalPointsReceived: 4 },
-        } as unknown as GpsTrackResponse)
-      }
-    >
-      Finish walk
-    </button>
+  BoundaryWalkStep: ({ onComplete, onSubmittingChange }: {
+    onComplete: (r: GpsTrackResponse) => void;
+    onSubmittingChange?: (pending: boolean) => void;
+  }) => (
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          onComplete({
+            plot: { boundary: { type: 'Polygon', coordinates: [] }, centroidLat: -0.3, centroidLon: 36.1, areaHectares: 1 },
+            metadata: { finalVertices: 4, avgAccuracy: 3, pointsFilteredOut: 0, totalPointsReceived: 4 },
+          } as unknown as GpsTrackResponse)
+        }
+      >
+        Finish walk
+      </button>
+      <button type="button" onClick={() => onSubmittingChange?.(true)}>Start saving walk</button>
+    </>
   ),
 }));
 
@@ -83,8 +89,8 @@ async function reachPlotStep() {
   await screen.findByLabelText(/plot name/i);
 }
 
-/** …→ plot → walk → review → quote → purchase, landing on the payment step. */
-async function reachPaymentStep() {
+/** …→ plot → walk → review, landing on the quote step with no quote yet. */
+async function reachQuoteStep() {
   await reachPlotStep();
   fireEvent.change(screen.getByLabelText(/plot name/i), { target: { value: 'North' } });
   fireEvent.change(screen.getByLabelText(/latitude/i), { target: { value: '-0.3' } });
@@ -96,7 +102,13 @@ async function reachPaymentStep() {
   fireEvent.click(screen.getByRole('button', { name: /create plot/i }));
   fireEvent.click(await screen.findByRole('button', { name: 'Finish walk' }));
   fireEvent.click(await screen.findByRole('button', { name: /confirm boundary/i }));
-  fireEvent.click(await screen.findByRole('button', { name: /get quote/i }));
+  await screen.findByRole('button', { name: /get quote/i });
+}
+
+/** …→ quote → purchase, landing on the payment step. */
+async function reachPaymentStep() {
+  await reachQuoteStep();
+  fireEvent.click(screen.getByRole('button', { name: /get quote/i }));
   fireEvent.click(await screen.findByRole('button', { name: /continue to purchase/i }));
   fireEvent.click(await screen.findByRole('button', { name: /purchase policy/i }));
   await screen.findByRole('button', { name: /send .* request/i });
@@ -252,5 +264,113 @@ describe('OnboardingWizard stepper', () => {
     stepButton('Plot').focus();
     await user.keyboard(' ');
     expect(stepButton('Plot')).toHaveAttribute('aria-current', 'step');
+  });
+  it('drops a quote once the coverage form changes, and buys only what was quoted', async () => {
+    renderWizard();
+    await reachQuoteStep();
+    fireEvent.click(screen.getByRole('button', { name: /get quote/i }));
+    await screen.findByRole('button', { name: /continue to purchase/i });
+    expect(stepButton('Purchase')).not.toHaveAttribute('aria-disabled');
+
+    // Edit the sum insured after the quote: the 10,000 quote no longer prices the form.
+    fireEvent.change(screen.getByLabelText(/sum insured/i), { target: { value: '50000' } });
+    await waitFor(() => expect(screen.queryByRole('button', { name: /continue to purchase/i })).not.toBeInTheDocument());
+    expect(screen.queryByText(/KES 550/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /get quote/i })).toBeInTheDocument();
+    expect(stepButton('Purchase')).toHaveAttribute('aria-disabled', 'true');
+    expect(stepButton('Purchase')).toHaveAccessibleDescription('Get a premium quote first');
+
+    // Re-quote on the new value, then buy: the purchase sends what that quote priced.
+    mocks.getPolicyQuote.mockResolvedValueOnce({
+      sumInsured: 50000, coverageType: 'DROUGHT', durationDays: 90, premium: 2500, platformFee: 250, totalCost: 2750, riskScore: 0.1,
+    });
+    fireEvent.click(screen.getByRole('button', { name: /get quote/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /continue to purchase/i }));
+    expect(await screen.findByText(/Sum Insured: KES 50,000/)).toBeInTheDocument();
+    expect(screen.getByText(/KES 2,750/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /purchase policy/i }));
+    await screen.findByRole('button', { name: /send .* request/i });
+
+    expect(mocks.getPolicyQuote).toHaveBeenCalledTimes(2);
+    expect(mocks.getPolicyQuote).toHaveBeenLastCalledWith(expect.objectContaining({ sumInsured: 50000 }));
+    expect(mocks.purchasePolicy).toHaveBeenCalledWith(expect.objectContaining({ sumInsured: 50000 }));
+  });
+
+  it('shows why a step is locked when it is tapped, for screens without tooltips', async () => {
+    renderWizard();
+    await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
+    const notice = screen.getByTestId('stepper-locked-notice');
+    expect(notice).toHaveAttribute('role', 'status');
+    expect(notice).toBeEmptyDOMElement();
+
+    fireEvent.click(stepButton('Purchase'));
+    expect(notice).toHaveTextContent("Can't open Purchase. Register the farmer first.");
+
+    // Moving on clears it.
+    await reachPlotStep();
+    expect(notice).toBeEmptyDOMElement();
+  });
+
+  it('announces the current step in a live region', async () => {
+    renderWizard();
+    const nav = screen.getByRole('navigation', { name: /onboarding progress/i });
+    const live = within(nav).getAllByRole('status')[0];
+    expect(live).toHaveTextContent('Step 1 of 9: Register');
+    await reachPlotStep();
+    fireEvent.click(stepButton('Register'));
+    expect(live).toHaveTextContent('Step 1 of 9: Register');
+    fireEvent.click(stepButton('Plot'));
+    expect(live).toHaveTextContent('Step 4 of 9: Plot');
+  });
+
+  it('pauses navigation while a request is in flight', async () => {
+    renderWizard();
+    await reachQuoteStep();
+    let resolveQuote: (v: unknown) => void = () => {};
+    mocks.getPolicyQuote.mockReturnValueOnce(new Promise((resolve) => { resolveQuote = resolve; }));
+    fireEvent.click(screen.getByRole('button', { name: /get quote/i }));
+
+    await waitFor(() => expect(stepButton('Register')).toHaveAttribute('aria-disabled', 'true'));
+    expect(stepButton('Register')).toHaveAccessibleDescription('Wait for the current request to finish');
+    // A request in flight does not take the ticks off the steps behind it.
+    expect(stepButton('Register')).toHaveAccessibleName('Register (completed)');
+    fireEvent.click(stepButton('Register'));
+    expect(stepButton('Quote')).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByTestId('stepper-locked-notice')).toHaveTextContent(/Wait for the current request to finish/);
+
+    resolveQuote({ sumInsured: 10000, coverageType: 'DROUGHT', durationDays: 90, premium: 500, platformFee: 50, totalCost: 550 });
+    await screen.findByRole('button', { name: /continue to purchase/i });
+    await waitFor(() => expect(stepButton('Register')).not.toHaveAttribute('aria-disabled'));
+  });
+
+  it("pauses navigation while the boundary walk's save is in flight", async () => {
+    renderWizard();
+    await reachPlotStep();
+    fireEvent.change(screen.getByLabelText(/plot name/i), { target: { value: 'North' } });
+    fireEvent.change(screen.getByLabelText(/latitude/i), { target: { value: '-0.3' } });
+    fireEvent.change(screen.getByLabelText(/longitude/i), { target: { value: '36.1' } });
+    fireEvent.change(screen.getByLabelText(/acreage/i), { target: { value: '2' } });
+    const field = screen.getByText(/crop type/i).closest('div') as HTMLElement;
+    fireEvent.click(within(field).getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: /Maize/ }));
+    fireEvent.click(screen.getByRole('button', { name: /create plot/i }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Start saving walk' }));
+    expect(stepButton('Plot')).toHaveAttribute('aria-disabled', 'true');
+    expect(stepButton('Plot')).toHaveAccessibleDescription('Wait for the current request to finish');
+  });
+
+  it('keeps the saved boundary when the agent chooses to re-walk', async () => {
+    renderWizard();
+    await reachQuoteStep();
+    fireEvent.click(stepButton('Review'));
+    fireEvent.click(await screen.findByRole('button', { name: /re-walk boundary/i }));
+    expect(stepButton('Boundary')).toHaveAttribute('aria-current', 'step');
+
+    // The server still holds the first walk, so Review and Quote stay open (and ticked).
+    expect(stepButton('Review')).toHaveAccessibleName('Review (completed)');
+    expect(stepButton('Quote')).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(stepButton('Quote'));
+    expect(await screen.findByRole('button', { name: /get quote/i })).toBeInTheDocument();
   });
 });

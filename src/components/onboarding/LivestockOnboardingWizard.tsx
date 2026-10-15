@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -40,7 +40,7 @@ import {
 } from '@/components/catalogue/CatalogueOptions';
 import { OnboardingStepper } from './OnboardingStepper';
 import { SavedRecordNote } from './SavedRecordNote';
-import { BUSY_REASON, livestockStepLockReason, useStepProgress } from './step-access';
+import { livestockStepLockReason, quoteInputsMatch, useStepProgress } from './step-access';
 
 /**
  * IBLI premiums, herd values and fees are LOCAL currency — the backend prices livestock per TLU
@@ -97,6 +97,8 @@ export function LivestockOnboardingWizard() {
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [herd, setHerd] = useState<Herd | null>(null);
   const [quote, setQuote] = useState<LivestockPolicyQuote | null>(null);
+  // The season and peril `quote` was calculated from. Purchase sends these, not the live form.
+  const [quotedValues, setQuotedValues] = useState<LivestockPolicyConfigData | null>(null);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [paymentInstructions, setPaymentInstructions] = useState<PaymentInstructions | null>(null);
   const [paymentRef, setPaymentRef] = useState<string | null>(null);
@@ -196,6 +198,16 @@ export function LivestockOnboardingWizard() {
     mode: 'onChange',
   });
 
+  /**
+   * The quote, while it still prices what the season and peril selects say. Changing either
+   * after a quote makes this null: the breakdown goes, and Purchase locks until it is
+   * recalculated. Once the policy exists the selects are closed, so the bought quote stands.
+   */
+  const watchedQuoteValues = useWatch({ control: quoteForm.control });
+  const currentQuote = quote && (policy != null || quoteInputsMatch(watchedQuoteValues, quotedValues))
+    ? quote
+    : null;
+
   // ── Mutations ──────────────────────────────────────────
 
   const registerMutation = useMutation({
@@ -268,8 +280,9 @@ export function LivestockOnboardingWizard() {
         season: data.season as IBLISeason,
       }) as unknown as Promise<LivestockPolicyQuote>;
     },
-    onSuccess: (result) => {
+    onSuccess: (result, data) => {
       setQuote(result);
+      setQuotedValues(data);
     },
     onError: (error) => {
       notifyError(error, "Couldn't get a premium quote.");
@@ -278,14 +291,17 @@ export function LivestockOnboardingWizard() {
 
   const purchaseMutation = useMutation({
     mutationFn: () => {
-      if (!farmer || !herd || !quote) throw new Error('Missing data');
+      if (!farmer || !herd) throw new Error('Missing data');
       if (policy) throw new Error('This policy has already been purchased');
-      const values = quoteForm.getValues();
+      // Buy exactly what was quoted. Selects changed since the quote leave `currentQuote` null,
+      // which locks this step; this is the backstop.
+      const values = quotedValues;
+      if (!currentQuote || !values) throw new Error('Calculate the premium for these values first');
       return api.purchasePolicy({
         farmerId: farmer.id,
         herdId: herd.id,
         productType: 'LIVESTOCK',
-        sumInsured: quote.sumInsured,
+        sumInsured: currentQuote.sumInsured,
         durationDays: 180,
         coverageType: values.coverageType as CoverageType,
         season: values.season as IBLISeason,
@@ -417,9 +433,8 @@ export function LivestockOnboardingWizard() {
       steps={STEPS}
       currentIndex={currentStep}
       furthestIndex={furthestStep}
-      lockedReason={(id) => (busy
-        ? BUSY_REASON
-        : livestockStepLockReason(id, { farmer, herd, quote, policy }))}
+      busy={busy}
+      lockedReason={(id) => livestockStepLockReason(id, { farmer, herd, quote: currentQuote, policy })}
       onSelect={setCurrentStep}
       className="overflow-x-auto pb-4"
       listClassName="min-w-[600px]"
@@ -866,7 +881,7 @@ export function LivestockOnboardingWizard() {
                 )} />
               </div>
 
-              {!quote ? (
+              {!currentQuote ? (
                 <Button type="submit" className="w-full" disabled={quoteMutation.isPending || Boolean(herdReason)}>
                   {quoteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Calculate Premium
@@ -879,31 +894,31 @@ export function LivestockOnboardingWizard() {
                       <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Tropical Livestock Units (TLU)</span>
-                          <span className="font-medium">{Number(quote.tluCount).toFixed(2)} TLU</span>
+                          <span className="font-medium">{Number(currentQuote.tluCount).toFixed(2)} TLU</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Premium Rate (per TLU)</span>
-                          <span className="font-medium">{formatMoney(quote.premiumPerTLU)}</span>
+                          <span className="font-medium">{formatMoney(currentQuote.premiumPerTLU)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Base Premium</span>
-                          <span className="font-medium">{formatMoney(quote.premium)}</span>
+                          <span className="font-medium">{formatMoney(currentQuote.premium)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Platform Fee</span>
-                          <span className="font-medium">{formatMoney(quote.platformFee)}</span>
+                          <span className="font-medium">{formatMoney(currentQuote.platformFee)}</span>
                         </div>
                         <div className="my-2 h-px bg-border" />
                         <div className="flex justify-between text-base font-bold">
                           <span>Total Amount Due</span>
-                          <span className="text-primary">{formatMoney(quote.totalCost)}</span>
+                          <span className="text-primary">{formatMoney(currentQuote.totalCost)}</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex gap-4">
-                    <Button variant="outline" className="flex-1" onClick={() => setQuote(null)} type="button">
+                    <Button variant="outline" className="flex-1" onClick={() => { setQuote(null); setQuotedValues(null); }} type="button">
                       Recalculate
                     </Button>
                     <Button className="flex-1" onClick={() => setCurrentStep(stepIndex('purchase'))} type="button" disabled={Boolean(herdReason)}>
@@ -924,7 +939,7 @@ export function LivestockOnboardingWizard() {
    * was made on, and the season and peril selects feed the purchase summary.
    */
   const renderPurchasedQuote = () => {
-    const values = quoteForm.getValues();
+    const values = quotedValues ?? quoteForm.getValues();
     return (
       <Card>
         <CardHeader>
@@ -954,9 +969,9 @@ export function LivestockOnboardingWizard() {
   // ── Step: Purchase Policy ───────────────────────────────
 
   const renderPurchaseStep = () => {
-    if (!farmer || !herd || !quote) return null;
-    
-    const season = quoteForm.getValues('season');
+    if (!farmer || !herd || !currentQuote) return null;
+    const quote = currentQuote;
+    const season = (quotedValues ?? quoteForm.getValues()).season;
     
     return (
       <Card>

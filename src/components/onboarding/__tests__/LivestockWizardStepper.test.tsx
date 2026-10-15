@@ -72,15 +72,21 @@ async function reachHerdStep() {
   await screen.findByLabelText(/herd name/i);
 }
 
-/** …→ herd → quote → purchase, landing on the payment step. */
-async function reachPaymentStep() {
+/** …→ herd, landing on the quote step with no quote yet. */
+async function reachQuoteStep() {
   await reachHerdStep();
   fireEvent.change(screen.getByLabelText(/herd name/i), { target: { value: 'Main herd' } });
   await waitFor(() => expect(mocks.getActiveInsuranceUnits).toHaveBeenCalled());
   await chooseIn(/coverage region/i, /KE-10/);
   await chooseIn(/livestock type/i, /Cattle/);
   fireEvent.click(screen.getByRole('button', { name: /register herd/i }));
-  fireEvent.click(await screen.findByRole('button', { name: /calculate premium/i }));
+  await screen.findByRole('button', { name: /calculate premium/i });
+}
+
+/** …→ quote → purchase, landing on the payment step. */
+async function reachPaymentStep() {
+  await reachQuoteStep();
+  fireEvent.click(screen.getByRole('button', { name: /calculate premium/i }));
   fireEvent.click(await screen.findByRole('button', { name: /proceed to purchase/i }));
   fireEvent.click(await screen.findByRole('button', { name: /create policy/i }));
   await screen.findByRole('button', { name: /send payment prompt/i });
@@ -196,5 +202,51 @@ describe('LivestockOnboardingWizard stepper', () => {
     purchase.focus();
     await user.keyboard('{Enter}');
     expect(stepButton('Consent')).toHaveAttribute('aria-current', 'step');
+
+    stepButton('Herd').focus();
+    await user.keyboard(' ');
+    expect(stepButton('Herd')).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('drops a quote once the season or peril changes, and buys only what was quoted', async () => {
+    renderWizard();
+    await reachQuoteStep();
+    fireEvent.click(screen.getByRole('button', { name: /calculate premium/i }));
+    await screen.findByRole('button', { name: /proceed to purchase/i });
+    expect(stepButton('Purchase')).not.toHaveAttribute('aria-disabled');
+
+    // Change the peril after the quote: the DROUGHT quote no longer prices the form.
+    await chooseIn(/coverage peril/i, /Comprehensive/);
+    await waitFor(() => expect(screen.queryByRole('button', { name: /proceed to purchase/i })).not.toBeInTheDocument());
+    expect(screen.queryByText(/premium breakdown/i)).not.toBeInTheDocument();
+    expect(stepButton('Purchase')).toHaveAttribute('aria-disabled', 'true');
+    expect(stepButton('Purchase')).toHaveAccessibleDescription('Calculate the premium first');
+
+    fireEvent.click(screen.getByRole('button', { name: /calculate premium/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /proceed to purchase/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /create policy/i }));
+    await screen.findByRole('button', { name: /send payment prompt/i });
+
+    expect(mocks.getPolicyQuote).toHaveBeenCalledTimes(2);
+    expect(mocks.getPolicyQuote).toHaveBeenLastCalledWith(expect.objectContaining({ coverageType: 'COMPREHENSIVE' }));
+    expect(mocks.purchasePolicy).toHaveBeenCalledTimes(1);
+    expect(mocks.purchasePolicy).toHaveBeenCalledWith(expect.objectContaining({ coverageType: 'COMPREHENSIVE', season: 'LRLD' }));
+  });
+
+  it('announces the current step and shows why a tapped step is locked', async () => {
+    renderWizard();
+    await waitFor(() => expect(screen.getByLabelText(/^county/i)).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: /onboarding progress/i });
+    const [live] = within(nav).getAllByRole('status');
+    expect(live).toHaveTextContent('Step 1 of 7: Register');
+
+    fireEvent.click(stepButton('Quote'));
+    expect(screen.getByTestId('stepper-locked-notice')).toHaveTextContent(
+      "Can't open Quote. Register the pastoralist first.",
+    );
+
+    await reachHerdStep();
+    expect(live).toHaveTextContent('Step 4 of 7: Herd');
+    expect(screen.getByTestId('stepper-locked-notice')).toBeEmptyDOMElement();
   });
 });
