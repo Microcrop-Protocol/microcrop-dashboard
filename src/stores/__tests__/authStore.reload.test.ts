@@ -353,3 +353,45 @@ describe('concurrent refreshes do not invalidate each other', () => {
     expect(refreshToken).toHaveBeenCalledTimes(1); // only the reload's own refresh
   });
 });
+
+describe('a refresh that settles after logout', () => {
+  async function loadWhileRefreshPending() {
+    vi.resetModules();
+    const mod = await import('@/stores/authStore');
+    await vi.waitFor(() => expect(refreshToken).toHaveBeenCalledTimes(1));
+    return mod.useAuthStore;
+  }
+
+  it('does not write its tokens onto the logged-out state', async () => {
+    seedPersisted('R1');
+    let answer!: (v: { accessToken: string; refreshToken: string }) => void;
+    refreshToken.mockImplementation(() => new Promise((r) => (answer = r)));
+    const store = await loadWhileRefreshPending();
+
+    store.getState().logout();
+    answer({ accessToken: accessToken('R2'), refreshToken: 'R2' });
+    await vi.waitFor(() => expect(store.getState().isLoading).toBe(false));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(store.getState().user).toBeNull();
+    expect(store.getState().isAuthenticated).toBe(false);
+    expect(store.getState().tokens).toBeNull();
+    expect(storedRefreshToken()).toBeUndefined();
+  });
+
+  it('a late transient failure neither sets refreshError nor schedules a retry', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    seedPersisted('R1');
+    let fail!: (e: unknown) => void;
+    refreshToken.mockImplementationOnce(() => new Promise((_, rej) => (fail = rej)));
+    const store = await loadWhileRefreshPending();
+
+    store.getState().logout();
+    fail(new ApiError('Network error. Please check your connection.', 0));
+    await vi.waitFor(() => expect(store.getState().isLoading).toBe(false));
+
+    expect(store.getState().refreshError).toBeNull();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+});

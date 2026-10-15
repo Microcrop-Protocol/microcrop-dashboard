@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, AuthTokens, UserRole } from '@/types';
 import { apiClient } from '@/lib/api/client';
+import { navigateAway } from '@/lib/chunk-reload';
 
 // Refresh token 5 minutes before expiry
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -98,6 +99,12 @@ const REFRESH_LOCK = 'microcrop-auth-refresh';
 type RefreshOutcome = 'refreshed' | 'loggedOut' | 'unavailable';
 
 let refreshPromise: Promise<RefreshOutcome> | null = null;
+
+// Bumped by every login() and logout(). A refresh records it when it starts and, if it changed
+// by the time the server answers, discards the answer: a refresh that lands after the user
+// signed out must not write tokens (or a retry timer, or a "reconnecting" error) onto the
+// signed-out state, and one that lands after a new sign-in must not overwrite that session.
+let sessionGeneration = 0;
 
 // Timer that proactively refreshes the access token shortly before it expires,
 // so an active session is renewed silently instead of being force-logged-out.
@@ -220,7 +227,7 @@ async function withCrossTabLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 function redirectToLogin(): void {
-  window.location.href = '/login';
+  navigateAway('/login');
 }
 
 /**
@@ -236,9 +243,16 @@ function runRefresh(
 ): Promise<RefreshOutcome> {
   if (refreshPromise) return refreshPromise;
 
+  const generation = sessionGeneration;
+  // The session this refresh was for ended (logout) or was replaced (login) while it ran.
+  const superseded = () => sessionGeneration !== generation;
+  const currentOutcome = (): RefreshOutcome =>
+    get().isAuthenticated && get().tokens?.accessToken ? 'refreshed' : 'loggedOut';
+
   const promise = (async (): Promise<RefreshOutcome> => {
     try {
       return await withCrossTabLock(async () => {
+        if (superseded()) return currentOutcome();
         const stored = readStoredRefreshToken();
         const refreshToken = stored === undefined ? get().tokens?.refreshToken : stored;
         if (!refreshToken) {
@@ -251,6 +265,7 @@ function runRefresh(
 
         try {
           const result = await apiClient.refreshToken(refreshToken);
+          if (superseded()) return currentOutcome();
           const newTokens: AuthTokens = {
             accessToken: result.accessToken,
             refreshToken: result.refreshToken,
@@ -270,6 +285,7 @@ function runRefresh(
           scheduleSilentRefresh(get);
           return 'refreshed';
         } catch (err) {
+          if (superseded()) return currentOutcome();
           if (isSessionRejected(err)) {
             // The refresh token is invalid, expired or revoked. We never silently extend a
             // session past this.
@@ -307,7 +323,9 @@ function runRefresh(
 apiClient.onUnauthorized(() => {
   const { logout } = useAuthStore.getState();
   logout();
-  window.location.href = '/login';
+  // Marks the navigation pending first, so a route import the navigation aborts is not
+  // mistaken for a stale build (reload) or an error (error screen). See lib/chunk-reload.
+  navigateAway('/login');
 });
 
 // Wire up the refresh-and-retry path: a 401 from an API call first tries one (shared)
@@ -330,7 +348,7 @@ apiClient.onRefreshNeeded(async () => {
 apiClient.onOrgDeactivated(() => {
   const { logout } = useAuthStore.getState();
   logout();
-  window.location.href = '/login?reason=deactivated';
+  navigateAway('/login?reason=deactivated');
 });
 
 export const useAuthStore = create<AuthState>()(
@@ -361,6 +379,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       login: (user, tokens) => {
+        sessionGeneration += 1;
         apiClient.setAccessToken(tokens.accessToken);
         // Ignore any hardcoded caller-supplied lifetime; use the real one.
         const normalized: AuthTokens = {
@@ -379,6 +398,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        sessionGeneration += 1;
         clearRefreshTimer();
         apiClient.setAccessToken(null);
         set({

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/authStore";
+import { navigateAway } from "@/lib/chunk-reload";
 
 /**
  * Shown instead of the login page when the session is still valid but the token refresh after
@@ -23,7 +24,7 @@ export function SessionReconnecting({ message }: { message: string }) {
 
   const signOut = () => {
     logout();
-    window.location.href = "/login";
+    navigateAway("/login");
   };
 
   return (
