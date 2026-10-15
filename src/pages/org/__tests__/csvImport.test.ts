@@ -3,8 +3,11 @@ import {
   parseCsv,
   normalizeFarmerHeader,
   normalizePlotHeader,
+  normalizeHerdHeader,
+  missingRequiredColumns,
   FARMER_REQUIRED,
   PLOT_REQUIRED,
+  HERD_REQUIRED,
 } from "../csvImport";
 
 describe("normalizeFarmerHeader", () => {
@@ -260,5 +263,73 @@ describe("parseCsv", () => {
 
     expect(rows).toHaveLength(0);
     expect(error).toBeUndefined();
+  });
+});
+
+describe("import parity headers", () => {
+  it("accepts Ghana's division names and the KYC and consent columns for farmers", () => {
+    expect(normalizeFarmerHeader("Region")).toBe("county");
+    expect(normalizeFarmerHeader("District")).toBe("subCounty");
+    expect(normalizeFarmerHeader("KYC Status")).toBe("kycStatus");
+    expect(normalizeFarmerHeader("kyc")).toBe("kycStatus");
+    expect(normalizeFarmerHeader("consent_document_ids")).toBe("consentDocumentIds");
+    expect(normalizeFarmerHeader("Consent Method")).toBe("consentMethod");
+    expect(normalizeFarmerHeader("consentGrantedAt")).toBe("consentGrantedAt");
+    expect(normalizeFarmerHeader("consent evidence ref")).toBe("consentEvidenceRef");
+    expect(normalizeFarmerHeader("consentLocale")).toBe("consentLocale");
+  });
+
+  it("accepts planting-date and national-ID aliases for plots", () => {
+    for (const h of ["plantingDate", "Planting Date", "planted", "date_planted", "Planted On"]) {
+      expect(normalizePlotHeader(h)).toBe("plantingDate");
+    }
+    expect(normalizePlotHeader("Farmer National ID")).toBe("farmerNationalId");
+    expect(normalizePlotHeader("nationalId")).toBe("farmerNationalId");
+  });
+
+  it("maps herd aliases", () => {
+    const cases: Record<string, string> = {
+      "Farmer Phone": "farmerPhone",
+      phone: "farmerPhone",
+      "farmer_national_id": "farmerNationalId",
+      nationalid: "farmerNationalId",
+      "Herd Name": "name",
+      name: "name",
+      "Livestock Type": "livestockType",
+      animal: "livestockType",
+      species: "livestockType",
+      livestock: "livestockType",
+      "Head Count": "headCount",
+      heads: "headCount",
+      count: "headCount",
+      "Number of animals": "headCount",
+      "Estimated Value": "estimatedValue",
+      "value per head": "estimatedValue",
+      lat: "latitude",
+      lng: "longitude",
+      lon: "longitude",
+    };
+    for (const [header, field] of Object.entries(cases)) expect(normalizeHerdHeader(header)).toBe(field);
+  });
+
+  it("requires EITHER farmer key for plots and herds", () => {
+    const byId = [
+      "farmerNationalId,plotName,latitude,longitude,acreage,cropType",
+      "12345678,Plot A,-0.3,36.08,2.5,MAIZE",
+    ].join("\n");
+    expect(parseCsv(byId, { normalizeHeader: normalizePlotHeader, required: PLOT_REQUIRED }).error).toBeUndefined();
+
+    const neither = ["plotName,latitude,longitude,acreage,cropType", "Plot A,-0.3,36.08,2.5,MAIZE"].join("\n");
+    expect(parseCsv(neither, { normalizeHeader: normalizePlotHeader, required: PLOT_REQUIRED }).error).toBe(
+      "Missing required column(s): farmerPhone or farmerNationalId",
+    );
+
+    const herd = ["phone,name,species,heads,estimatedValue", "+254712345678,Herd A,Goat,10,5000"].join("\n");
+    expect(parseCsv(herd, { normalizeHeader: normalizeHerdHeader, required: HERD_REQUIRED }).error).toBeUndefined();
+    expect(missingRequiredColumns(["farmerPhone", "name"], HERD_REQUIRED)).toEqual([
+      "livestockType",
+      "headCount",
+      "estimatedValue",
+    ]);
   });
 });

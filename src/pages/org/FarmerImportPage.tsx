@@ -1,4 +1,4 @@
-import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
+import { useState, useRef, type DragEvent, type ChangeEvent, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -13,8 +13,15 @@ import {
   parseCsv,
   normalizeFarmerHeader,
   normalizePlotHeader,
+  normalizeHerdHeader,
+  describeRequiredColumn,
   FARMER_REQUIRED,
+  FARMER_OPTIONAL,
   PLOT_REQUIRED,
+  PLOT_OPTIONAL,
+  HERD_REQUIRED,
+  HERD_OPTIONAL,
+  type RequiredColumn,
 } from "./csvImport";
 import {
   buildErrorReport,
@@ -30,10 +37,22 @@ import { CatalogueStatusBadge } from "@/components/catalogue/CatalogueOptions";
 import {
   csvToJsonExample,
   farmerCsvTemplate,
+  herdCsvTemplate,
   importableCrops,
   plotCsvTemplate,
+  CONSENT_METHOD_CODES,
+  prepareFarmerRows,
+  prepareHerdRows,
   preparePlotRows,
+  type PreparedRows,
 } from "./importTemplates";
+import type { BulkImportResult } from "@/lib/api/client";
+import { level1Label } from "@/lib/market";
+import { catalogueItems } from "@/lib/catalogue";
+import { CONSENT_DOCUMENT_IDS } from "@/lib/consent";
+
+/** The server's per-request cap, enforced here for CSV and JSON alike. */
+const MAX_ROWS = 500;
 
 function downloadTemplate(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/csv' });
@@ -190,18 +209,203 @@ function ImportReportPanel({ report, onDismiss }: ImportReportPanelProps) {
   );
 }
 
+interface ImportSectionProps {
+  /** Plural noun used in copy: "farmers", "plots", "herds". */
+  noun: string;
+  /** Singular title noun: "Farmers". */
+  title: string;
+  normalizeHeader: (h: string) => string;
+  required: readonly RequiredColumn[];
+  optional: readonly string[];
+  /** Column display names where the template header differs from the canonical field. */
+  columnLabels?: Record<string, string>;
+  template: string;
+  templateFilename: string;
+  prepare: (rows: Record<string, unknown>[]) => PreparedRows;
+  send: (rows: Record<string, unknown>[]) => Promise<BulkImportResult>;
+  /** Runs after a response with at least one imported row. */
+  onImported: (result: BulkImportResult) => void;
+  /** Extra help under the column list. */
+  help?: ReactNode;
+}
+
+/**
+ * One import type: CSV or JSON in, the same checks on both, the report out. CSV and JSON both go
+ * through the type's preparer and the 500-row cap, so a pasted array is never sent unchecked.
+ */
+function ImportSection({
+  noun,
+  title,
+  normalizeHeader,
+  required,
+  optional,
+  columnLabels = {},
+  template,
+  templateFilename,
+  prepare,
+  send,
+  onImported,
+  help,
+}: ImportSectionProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [json, setJson] = useState("");
+  const [mode, setMode] = useState<"csv" | "json">("csv");
+  const [report, setReport] = useState<ImportReport | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (rows: Record<string, unknown>[]) => send(rows),
+    onSuccess: (result) => {
+      const imported = result?.imported ?? 0;
+      const resultReport = buildResultReport(result, noun);
+      setReport(resultReport);
+      if (resultReport?.tone === "error") {
+        notifyError(undefined, resultReport.summary);
+      } else if (resultReport) {
+        notifySuccess(resultReport.title, resultReport.summary);
+      } else {
+        notifySuccess(`${title} imported`, `Successfully imported ${imported} ${noun}.`);
+      }
+      if (imported > 0) {
+        setJson("");
+        setFile(null);
+        onImported(result);
+      }
+    },
+    onError: (error) => {
+      setReport(buildErrorReport(error, noun));
+      notifyError(error, `Couldn't import your ${noun}. Please check the file and try again.`);
+    },
+  });
+
+  const showClientError = (errorTitle: string, message: string) => {
+    setReport({ tone: "error", title: errorTitle, summary: message, issues: [] });
+    notifyError(undefined, message);
+  };
+
+  const submit = (rows: Record<string, unknown>[]) => {
+    if (rows.length === 0) return showClientError("Empty file", "The file has no data rows.");
+    if (rows.length > MAX_ROWS) {
+      return showClientError("Too many rows", `Maximum ${MAX_ROWS} ${noun} per import.`);
+    }
+    const { rows: prepared, blocking } = prepare(rows);
+    if (blocking) {
+      setReport(blocking);
+      notifyError(undefined, blocking.summary);
+      return;
+    }
+    mutation.mutate(prepared);
+  };
+
+  const handleCsv = async () => {
+    if (!file) return;
+    setReport(null);
+    let parsed: ReturnType<typeof parseCsv>;
+    try {
+      parsed = parseCsv(await file.text(), { normalizeHeader, required });
+    } catch {
+      return showClientError("Parse error", "Failed to read CSV file.");
+    }
+    if (parsed.error) return showClientError("Invalid CSV", parsed.error);
+    submit(parsed.rows);
+  };
+
+  const handleJson = () => {
+    setReport(null);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      return showClientError("Invalid JSON", "Please enter valid JSON.");
+    }
+    if (!Array.isArray(parsed)) return showClientError("Invalid format", "Input must be a JSON array.");
+    if (parsed.some((r) => !r || typeof r !== "object" || Array.isArray(r))) {
+      return showClientError("Invalid format", `Each item must be an object describing one of your ${noun}.`);
+    }
+    submit(parsed as Record<string, unknown>[]);
+  };
+
+  const importButton = (onClick: () => void, disabled: boolean) => (
+    <Button onClick={onClick} disabled={disabled || mutation.isPending}>
+      {mutation.isPending ? (
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+      )}
+      Import {title}
+    </Button>
+  );
+
+  const label = (c: string) => columnLabels[c] ?? c;
+
+  return (
+    <>
+      {report && <ImportReportPanel report={report} onDismiss={() => setReport(null)} />}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Import {title} (Max {MAX_ROWS})</CardTitle>
+              <CardDescription>Upload a CSV file or paste JSON data</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant={mode === "csv" ? "default" : "outline"} size="sm" onClick={() => setMode("csv")}>
+                CSV File
+              </Button>
+              <Button variant={mode === "json" ? "default" : "outline"} size="sm" onClick={() => setMode("json")}>
+                JSON
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {mode === "csv" ? (
+            <>
+              <FileDropZone file={file} onFile={setFile} accept=".csv,text/csv" label={`Upload ${noun} CSV file`} />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                {importButton(handleCsv, !file)}
+                <Button variant="ghost" size="sm" onClick={() => downloadTemplate(template, templateFilename)}>
+                  <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Download Template
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Textarea
+                placeholder={csvToJsonExample(template)}
+                rows={10}
+                value={json}
+                onChange={(e) => setJson(e.target.value)}
+              />
+              {importButton(handleJson, !json.trim())}
+            </>
+          )}
+          {/* Generated from the *_REQUIRED / *_OPTIONAL constants the parser checks, so the help
+              cannot list a column the parser does not require, or miss one it does. */}
+          <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+            <p className="font-medium">Required columns:</p>
+            <p className="font-mono" data-testid={`${noun}-required-columns`}>
+              {required.map((c) => describeRequiredColumn(c, columnLabels)).join(", ")}
+            </p>
+            {optional.length > 0 && (
+              <>
+                <p className="font-medium pt-1">Optional columns:</p>
+                <p className="font-mono">{optional.map(label).join(", ")}</p>
+              </>
+            )}
+            {help}
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
 export default function FarmerImportPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [farmersFile, setFarmersFile] = useState<File | null>(null);
-  const [plotsFile, setPlotsFile] = useState<File | null>(null);
-  const [farmersJson, setFarmersJson] = useState("");
-  const [plotsJson, setPlotsJson] = useState("");
-  const [farmersImportMode, setFarmersImportMode] = useState<'csv' | 'json'>('csv');
-  const [plotsImportMode, setPlotsImportMode] = useState<'csv' | 'json'>('csv');
-  const [farmersReport, setFarmersReport] = useState<ImportReport | null>(null);
-  const [plotsReport, setPlotsReport] = useState<ImportReport | null>(null);
   const bulkImport = useCapability(CAPABILITY.BULK_IMPORT);
+  const livestockUnderwriting = useCapability(CAPABILITY.LIVESTOCK_UNDERWRITING);
   // `market` is null until the organization resolves, and the template helpers render an empty
   // sample number rather than a Kenyan one in that window. The catalogue supplies the sample crop
   // and the list of crop codes a plots file may carry.
@@ -209,152 +413,28 @@ export default function FarmerImportPage() {
   const { market: catalogue, state: catalogueState } = useCatalogue();
   const crops = importableCrops(catalogue);
 
-  const importFarmersMutation = useMutation({
-    mutationFn: (farmers: Record<string, unknown>[]) => api.bulkImportFarmers(farmers),
-    onSuccess: (result) => {
-      const imported = result?.imported ?? 0;
-      const report = buildResultReport(result, "farmers");
-      setFarmersReport(report);
-      if (report?.tone === "error") {
-        notifyError(undefined, report.summary);
-      } else if (report) {
-        notifySuccess(report.title, report.summary);
-      } else {
-        notifySuccess("Farmers imported", `Successfully imported ${imported} farmers.`);
-      }
-      if (imported > 0) {
-        setFarmersJson("");
-        setFarmersFile(null);
-        queryClient.invalidateQueries({ queryKey: ["farmers"] });
-        navigate("/org/farmers");
-      }
-    },
-    onError: (error) => {
-      setFarmersReport(buildErrorReport(error, "farmers"));
-      notifyError(error, "Couldn't import your farmers. Please check the file and try again.");
-    },
-  });
-
-  const importPlotsMutation = useMutation({
-    mutationFn: (plots: Record<string, unknown>[]) => api.bulkImportPlots(plots),
-    onSuccess: (result) => {
-      const imported = result?.imported ?? 0;
-      const report = buildResultReport(result, "plots");
-      setPlotsReport(report);
-      if (report?.tone === "error") {
-        notifyError(undefined, report.summary);
-      } else if (report) {
-        notifySuccess(report.title, report.summary);
-      } else {
-        notifySuccess("Plots imported", `Successfully imported ${imported} plots.`);
-      }
-      if (imported > 0) {
-        setPlotsJson("");
-        setPlotsFile(null);
-      }
-    },
-    onError: (error) => {
-      setPlotsReport(buildErrorReport(error, "plots"));
-      notifyError(error, "Couldn't import your plots. Please check the file and try again.");
-    },
-  });
-
-  const showFarmersClientError = (title: string, message: string) => {
-    setFarmersReport({ tone: "error", title, summary: message, issues: [] });
-    notifyError(undefined, message);
-  };
-
-  const showPlotsClientError = (title: string, message: string) => {
-    setPlotsReport({ tone: "error", title, summary: message, issues: [] });
-    notifyError(undefined, message);
-  };
-
-  const handleCsvImportFarmers = async () => {
-    if (!farmersFile) return;
-    setFarmersReport(null);
-    try {
-      const text = await farmersFile.text();
-      const { rows, error } = parseCsv(text, {
-        normalizeHeader: normalizeFarmerHeader,
-        required: FARMER_REQUIRED,
-      });
-      if (error) return showFarmersClientError("Invalid CSV", error);
-      if (rows.length === 0) return showFarmersClientError("Empty file", "CSV file has no data rows.");
-      if (rows.length > 500) return showFarmersClientError("Too many rows", "Maximum 500 farmers per import.");
-      importFarmersMutation.mutate(rows);
-    } catch {
-      showFarmersClientError("Parse error", "Failed to read CSV file.");
-    }
-  };
-
-  const handleCsvImportPlots = async () => {
-    if (!plotsFile) return;
-    setPlotsReport(null);
-    try {
-      const text = await plotsFile.text();
-      const { rows, error } = parseCsv(text, {
-        normalizeHeader: normalizePlotHeader,
-        required: PLOT_REQUIRED,
-      });
-      if (error) return showPlotsClientError("Invalid CSV", error);
-      if (rows.length === 0) return showPlotsClientError("Empty file", "CSV file has no data rows.");
-      if (rows.length > 500) return showPlotsClientError("Too many rows", "Maximum 500 plots per import.");
-      const parsed = rows.map((p) => ({
-        ...p,
-        latitude: p.latitude ? parseFloat(p.latitude) : undefined,
-        longitude: p.longitude ? parseFloat(p.longitude) : undefined,
-        acreage: p.acreage ? parseFloat(p.acreage) : undefined,
-      }));
-      const { plots, blocking } = preparePlotRows(parsed, catalogue, catalogueState);
-      if (blocking) {
-        setPlotsReport(blocking);
-        notifyError(undefined, blocking.summary);
-        return;
-      }
-      importPlotsMutation.mutate(plots);
-    } catch {
-      showPlotsClientError("Parse error", "Failed to read CSV file.");
-    }
-  };
-
-  const handleJsonImportFarmers = () => {
-    setFarmersReport(null);
-    try {
-      const parsed = JSON.parse(farmersJson);
-      if (!Array.isArray(parsed)) {
-        return showFarmersClientError("Invalid format", "Input must be a JSON array.");
-      }
-      importFarmersMutation.mutate(parsed);
-    } catch {
-      showFarmersClientError("Invalid JSON", "Please enter valid JSON.");
-    }
-  };
-
-  const handleJsonImportPlots = () => {
-    setPlotsReport(null);
-    try {
-      const parsed = JSON.parse(plotsJson);
-      if (!Array.isArray(parsed)) {
-        return showPlotsClientError("Invalid format", "Input must be a JSON array.");
-      }
-      // The same crop check and field mapping as the CSV path: a pasted array is the same rows.
-      const { plots, blocking } = preparePlotRows(parsed, catalogue, catalogueState);
-      if (blocking) {
-        setPlotsReport(blocking);
-        notifyError(undefined, blocking.summary);
-        return;
-      }
-      importPlotsMutation.mutate(plots);
-    } catch {
-      showPlotsClientError("Invalid JSON", "Please enter valid JSON.");
-    }
-  };
+  // Herd import is the file alternative to livestock onboarding, so it shows exactly where that
+  // onboarding is offered: a market that lists livestock AND an organization granted livestock
+  // underwriting. Ghana lists none, and the tab is not there at all.
+  const livestockMarket = market?.livestockEnabled === true;
+  const showHerds = livestockMarket && livestockUnderwriting.allowed;
+  const herdsNote = !market
+    ? null
+    : !livestockMarket
+      ? `Herd import isn't available: livestock cover is not offered in ${market.countryName}.`
+      : livestockUnderwriting.state === "unavailable"
+        ? "Herd import needs livestock underwriting, which isn't enabled for your organization."
+        : null;
+  const regionLabel = level1Label(market);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Import Data</h1>
-        <p className="text-muted-foreground">Import farmers and plots via CSV or JSON</p>
+        <p className="text-muted-foreground">
+          Import farmers, plots{showHerds ? " and herds" : ""} you already hold, via CSV or JSON — the
+          alternative to onboarding them one at a time
+        </p>
       </div>
 
       {/*
@@ -372,193 +452,84 @@ export default function FarmerImportPage() {
         <TabsList>
           <TabsTrigger value="farmers">Import Farmers</TabsTrigger>
           <TabsTrigger value="plots">Import Plots</TabsTrigger>
+          {showHerds && <TabsTrigger value="herds">Import Herds</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="farmers" className="space-y-4">
-          {farmersReport && (
-            <ImportReportPanel report={farmersReport} onDismiss={() => setFarmersReport(null)} />
-          )}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle className="text-base">Import Farmers (Max 500)</CardTitle>
-                  <CardDescription>Upload a CSV file or paste JSON data</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant={farmersImportMode === 'csv' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setFarmersImportMode('csv')}
-                  >
-                    CSV File
-                  </Button>
-                  <Button
-                    variant={farmersImportMode === 'json' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setFarmersImportMode('json')}
-                  >
-                    JSON
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {farmersImportMode === 'csv' ? (
-                <>
-                  <FileDropZone
-                    file={farmersFile}
-                    onFile={setFarmersFile}
-                    accept=".csv,text/csv"
-                    label="Upload farmers CSV file"
-                  />
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <Button
-                      onClick={handleCsvImportFarmers}
-                      disabled={!farmersFile || importFarmersMutation.isPending}
-                    >
-                      {importFarmersMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                      )}
-                      Import Farmers
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => downloadTemplate(farmerCsvTemplate(market), 'farmers-template.csv')}
-                    >
-                      <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                      Download Template
-                    </Button>
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Required columns:</p>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      firstName, lastName, phoneNumber, nationalId, county
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Textarea
-                    placeholder={csvToJsonExample(farmerCsvTemplate(market))}
-                    rows={10}
-                    value={farmersJson}
-                    onChange={(e) => setFarmersJson(e.target.value)}
-                  />
-                  <Button
-                    onClick={handleJsonImportFarmers}
-                    disabled={!farmersJson.trim() || importFarmersMutation.isPending}
-                  >
-                    {importFarmersMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    Import Farmers
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <ImportSection
+            noun="farmers"
+            title="Farmers"
+            normalizeHeader={normalizeFarmerHeader}
+            required={FARMER_REQUIRED}
+            optional={FARMER_OPTIONAL}
+            template={farmerCsvTemplate(market)}
+            templateFilename="farmers-template.csv"
+            prepare={(rows) => prepareFarmerRows(rows, market)}
+            send={(rows) => api.bulkImportFarmers(rows)}
+            onImported={(result) => {
+              queryClient.invalidateQueries({ queryKey: ["farmers"] });
+              // Leave the page only when every row landed: on a partial import the report of the
+              // failed rows is what the partner needs to see next.
+              if ((result?.errors ?? []).length === 0) navigate("/org/farmers");
+            }}
+            help={
+              <>
+                <p className="pt-1">
+                  <span className="font-mono">county</span> is your {regionLabel.toLowerCase()} column
+                  {regionLabel !== "County" ? <> (a <span className="font-mono">{regionLabel.toLowerCase()}</span> header is accepted)</> : null}.
+                  Phone numbers may be local or international.
+                </p>
+                <p>
+                  Farmers arrive with KYC <span className="font-mono">PENDING</span> unless the row says{" "}
+                  <span className="font-mono">kycStatus=APPROVED</span>, which needs an organization admin.
+                </p>
+                <p>
+                  Consent: fill all of consentDocumentIds (separate several with ;), consentMethod,
+                  consentGrantedAt and consentEvidenceRef for a farmer who consented, or leave them all
+                  empty. A yes/no consented column is refused.
+                </p>
+                <p>
+                  consentDocumentIds:{" "}
+                  <span className="font-mono">{CONSENT_DOCUMENT_IDS.join(", ")}</span>. consentMethod:{" "}
+                  <span className="font-mono">{CONSENT_METHOD_CODES.join(", ")}</span>.
+                  consentGrantedAt is a YYYY-MM-DD date, not in the future.
+                </p>
+              </>
+            }
+          />
         </TabsContent>
 
         <TabsContent value="plots" className="space-y-4">
-          {plotsReport && (
-            <ImportReportPanel report={plotsReport} onDismiss={() => setPlotsReport(null)} />
-          )}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle className="text-base">Import Plots (Max 500)</CardTitle>
-                  <CardDescription>Upload a CSV file or paste JSON data</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant={plotsImportMode === 'csv' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPlotsImportMode('csv')}
-                  >
-                    CSV File
-                  </Button>
-                  <Button
-                    variant={plotsImportMode === 'json' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPlotsImportMode('json')}
-                  >
-                    JSON
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {plotsImportMode === 'csv' ? (
-                <>
-                  <FileDropZone
-                    file={plotsFile}
-                    onFile={setPlotsFile}
-                    accept=".csv,text/csv"
-                    label="Upload plots CSV file"
-                  />
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <Button
-                      onClick={handleCsvImportPlots}
-                      disabled={!plotsFile || importPlotsMutation.isPending}
-                    >
-                      {importPlotsMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                      )}
-                      Import Plots
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => downloadTemplate(plotCsvTemplate(market, catalogue), 'plots-template.csv')}
-                    >
-                      <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                      Download Template
-                    </Button>
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Required columns:</p>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      farmerPhone, plotName, latitude, longitude, acreage, cropType
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Textarea
-                    placeholder={csvToJsonExample(plotCsvTemplate(market, catalogue))}
-                    rows={10}
-                    value={plotsJson}
-                    onChange={(e) => setPlotsJson(e.target.value)}
-                  />
-                  <Button
-                    onClick={handleJsonImportPlots}
-                    disabled={!plotsJson.trim() || importPlotsMutation.isPending}
-                  >
-                    {importPlotsMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    Import Plots
-                  </Button>
-                </>
-              )}
-              {/*
-                The cropType values this organization's market accepts, from the catalogue. A
-                crop outside this list is refused by the server, so the file is checked against
-                it before upload and the offending rows named.
-              */}
-              <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-                <p className="mb-1 font-medium">
+          <ImportSection
+            noun="plots"
+            title="Plots"
+            normalizeHeader={normalizePlotHeader}
+            required={PLOT_REQUIRED}
+            optional={PLOT_OPTIONAL}
+            columnLabels={{ name: "plotName" }}
+            template={plotCsvTemplate(market, catalogue)}
+            templateFilename="plots-template.csv"
+            prepare={(rows) => preparePlotRows(rows, catalogue, catalogueState)}
+            send={(rows) => api.bulkImportPlots(rows)}
+            onImported={() => {
+              queryClient.invalidateQueries({ queryKey: ["plots"] });
+            }}
+            help={
+              <>
+                <p className="pt-1">
+                  Name the farmer by farmerPhone or farmerNationalId. Acreage is in acres (a hectares
+                  column is converted).
+                </p>
+                <p>
+                  <span className="font-mono">plantingDate</span> (YYYY-MM-DD) is needed for drought
+                  determination — without it the plot cannot be assessed.
+                </p>
+                {/*
+                  The cropType values this organization's market accepts, from the catalogue. A
+                  crop outside this list is refused by the server, so the file is checked against
+                  it before upload and the offending rows named.
+                */}
+                <p className="pt-1 font-medium">
                   cropType values{catalogue ? ` for ${catalogue.countryName}` : ""}:
                 </p>
                 {catalogue ? (
@@ -583,11 +554,53 @@ export default function FarmerImportPage() {
                 ) : (
                   <p>We couldn&apos;t load your market&apos;s crop list. Reload the page to try again.</p>
                 )}
-              </div>
-            </CardContent>
-          </Card>
+              </>
+            }
+          />
         </TabsContent>
+
+        {showHerds && (
+          <TabsContent value="herds" className="space-y-4">
+            <ImportSection
+              noun="herds"
+              title="Herds"
+              normalizeHeader={normalizeHerdHeader}
+              required={HERD_REQUIRED}
+              optional={HERD_OPTIONAL}
+              template={herdCsvTemplate(market, catalogue)}
+              templateFilename="herds-template.csv"
+              prepare={(rows) => prepareHerdRows(rows, catalogue, market, catalogueState)}
+              send={(rows) => api.bulkImportHerds(rows)}
+              onImported={() => {
+                queryClient.invalidateQueries({ queryKey: ["herds"] });
+              }}
+              help={
+                <>
+                  <p className="pt-1">
+                    Name the farmer by farmerPhone or farmerNationalId. The farmer&apos;s{" "}
+                    {regionLabel.toLowerCase()} must match one of your coverage regions (insurance
+                    units) — a herd elsewhere can&apos;t be priced and its row is refused.
+                  </p>
+                  <p>
+                    headCount is a whole number of animals; estimatedValue is per head, in{" "}
+                    {market?.currency ?? "your currency"}. The insurance unit and TLU are worked out
+                    for you.
+                  </p>
+                  <p className="pt-1 font-medium">
+                    livestockType values{catalogue ? ` for ${catalogue.countryName}` : ""}:
+                  </p>
+                  <p className="font-mono">
+                    {catalogue
+                      ? catalogueItems(catalogue, "LIVESTOCK").map((l) => l.code).join(", ")
+                      : "loading…"}
+                  </p>
+                </>
+              }
+            />
+          </TabsContent>
+        )}
       </Tabs>
+      {herdsNote && <p className="mt-4 text-sm text-muted-foreground">{herdsNote}</p>}
       </CapabilityGate>
     </div>
   );

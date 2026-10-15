@@ -49,6 +49,17 @@ interface ApiErrorResponse {
   };
 }
 
+/**
+ * The response of every bulk import (farmers, plots, herds), HTTP 201. `errors[].row` is 1-BASED;
+ * `skipped` is `total - imported`, so it already includes every errored row.
+ */
+export interface BulkImportResult {
+  imported: number;
+  skipped: number;
+  errors: { row: number; field?: string; message: string }[];
+  total: number;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -850,11 +861,9 @@ class ApiClient {
   }
 
   async bulkImportFarmers(farmers: Record<string, unknown>[]) {
-    return this.request<{
-      imported: number;
-      skipped: number;
-      errors: { row: number; message: string }[];
-      total: number;
+    return this.request<BulkImportResult & {
+      consent?: Record<string, unknown>;
+      kyc?: { approved: number; pending: number };
     }>('/farmers/bulk-import', {
       method: 'POST',
       body: JSON.stringify({ farmers }),
@@ -948,14 +957,21 @@ class ApiClient {
   }
 
   async bulkImportPlots(plots: Record<string, unknown>[]) {
-    return this.request<{
-      imported: number;
-      skipped: number;
-      errors: { row: number; message: string }[];
-      total: number;
-    }>('/farmers/bulk-import/plots', {
+    return this.request<BulkImportResult>('/farmers/bulk-import/plots', {
       method: 'POST',
       body: JSON.stringify({ plots }),
+    });
+  }
+
+  /**
+   * Herd import — the file alternative to livestock onboarding. Requires BULK_IMPORT and
+   * LIVESTOCK_UNDERWRITING, and a market that lists livestock (Ghana is refused whole-batch with
+   * PRODUCT_NOT_IN_MARKET).
+   */
+  async bulkImportHerds(herds: Record<string, unknown>[]) {
+    return this.request<BulkImportResult>('/farmers/bulk-import/herds', {
+      method: 'POST',
+      body: JSON.stringify({ herds }),
     });
   }
 

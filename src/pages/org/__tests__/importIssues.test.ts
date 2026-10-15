@@ -6,6 +6,7 @@ import {
   summarizeIssues,
   buildErrorReport,
   buildResultReport,
+  catalogueRefusalRows,
 } from "../importIssues";
 
 describe("parseBackendDetails", () => {
@@ -124,37 +125,53 @@ describe("buildResultReport", () => {
     expect(buildResultReport({ imported: 5, skipped: 0, errors: [], total: 5 }, "farmers")).toBeNull();
   });
 
-  it("returns a warning report when some rows were skipped as duplicates", () => {
+  it("maps the server's 1-BASED row to the same row number in the report", () => {
+    // The server's row 3 is the file's third data row; the report used to say "Row 4".
     const report = buildResultReport(
-      { imported: 3, skipped: 2, errors: [], total: 5 },
-      "farmers",
+      { imported: 2, skipped: 1, errors: [{ row: 3, field: "farmerPhone", message: "Farmer not found" }], total: 3 },
+      "plots",
     );
+    expect(report?.issues).toEqual(["Row 3 · farmerPhone: Farmer not found"]);
+  });
 
+  it("counts failed rows once: skipped (total - imported) is not added on top of errors", () => {
+    const report = buildResultReport(
+      {
+        imported: 2,
+        skipped: 2,
+        errors: [
+          { row: 1, message: "Plot 'East' already exists for this farmer — skipped" },
+          { row: 4, message: "Duplicate plot for this farmer within batch" },
+        ],
+        total: 4,
+      },
+      "plots",
+    );
     expect(report?.tone).toBe("warning");
-    expect(report?.summary).toContain("3 imported");
-    expect(report?.summary).toContain("2 skipped");
+    expect(report?.summary).toBe("2 imported · 2 failed");
+    expect(report?.summary).not.toContain("skipped");
   });
 
   it("returns a warning report when some rows failed but others succeeded", () => {
     const report = buildResultReport(
-      { imported: 2, skipped: 0, errors: [{ row: 3, message: "duplicate phone" }], total: 3 },
+      { imported: 2, skipped: 1, errors: [{ row: 3, message: "duplicate phone" }], total: 3 },
       "farmers",
     );
 
     expect(report?.tone).toBe("warning");
     expect(report?.summary).toContain("2 imported");
     expect(report?.summary).toContain("1 failed");
-    expect(report?.issues).toEqual(["Row 4: duplicate phone"]);
+    expect(report?.issues).toEqual(["Row 3: duplicate phone"]);
   });
 
   it("returns an error report when nothing imported and everything failed", () => {
     const report = buildResultReport(
       {
         imported: 0,
-        skipped: 0,
+        skipped: 2,
         errors: [
-          { row: 0, message: "bad phone" },
-          { row: 1, message: "bad phone" },
+          { row: 1, message: "already registered" },
+          { row: 2, message: "already registered" },
         ],
         total: 2,
       },
@@ -163,6 +180,18 @@ describe("buildResultReport", () => {
 
     expect(report?.tone).toBe("error");
     expect(report?.title).toBe("No farmers imported");
-    expect(report?.issues).toHaveLength(2);
+    expect(report?.issues).toEqual(["Row 1: already registered", "Row 2: already registered"]);
+  });
+});
+
+describe("catalogueRefusalRows for herds", () => {
+  it("names the livestock rows of a PRODUCT_NOT_IN_MARKET herd refusal", () => {
+    expect(
+      catalogueRefusalRows({
+        countryCode: "KE",
+        line: "LIVESTOCK",
+        rows: [{ row: 2, livestockType: "POULTRY" }],
+      }),
+    ).toEqual([{ row: 1, field: "livestockType", message: '"POULTRY" is not in the Kenya livestock list' }]);
   });
 });

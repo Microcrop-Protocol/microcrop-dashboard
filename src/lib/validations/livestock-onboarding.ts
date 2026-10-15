@@ -9,6 +9,7 @@ import {
 } from '@/lib/market';
 import { isSellable } from '@/lib/catalogue';
 import type { CatalogueItem } from '@/types/catalogue';
+import { headCountField, nationalIdField, personNameField } from './onboarding-fields';
 
 // ── Schemas ──────────────────────────────────────────────
 
@@ -40,16 +41,12 @@ export const pastoralistRegistrationSchemaFor = (market: Market | null) =>
         (value) => (market ? isValidPhoneForMarket(value, market) : isValidPhoneForAnyMarket(value)),
         { message: phoneHint(market) },
       ),
-    nationalId: z.string()
-      .min(5, 'ID must be at least 5 characters')
-      .max(30, 'ID must not exceed 30 characters'),
-    firstName: z.string()
-      .min(2, 'First name must be at least 2 characters')
-      .max(50, 'First name must not exceed 50 characters')
+    // 6–20, the server's rule (was 5–30 here: a 5- or 21-character ID passed the form and was
+    // refused by registerFarmerSchema).
+    nationalId: nationalIdField,
+    firstName: personNameField('First name')
       .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
-    lastName: z.string()
-      .min(2, 'Last name must be at least 2 characters')
-      .max(50, 'Last name must not exceed 50 characters')
+    lastName: personNameField('Last name')
       .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
     county: z.string().min(2, `${level1Label(market)} is required`),
     subCounty: z.string().min(2, `${level2Label(market)} is required`),
@@ -86,10 +83,7 @@ export const herdRegistrationSchemaFor = (livestock: readonly CatalogueItem[] | 
             : "Your market's livestock list hasn't loaded yet.",
         },
       ),
-    headCount: z.number()
-      .int('Head count must be a whole number')
-      .min(1, 'Must have at least 1 animal')
-      .max(100000, 'Head count must not exceed 100,000'),
+    headCount: headCountField,
     estimatedValue: z.number()
       .min(100, 'Estimated value per head must be at least 100')
       .max(10000000, 'Estimated value must not exceed 10,000,000'),

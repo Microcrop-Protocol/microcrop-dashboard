@@ -11,6 +11,14 @@ import {
   type Market,
 } from '@/lib/market';
 import type { CatalogueItem } from '@/types/catalogue';
+import {
+  acreageField,
+  latitudeField,
+  longitudeField,
+  nationalIdField,
+  personNameField,
+  plotNameField,
+} from './onboarding-fields';
 
 /**
  * MARKET-DRIVEN registration fields.
@@ -38,16 +46,10 @@ export const farmerRegistrationSchemaFor = (market: Market | null) =>
         (value) => (market ? isValidPhoneForMarket(value, market) : isValidPhoneForAnyMarket(value)),
         { message: phoneHint(market) },
       ),
-    nationalId: z.string()
-      .min(6, 'National ID must be at least 6 characters')
-      .max(20, 'National ID must not exceed 20 characters'),
-    firstName: z.string()
-      .min(2, 'First name must be at least 2 characters')
-      .max(50, 'First name must not exceed 50 characters')
+    nationalId: nationalIdField,
+    firstName: personNameField('First name')
       .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
-    lastName: z.string()
-      .min(2, 'Last name must be at least 2 characters')
-      .max(50, 'Last name must not exceed 50 characters')
+    lastName: personNameField('Last name')
       .regex(/^[a-zA-Z\s'-]+$/, 'Only letters, spaces, hyphens, and apostrophes allowed'),
     county: z.string().min(2, `${level1Label(market)} is required`),
     subCounty: z.string().min(2, `${level2Label(market)} is required`),
@@ -76,20 +78,12 @@ export type FarmerRegistrationData = z.infer<typeof farmerRegistrationSchema>;
  */
 export const plotCreationSchemaFor = (crops: readonly CatalogueItem[] | null) =>
   z.object({
-    name: z.string()
-      .min(2, 'Plot name must be at least 2 characters')
-      .max(100, 'Plot name must not exceed 100 characters'),
-    latitude: z.number()
-      .min(-90, 'Latitude must be between -90 and 90')
-      .max(90, 'Latitude must be between -90 and 90')
+    name: plotNameField,
+    latitude: latitudeField
       .refine(v => v !== 0, 'Latitude is required'),
-    longitude: z.number()
-      .min(-180, 'Longitude must be between -180 and 180')
-      .max(180, 'Longitude must be between -180 and 180')
+    longitude: longitudeField
       .refine(v => v !== 0, 'Longitude is required'),
-    acreage: z.number()
-      .min(0.1, 'Acreage must be at least 0.1')
-      .max(10000, 'Acreage must not exceed 10,000'),
+    acreage: acreageField,
     cropType: z.string({ required_error: 'Select a crop' })
       .min(1, 'Select a crop')
       .refine(

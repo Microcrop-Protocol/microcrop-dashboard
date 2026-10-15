@@ -16,16 +16,22 @@ export interface ImportReport {
   issues: string[];
 }
 
+/**
+ * The bulk-import response, the same for farmers, plots and herds:
+ * `{imported, skipped, errors: [{row, field, message}], total}`. `row` is 1-BASED. `skipped` is
+ * `total - imported`, so it already counts every errored row — it is not a separate tally.
+ */
 export interface BulkImportResultLike {
   imported?: number;
   skipped?: number;
-  errors?: { row: number; message: string }[];
+  errors?: { row: number; field?: string; message: string }[];
   total?: number;
 }
 
 const MAX_INLINE_ISSUES = 20;
 
-function cap(list: string[]): string[] {
+/** At most 20 lines inline, then "… and N more". */
+export function capIssues(list: string[]): string[] {
   if (list.length <= MAX_INLINE_ISSUES) return list;
   const head = list.slice(0, MAX_INLINE_ISSUES);
   head.push(`… and ${list.length - MAX_INLINE_ISSUES} more`);
@@ -54,31 +60,37 @@ export function parseBackendDetails(details: ApiErrorDetail[] | undefined): Impo
 
 /**
  * Per-row issues from a PRODUCT_NOT_IN_MARKET bulk refusal: `details.rows` is
- * `[{ row, cropType }]` with 1-based rows (farmer.service.bulkImportPlots). Rows without a usable
- * number are skipped; with no `rows` at all, each code in `details.items` becomes one row-less line.
+ * `[{ row, cropType }]` for plots or `[{ row, livestockType }]` for herds, with 1-based rows
+ * (farmer.service.bulkImportPlots, herd.service.bulkImport). Rows without a usable number are
+ * skipped; with no `rows` at all, each code in `details.items` becomes one row-less line.
  */
 export function catalogueRefusalRows(context: unknown): ImportIssue[] {
   if (!context || typeof context !== "object" || Array.isArray(context)) return [];
   const d = context as Record<string, unknown>;
-  // Same wording as the pre-upload check in preparePlotRows, so both reports read alike.
+  const livestock = d.line === "LIVESTOCK";
+  const field = livestock ? "livestockType" : "cropType";
+  // Same wording as the pre-upload checks in importTemplates, so both reports read alike.
   const countryName = marketOrNull(d.countryCode)?.countryName;
-  const list = countryName ? `the ${countryName} crop list` : "your market's crop list";
+  const noun = livestock ? "livestock" : "crop";
+  const list = countryName ? `the ${countryName} ${noun} list` : `your market's ${noun} list`;
+  const blank = livestock ? "A blank livestock type" : "A blank crop";
   const describe = (code: unknown) =>
     typeof code === "string" && code.trim()
       ? `"${code.trim()}" is not in ${list}`
-      : `A blank crop is not in ${list}`;
+      : `${blank} is not in ${list}`;
 
   if (Array.isArray(d.rows)) {
     return d.rows.flatMap((entry) => {
       if (!entry || typeof entry !== "object") return [];
-      const { row, cropType } = entry as { row?: unknown; cropType?: unknown };
-      const n = typeof row === "number" ? row : Number(row);
+      const e = entry as { row?: unknown; cropType?: unknown; livestockType?: unknown };
+      const n = typeof e.row === "number" ? e.row : Number(e.row);
+      const code = livestock ? e.livestockType : (e.cropType ?? e.livestockType);
       // formatIssue prints `row + 1`, so the server's 1-based row is stored 0-based.
-      return Number.isInteger(n) && n >= 1 ? [{ row: n - 1, field: "cropType", message: describe(cropType) }] : [];
+      return Number.isInteger(n) && n >= 1 ? [{ row: n - 1, field, message: describe(code) }] : [];
     });
   }
   if (Array.isArray(d.items)) {
-    return d.items.map((code) => ({ field: "cropType", message: describe(code) }));
+    return d.items.map((code) => ({ field, message: describe(code) }));
   }
   return [];
 }
@@ -147,7 +159,7 @@ export function buildErrorReport(error: unknown, label: string): ImportReport {
         tone: "error",
         title: "Not in your market's product list",
         summary: getErrorMessage(error),
-        issues: cap(refusedRows.length > 0 ? summarizeIssues(refusedRows) : grouped),
+        issues: capIssues(refusedRows.length > 0 ? summarizeIssues(refusedRows) : grouped),
       };
     }
     const summary =
@@ -162,7 +174,7 @@ export function buildErrorReport(error: unknown, label: string): ImportReport {
       tone: "error",
       title: error.message || `Import failed`,
       summary,
-      issues: cap(grouped),
+      issues: capIssues(grouped),
     };
   }
   const message = error instanceof Error ? error.message : "Something went wrong.";
@@ -175,40 +187,45 @@ export function buildErrorReport(error: unknown, label: string): ImportReport {
 }
 
 /**
- * Translate a successful bulk-import response into an inline report. Returns
- * null when everything landed cleanly (no skipped, no per-row errors) — the
- * toast alone is enough in that case.
+ * Translate a successful bulk-import response into an inline report. Returns null when every row
+ * landed (no per-row errors) — the toast alone is enough in that case.
+ *
+ * Server rows are 1-BASED; formatIssue prints `row + 1`, so they are stored 0-based here (the
+ * report used to say "Row 4" for the server's row 3). The count is "N imported · M failed" from
+ * `errors` alone: `skipped` is `total - imported`, which already includes every failed row, and a
+ * re-imported duplicate is now a per-row error, so adding `skipped` counted those rows twice.
  */
 export function buildResultReport(
   result: BulkImportResultLike | null | undefined,
   label: string,
 ): ImportReport | null {
   const imported = result?.imported ?? 0;
-  const skipped = result?.skipped ?? 0;
   const rowErrors = result?.errors ?? [];
 
-  if (imported === 0 && rowErrors.length === 0 && skipped === 0) return null;
-  if (rowErrors.length === 0 && skipped === 0) return null;
+  if (rowErrors.length === 0) return null;
 
-  const issues = rowErrors.map((e) => formatIssue({ row: e.row, message: e.message }));
+  // One line per row, not grouped: a partner fixing a partial import needs every row number.
+  const issues = rowErrors.map((e) =>
+    formatIssue({
+      row: Number.isInteger(e.row) && e.row >= 1 ? e.row - 1 : undefined,
+      field: e.field,
+      message: e.message,
+    }),
+  );
 
-  if (imported === 0 && rowErrors.length > 0) {
+  if (imported === 0) {
     return {
       tone: "error",
       title: `No ${label} imported`,
       summary: `${rowErrors.length} ${rowErrors.length === 1 ? "row" : "rows"} failed — see details below.`,
-      issues: cap(issues),
+      issues: capIssues(issues),
     };
   }
-
-  const parts: string[] = [`${imported} imported`];
-  if (skipped > 0) parts.push(`${skipped} skipped as duplicates`);
-  if (rowErrors.length > 0) parts.push(`${rowErrors.length} failed`);
 
   return {
     tone: "warning",
     title: `${label[0].toUpperCase()}${label.slice(1)} imported with issues`,
-    summary: parts.join(" · "),
-    issues: cap(issues),
+    summary: `${imported} imported · ${rowErrors.length} failed`,
+    issues: capIssues(issues),
   };
 }
