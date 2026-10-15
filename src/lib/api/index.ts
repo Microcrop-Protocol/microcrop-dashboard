@@ -704,6 +704,10 @@ export const api = {
     return apiClient.bulkImportPlots(plots);
   },
 
+  bulkImportHerds: async (herds: Record<string, unknown>[]) => {
+    return apiClient.bulkImportHerds(herds);
+  },
+
   // ============================================
   // FARMER CONSENT (Kenya Data Protection Act 2019)
   //
