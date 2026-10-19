@@ -42,8 +42,8 @@ describe('parseMarketFilter', () => {
   });
 
   it('lands an unknown value on the default rather than guessing', () => {
-    expect(parseMarketFilter('UG', 'any')).toBe(ALL_MARKETS);
-    expect(parseMarketFilter('UG', 'single')).toBe(SUPPORTED_COUNTRY_CODES[0]);
+    expect(parseMarketFilter('ZZ', 'any')).toBe(ALL_MARKETS);
+    expect(parseMarketFilter('ZZ', 'single')).toBe(SUPPORTED_COUNTRY_CODES[0]);
     expect(parseMarketFilter(null, 'single')).toBe(SUPPORTED_COUNTRY_CODES[0]);
   });
 });

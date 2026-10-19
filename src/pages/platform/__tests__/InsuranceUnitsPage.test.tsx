@@ -66,7 +66,7 @@ beforeEach(() => {
 describe('InsuranceUnitsPage', () => {
   it('asks for every market by default, and labels each row in its own currency', async () => {
     mocks.getInsuranceUnits.mockResolvedValue({
-      data: [unit({}), unit({ id: 'u-ug', unitCode: 'UG-1', country: 'UG', county: 'Karamoja' })],
+      data: [unit({}), unit({ id: 'u-zz', unitCode: 'ZZ-1', country: 'ZZ', county: 'Nowhere' })],
     });
     renderAt('/platform/insurance-units');
 
@@ -77,10 +77,10 @@ describe('InsuranceUnitsPage', () => {
     expect(within(keRow).getByText('Rate/TLU: KES 1,400.25')).toBeInTheDocument();
 
     // A country this build does not know: its code, and its rate with NO currency.
-    const ugRow = screen.getByText('UG-1').closest('tr') as HTMLElement;
-    expect(within(ugRow).getByText('UG')).toBeInTheDocument();
-    expect(within(ugRow).getByText('Rate/TLU: 1,512.50')).toBeInTheDocument();
-    expect(within(ugRow).queryByText(/KES/)).not.toBeInTheDocument();
+    const zzRow = screen.getByText('ZZ-1').closest('tr') as HTMLElement;
+    expect(within(zzRow).getByText('ZZ')).toBeInTheDocument();
+    expect(within(zzRow).getByText('Rate/TLU: 1,512.50')).toBeInTheDocument();
+    expect(within(zzRow).queryByText(/KES/)).not.toBeInTheDocument();
 
     // Across markets the area column names every market's label.
     expect(screen.getByRole('columnheader', { name: 'County / Region' })).toBeInTheDocument();
