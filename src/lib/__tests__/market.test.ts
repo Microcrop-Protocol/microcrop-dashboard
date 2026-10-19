@@ -26,6 +26,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_COUNTRY_CODE,
   MARKETS,
+  SIGNUP_COUNTRY_CODES,
   SUPPORTED_COUNTRY_CODES,
   countryOptions,
   currencyLabel,
@@ -91,6 +92,25 @@ describe('money never asserts a currency it has not confirmed', () => {
 
   it('honours an explicit decimal count', () => {
     expect(formatMoney(16500.5, KE, { decimals: 2 })).toBe('KES 16,500.50');
+  });
+
+  it('never shows more decimals than the currency has (UGX and RWF have none)', () => {
+    // A fraction of a shilling is an amount nobody can pay: asking for two decimals in a
+    // 0-exponent currency still renders whole units.
+    expect(formatMoney(2640.37, MARKETS.UG, { decimals: 2 })).toBe('UGX 2,640');
+    expect(formatMoney(1512.5, MARKETS.RW, { decimals: 2 })).toBe('RWF 1,513');
+    expect(formatMoney(30000000, MARKETS.UG)).toBe('UGX 30,000,000');
+    expect(formatMoney(1512.5, MARKETS.RW, { symbol: true })).toBe('FRw 1,513');
+    // 2-exponent markets are unchanged, hidden or open.
+    expect(formatMoney(1512.5, MARKETS.TZ, { decimals: 2 })).toBe('TZS 1,512.50');
+    expect(formatMoney(1512.5, MARKETS.NG, { decimals: 2, symbol: true })).toBe('₦ 1,512.50');
+    // With no market there is no exponent to cap at; the caller's count stands.
+    expect(formatMoney(1512.5, null, { decimals: 2 })).toBe('1,512.50');
+  });
+
+  it('compact-formats a 0-exponent currency', () => {
+    expect(formatMoneyCompact(1_200_000, MARKETS.UG)).toMatch(/UGX|USh/);
+    expect(formatMoneyCompact(1_200_000, MARKETS.RW)).toMatch(/1\.2M/);
   });
 
   it('compact formatting obeys the same null contract', () => {
@@ -235,10 +255,25 @@ describe('phone validation is per-market, and fails closed', () => {
     expect(isValidPhoneForAnyMarket(undefined)).toBe(false);
   });
 
-  it('phoneHint names every supported market when there is none in hand', () => {
+  it('phoneHint names every OPEN market when there is none in hand, and no hidden one', () => {
     const hint = phoneHint(null);
-    expect(hint).toContain(KE.phoneExample);
-    expect(hint).toContain(GH.phoneExample);
+    expect(hint).toBe(`Include the country code, for example ${KE.phoneExample} or ${GH.phoneExample}.`);
+    for (const code of ['UG', 'TZ', 'ZM', 'NG', 'RW'] as const) {
+      expect(hint).not.toContain(MARKETS[code].phoneExample);
+    }
+  });
+
+  it("validates each hidden market's numbers against its own plan", () => {
+    expect(isValidPhoneForMarket('0770000123', MARKETS.UG)).toBe(true);
+    expect(normalizePhoneForMarket('0770000123', MARKETS.UG)).toBe('+256770000123');
+    expect(isValidPhoneForMarket('08030000001', MARKETS.NG)).toBe(true);
+    expect(isValidPhoneForMarket('+234803000000', MARKETS.NG)).toBe(false); // NG has a 10-digit NSN
+    expect(isValidPhoneForMarket('+256770000123', MARKETS.RW)).toBe(false);
+    expect(phoneHint(MARKETS.TZ)).toBe('Tanzania number — +255754000000, or 0754000000.');
+  });
+
+  it('isValidPhoneForAnyMarket accepts a hidden market number, as the backend anyMarketPhone does', () => {
+    expect(isValidPhoneForAnyMarket('+260970000001')).toBe(true);
   });
 
   it('phoneHint names the one market when there is one', () => {
@@ -269,11 +304,38 @@ describe('labels may default; money may not', () => {
     expect(mobileMoneyLabel(GH)).toBe('Mobile Money');
   });
 
-  it('countryOptions lists every market in registry order', () => {
+  it('labels the hidden markets with their own divisions and mobile-money wording', () => {
+    expect([level1Label(MARKETS.UG), level2Label(MARKETS.UG)]).toEqual(['District', 'Sub-county']);
+    expect([level1Label(MARKETS.TZ), level2Label(MARKETS.TZ)]).toEqual(['Region', 'District']);
+    expect([level1Label(MARKETS.ZM), level2Label(MARKETS.ZM)]).toEqual(['Province', 'District']);
+    expect([level1Label(MARKETS.NG), level2Label(MARKETS.NG)]).toEqual(['State', 'Local Government Area']);
+    expect([level1Label(MARKETS.RW), level2Label(MARKETS.RW)]).toEqual(['Province', 'District']);
+    // Nigeria has no mobile-money rail; the label must not claim one.
+    expect(mobileMoneyLabel(MARKETS.NG)).toBe('Bank account');
+  });
+
+  it('countryOptions lists only the OPEN markets by default — the self-signup picker', () => {
     expect(countryOptions()).toEqual([
       { value: 'KE', label: 'Kenya' },
       { value: 'GH', label: 'Ghana' },
     ]);
+  });
+
+  it('countryOptions({ includeHidden: true }) lists every market in registry order — the admin pickers', () => {
+    expect(countryOptions({ includeHidden: true })).toEqual([
+      { value: 'KE', label: 'Kenya' },
+      { value: 'GH', label: 'Ghana' },
+      { value: 'UG', label: 'Uganda' },
+      { value: 'TZ', label: 'Tanzania' },
+      { value: 'ZM', label: 'Zambia' },
+      { value: 'NG', label: 'Nigeria' },
+      { value: 'RW', label: 'Rwanda' },
+    ]);
+  });
+
+  it('SIGNUP_COUNTRY_CODES is exactly the signupOpen markets', () => {
+    expect([...SIGNUP_COUNTRY_CODES]).toEqual(['KE', 'GH']);
+    expect(SUPPORTED_COUNTRY_CODES.filter((c) => MARKETS[c].signupOpen)).toEqual([...SIGNUP_COUNTRY_CODES]);
   });
 });
 
@@ -311,10 +373,72 @@ describe('the mirror matches microcrop-backend/src/config/markets.js', () => {
       minSumInsuredLocal: 1000,
       maxSumInsuredLocal: 250000,
     },
+    // CONFIGURED BUT HIDDEN. `signupOpen` is non-consensus server-side but pinned here because it
+    // decides what the signup picker offers.
+    UG: {
+      countryName: 'Uganda',
+      currency: 'UGX',
+      currencySymbol: 'USh',
+      currencyMinorExponent: 0,
+      phoneCountryCode: 256,
+      regulator: 'IRA',
+      livestockEnabled: false,
+      minSumInsuredLocal: 30000,
+      maxSumInsuredLocal: 30000000,
+      signupOpen: false,
+    },
+    TZ: {
+      countryName: 'Tanzania',
+      currency: 'TZS',
+      currencySymbol: 'TSh',
+      currencyMinorExponent: 2,
+      phoneCountryCode: 255,
+      regulator: 'TIRA',
+      livestockEnabled: false,
+      minSumInsuredLocal: 20000,
+      maxSumInsuredLocal: 20000000,
+      signupOpen: false,
+    },
+    ZM: {
+      countryName: 'Zambia',
+      currency: 'ZMW',
+      currencySymbol: 'K',
+      currencyMinorExponent: 2,
+      phoneCountryCode: 260,
+      regulator: 'PIA',
+      livestockEnabled: false,
+      minSumInsuredLocal: 200,
+      maxSumInsuredLocal: 200000,
+      signupOpen: false,
+    },
+    NG: {
+      countryName: 'Nigeria',
+      currency: 'NGN',
+      currencySymbol: '₦',
+      currencyMinorExponent: 2,
+      phoneCountryCode: 234,
+      regulator: 'NAICOM',
+      livestockEnabled: false,
+      minSumInsuredLocal: 15000,
+      maxSumInsuredLocal: 2000000,
+      signupOpen: false,
+    },
+    RW: {
+      countryName: 'Rwanda',
+      currency: 'RWF',
+      currencySymbol: 'FRw',
+      currencyMinorExponent: 0,
+      phoneCountryCode: 250,
+      regulator: 'BNR',
+      livestockEnabled: false,
+      minSumInsuredLocal: 12000,
+      maxSumInsuredLocal: 12000000,
+      signupOpen: false,
+    },
   } as const;
 
   it('declares exactly the markets the backend declares', () => {
-    expect([...SUPPORTED_COUNTRY_CODES]).toEqual(['KE', 'GH']);
+    expect([...SUPPORTED_COUNTRY_CODES]).toEqual(['KE', 'GH', 'UG', 'TZ', 'ZM', 'NG', 'RW']);
     expect(Object.keys(MARKETS).sort()).toEqual(Object.keys(PINNED).sort());
   });
 
@@ -329,12 +453,21 @@ describe('the mirror matches microcrop-backend/src/config/markets.js', () => {
     expect(DEFAULT_COUNTRY_CODE).toBe('KE');
   });
 
-  it('carries only 2-exponent currencies', () => {
-    // The backend REFUSES a market whose exponent is not 2: the Decimal(12,2) money columns
-    // cannot represent a 0-exponent currency, and adding one needs a widening migration in the
-    // same change. A mirror that quietly allowed one would render money the server cannot store.
+  it('carries only 0- or 2-exponent currencies', () => {
+    // ISO 4217: UGX and RWF have no minor unit; every other market's currency has two. The
+    // backend accepts exactly these two (an exponent of 3 is MINOR_EXPONENT_UNSUPPORTED), and
+    // formatMoney caps decimals at the exponent, so a third value would need both to change.
     for (const code of SUPPORTED_COUNTRY_CODES) {
-      expect(MARKETS[code].currencyMinorExponent).toBe(2);
+      expect([0, 2]).toContain(MARKETS[code].currencyMinorExponent);
+    }
+    expect(SUPPORTED_COUNTRY_CODES.filter((c) => MARKETS[c].currencyMinorExponent === 0)).toEqual(['UG', 'RW']);
+  });
+
+  it('opens signup only in Kenya and Ghana, and keeps the hidden markets crop-only', () => {
+    for (const code of SUPPORTED_COUNTRY_CODES) {
+      const open = code === 'KE' || code === 'GH';
+      expect(MARKETS[code].signupOpen).toBe(open);
+      if (!open) expect(MARKETS[code].livestockEnabled).toBe(false);
     }
   });
 

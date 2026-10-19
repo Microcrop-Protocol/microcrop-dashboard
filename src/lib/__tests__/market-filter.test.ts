@@ -63,6 +63,18 @@ describe('marketFilterOptions', () => {
   it('labels each market with its currency', () => {
     expect(marketFilterOptions('single').find((o) => o.value === 'GH')?.label).toBe('Ghana (GHS)');
   });
+
+  it('lists the hidden markets too — a platform admin may have onboarded a design partner there', () => {
+    const values = marketFilterOptions('single').map((o) => o.value);
+    expect(values).toEqual(expect.arrayContaining(['UG', 'TZ', 'ZM', 'NG', 'RW']));
+    expect(marketFilterOptions('single').find((o) => o.value === 'UG')?.label).toBe('Uganda (UGX)');
+    // The default money market is still the first open one.
+    expect(defaultMarketFilter('single')).toBe('KE');
+  });
+
+  it('accepts a hidden market from the URL', () => {
+    expect(parseMarketFilter('rw', 'single')).toBe('RW');
+  });
 });
 
 describe('what a filter sends and means', () => {
@@ -83,8 +95,15 @@ describe('division labels', () => {
     expect(divisionLabelForFilter('GH')).toBe('Region');
   });
 
-  it('names every market\'s label across markets', () => {
+  it('names every OPEN market\'s label across markets', () => {
+    // Hidden markets stay out of the cross-market header; selecting one gives its own label.
     expect(divisionLabelForFilter(ALL_MARKETS)).toBe('County / Region');
+  });
+
+  it("uses a hidden market's own label when it is selected", () => {
+    expect(divisionLabelForFilter('UG')).toBe('District');
+    expect(divisionLabelForFilter('NG')).toBe('State');
+    expect(pluralDivisionLabel(divisionLabelForFilter('ZM'))).toBe('Provinces');
   });
 
   it('pluralises the labels the registry carries', () => {

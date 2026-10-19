@@ -42,8 +42,14 @@
  * is a different and much worse failure than guessing a label.
  */
 
-/** ISO 3166-1 alpha-2 codes of the markets this build knows about. */
-export type CountryCode = 'KE' | 'GH';
+/**
+ * ISO 3166-1 alpha-2 codes of the markets this build knows about.
+ *
+ * KE and GH are open. UG, TZ, ZM, NG and RW are CONFIGURED BUT HIDDEN (`signupOpen: false`): the
+ * backend resolves them for organizations a platform admin created there, but a partner cannot
+ * self-sign-up into them and their catalogues list nothing sellable.
+ */
+export type CountryCode = 'KE' | 'GH' | 'UG' | 'TZ' | 'ZM' | 'NG' | 'RW';
 
 export interface Market {
   countryCode: CountryCode;
@@ -53,9 +59,9 @@ export interface Market {
   /** Local symbol, for prose. Tables prefer the code — see formatMoney. */
   currencySymbol: string;
   /**
-   * Decimal places in the currency's minor unit. The backend REFUSES a market whose exponent is
-   * not 2 (the `Decimal(12,2)` columns cannot represent a 0-exponent currency), so this is 2 for
-   * every live market and is mirrored to keep money formatting honest if that ever changes.
+   * Decimal places in the currency's ISO 4217 minor unit: 2 for KES, GHS, TZS, ZMW and NGN; 0 for
+   * UGX and RWF, which have no minor unit. `formatMoney` never shows more decimals than this, so
+   * a UGX premium cannot render as "UGX 2,640.37" — a fraction of a shilling nobody can pay.
    */
   currencyMinorExponent: number;
   /** E.164 country calling code, without the '+'. */
@@ -73,7 +79,10 @@ export interface Market {
    */
   mobileMoneyLabel: string;
   mobileMoneyNetworks: readonly string[];
-  /** Insurance regulator code. KE: IRA. GH: NIC. */
+  /**
+   * Insurance regulator code. KE: IRA. GH: NIC. UG is also 'IRA' (the Insurance Regulatory
+   * Authority of Uganda), as the backend has it; show it next to the country, never alone.
+   */
   regulator: string;
   /**
    * What the two administrative-division columns are CALLED here. The columns are named
@@ -86,6 +95,13 @@ export interface Market {
   /** HINT ONLY. policy.service enforces these inside the purchase transaction. */
   minSumInsuredLocal: number;
   maxSumInsuredLocal: number;
+  /**
+   * May a partner SELF-SIGN-UP into this market? Mirrors the backend's non-consensus
+   * `signupOpen`. false = configured but hidden: the signup picker leaves it out (the backend's
+   * register-organization validator refuses it anyway), while platform-admin pickers, which may
+   * deliberately onboard a design partner there, list it via `countryOptions({ includeHidden })`.
+   */
+  signupOpen: boolean;
 }
 
 export const DEFAULT_COUNTRY_CODE: CountryCode = 'KE';
@@ -107,6 +123,7 @@ const KE: Market = {
   livestockEnabled: true,
   minSumInsuredLocal: 1000,
   maxSumInsuredLocal: 1000000,
+  signupOpen: true,
 };
 
 const GH: Market = {
@@ -126,12 +143,135 @@ const GH: Market = {
   livestockEnabled: false,
   minSumInsuredLocal: 1000,
   maxSumInsuredLocal: 250000,
+  signupOpen: true,
 };
 
-export const MARKETS: Readonly<Record<CountryCode, Market>> = Object.freeze({ KE, GH });
+// ---------------------------------------------------------------------------
+// HIDDEN MARKETS. Configured, not open: `signupOpen: false`, no livestock, and a backend
+// catalogue in which every crop is COMING_SOON. The sum-insured bounds are the backend's
+// INDICATIVE figures (about USD 8 to USD 8,000; Nigeria capped at the NAICOM micro-insurance
+// ₦2m). The phone regexes are the backend's loose `^\+CC\d{N}$` forms.
+// ---------------------------------------------------------------------------
 
-/** Every supported code, in the order a country picker should list them. */
-export const SUPPORTED_COUNTRY_CODES: readonly CountryCode[] = Object.freeze(['KE', 'GH']);
+const UG: Market = {
+  countryCode: 'UG',
+  countryName: 'Uganda',
+  currency: 'UGX',
+  currencySymbol: 'USh',
+  // ISO 4217: no minor unit.
+  currencyMinorExponent: 0,
+  phoneCountryCode: 256,
+  phoneRegex: /^\+256\d{9}$/,
+  phoneExample: '+256770000123',
+  phoneLocalExample: '0770000123',
+  mobileMoneyLabel: 'Mobile Money',
+  mobileMoneyNetworks: ['MTN', 'Airtel'],
+  regulator: 'IRA',
+  adminDivisionLabels: { level1: 'District', level2: 'Sub-county' },
+  livestockEnabled: false,
+  minSumInsuredLocal: 30000,
+  maxSumInsuredLocal: 30000000,
+  signupOpen: false,
+};
+
+const TZ: Market = {
+  countryCode: 'TZ',
+  countryName: 'Tanzania',
+  currency: 'TZS',
+  currencySymbol: 'TSh',
+  // ISO 4217 is 2 (100 senti), even though the rails move whole shillings.
+  currencyMinorExponent: 2,
+  phoneCountryCode: 255,
+  phoneRegex: /^\+255\d{9}$/,
+  phoneExample: '+255754000000',
+  phoneLocalExample: '0754000000',
+  mobileMoneyLabel: 'Mobile Money',
+  mobileMoneyNetworks: ['Vodacom', 'Airtel', 'Tigo', 'Halotel'],
+  regulator: 'TIRA',
+  adminDivisionLabels: { level1: 'Region', level2: 'District' },
+  livestockEnabled: false,
+  minSumInsuredLocal: 20000,
+  maxSumInsuredLocal: 20000000,
+  signupOpen: false,
+};
+
+const ZM: Market = {
+  countryCode: 'ZM',
+  countryName: 'Zambia',
+  currency: 'ZMW',
+  currencySymbol: 'K',
+  currencyMinorExponent: 2,
+  phoneCountryCode: 260,
+  phoneRegex: /^\+260\d{9}$/,
+  phoneExample: '+260970000001',
+  phoneLocalExample: '0970000001',
+  mobileMoneyLabel: 'Mobile Money',
+  mobileMoneyNetworks: ['MTN', 'Airtel', 'Zamtel'],
+  regulator: 'PIA',
+  adminDivisionLabels: { level1: 'Province', level2: 'District' },
+  livestockEnabled: false,
+  minSumInsuredLocal: 200,
+  maxSumInsuredLocal: 200000,
+  signupOpen: false,
+};
+
+const NG: Market = {
+  countryCode: 'NG',
+  countryName: 'Nigeria',
+  currency: 'NGN',
+  currencySymbol: '₦',
+  currencyMinorExponent: 2,
+  phoneCountryCode: 234,
+  phoneRegex: /^\+234\d{10}$/,
+  phoneExample: '+2348030000001',
+  phoneLocalExample: '08030000001',
+  // PLACEHOLDER, as in the backend: Nigeria has no mobile-money rail with our provider (payout is
+  // to bank accounts only), so nothing here may be read as a network a payment prompt can use.
+  mobileMoneyLabel: 'Bank account',
+  mobileMoneyNetworks: ['BANK'],
+  regulator: 'NAICOM',
+  adminDivisionLabels: { level1: 'State', level2: 'Local Government Area' },
+  livestockEnabled: false,
+  minSumInsuredLocal: 15000,
+  maxSumInsuredLocal: 2000000,
+  signupOpen: false,
+};
+
+const RW: Market = {
+  countryCode: 'RW',
+  countryName: 'Rwanda',
+  currency: 'RWF',
+  currencySymbol: 'FRw',
+  // ISO 4217: no minor unit.
+  currencyMinorExponent: 0,
+  phoneCountryCode: 250,
+  phoneRegex: /^\+250\d{9}$/,
+  phoneExample: '+250788000001',
+  phoneLocalExample: '0788000001',
+  mobileMoneyLabel: 'Mobile Money',
+  mobileMoneyNetworks: ['MTN', 'Airtel'],
+  regulator: 'BNR',
+  adminDivisionLabels: { level1: 'Province', level2: 'District' },
+  livestockEnabled: false,
+  minSumInsuredLocal: 12000,
+  maxSumInsuredLocal: 12000000,
+  signupOpen: false,
+};
+
+export const MARKETS: Readonly<Record<CountryCode, Market>> = Object.freeze({ KE, GH, UG, TZ, ZM, NG, RW });
+
+/**
+ * Every supported code, in the order a country picker should list them: the open markets first,
+ * in their existing order, so the single-market default on platform screens stays Kenya.
+ */
+export const SUPPORTED_COUNTRY_CODES: readonly CountryCode[] = Object.freeze([
+  'KE', 'GH', 'UG', 'TZ', 'ZM', 'NG', 'RW',
+]);
+
+/** The codes a partner may self-sign-up into (`signupOpen`), in registry order. */
+export const SIGNUP_COUNTRY_CODES: readonly CountryCode[] = Object.freeze(
+  SUPPORTED_COUNTRY_CODES.filter((code) => MARKETS[code].signupOpen),
+);
 
 export function isSupportedCountry(code: unknown): code is CountryCode {
   return typeof code === 'string' && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(
@@ -194,8 +334,10 @@ export function resolveMarketState(
  * TOKEN. It does not fall back to KES. Every caller that formats money reaches this function, so
  * this one line is what guarantees the dashboard never asserts a currency it has not confirmed.
  *
+ * `options.decimals` is capped at the market's `currencyMinorExponent`.
+ *
  * Grouping uses `en-US` separators deliberately rather than a locale derived from the market:
- * both live markets group in thousands with a comma and use a dot for the decimal, and deriving
+ * every market group in thousands with a comma and use a dot for the decimal, and deriving
  * a locale from a country code would silently change the separator for a future market without
  * anyone deciding to.
  */
@@ -207,7 +349,10 @@ export function formatMoney(
   const n = value === null || value === undefined || value === '' ? 0 : Number(value);
   if (!Number.isFinite(n)) return market ? `${moneyToken(market, options.symbol)} —` : '—';
 
-  const decimals = options.decimals ?? 0;
+  // Never more decimals than the currency has: a 0-exponent currency (UGX, RWF) asked for two
+  // still renders whole units, because a fraction of one is an amount nobody can pay or be paid.
+  const requested = options.decimals ?? 0;
+  const decimals = market ? Math.min(requested, market.currencyMinorExponent) : requested;
   const formatted = n.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -287,7 +432,7 @@ export function normalizePhoneForMarket(
   const cc = String(market.phoneCountryCode);
   if (raw.startsWith('+')) return raw;
   if (raw.startsWith(cc)) return `+${raw}`;
-  // A single leading zero is the local trunk prefix in both live markets.
+  // A single leading zero is the local trunk prefix in every supported market.
   if (raw.startsWith('0')) return `+${cc}${raw.slice(1)}`;
   return `+${cc}${raw}`;
 }
@@ -309,10 +454,14 @@ export function isValidPhoneForAnyMarket(input: string | null | undefined): bool
   return SUPPORTED_COUNTRY_CODES.some((code) => MARKETS[code].phoneRegex.test(raw));
 }
 
-/** The message a phone field should show when the number is not this market's. */
+/**
+ * The message a phone field should show when the number is not this market's. With no market in
+ * hand it gives the OPEN markets' examples only: they are examples, not the accepted set, and a
+ * hint that listed hidden markets would advertise countries a partner cannot sign up in.
+ */
 export function phoneHint(market: Market | null): string {
   if (!market) {
-    const examples = SUPPORTED_COUNTRY_CODES.map((c) => MARKETS[c].phoneExample).join(' or ');
+    const examples = SIGNUP_COUNTRY_CODES.map((c) => MARKETS[c].phoneExample).join(' or ');
     return `Include the country code, for example ${examples}.`;
   }
   return `${market.countryName} number — ${market.phoneExample}, or ${market.phoneLocalExample}.`;
@@ -345,10 +494,18 @@ export function mobileMoneyLabel(market: Market | null): string {
   return market ? market.mobileMoneyLabel : 'mobile money';
 }
 
-/** Country options for a picker, in registry order. */
-export function countryOptions(): { value: CountryCode; label: string }[] {
-  return SUPPORTED_COUNTRY_CODES.map((value) => ({
-    value,
-    label: MARKETS[value].countryName,
-  }));
+/**
+ * Country options for a picker, in registry order.
+ *
+ * Open markets only by default — the self-signup picker must not offer a market the backend
+ * refuses at register-organization. Platform-admin pickers pass `includeHidden: true`: an
+ * operator may deliberately create an organization in a hidden market (the backend's admin create
+ * path accepts every supported market).
+ */
+export function countryOptions(
+  { includeHidden = false }: { includeHidden?: boolean } = {},
+): { value: CountryCode; label: string }[] {
+  return SUPPORTED_COUNTRY_CODES.filter((value) => includeHidden || MARKETS[value].signupOpen).map(
+    (value) => ({ value, label: MARKETS[value].countryName }),
+  );
 }

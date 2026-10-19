@@ -49,6 +49,17 @@ describe('CreateInsuranceUnitDialog', () => {
     expect(screen.getByRole('button', { name: /create unit/i })).toBeDisabled();
   });
 
+  it('offers the hidden markets to a platform admin, with their own labels and no livestock terms', async () => {
+    open();
+    await chooseCountry('Uganda');
+    expect(await screen.findByText(/Livestock cover is not offered in Uganda/)).toBeInTheDocument();
+    expect(screen.getByText(/Uganda crop seasons: First season \(MAM rains\)/)).toBeInTheDocument();
+    expect(screen.getByText('Uganda unit codes must start with UG-')).toBeInTheDocument();
+    expect(screen.getByLabelText('District')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sub-county (Optional)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create unit/i })).toBeDisabled();
+  });
+
   it('hints the GH- prefix and uses Region/District for Ghana', async () => {
     open();
     await chooseCountry('Ghana');

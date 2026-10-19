@@ -17,7 +17,7 @@
  *     when the operator switches market; carrying a KES rate into another currency would price a
  *     herd wrongly with a number nobody typed.
  */
-import { MARKETS, isSupportedCountry, type CountryCode } from './market';
+import { DEFAULT_COUNTRY_CODE, MARKETS, SUPPORTED_COUNTRY_CODES, isSupportedCountry, type CountryCode } from './market';
 
 export interface SeasonDef {
   code: string;
@@ -40,6 +40,28 @@ export const CROP_SEASONS: Partial<Record<CountryCode, readonly SeasonDef[]>> = 
     { code: 'MAIN', name: 'Main season (north, unimodal)' },
     { code: 'MAJOR', name: 'Major season (south)' },
     { code: 'MINOR', name: 'Minor season (south)' },
+  ],
+  // The hidden markets: exactly the backend's `seasonCodes` and window labels (markets.js), so
+  // the three repos agree on the codes. All windows are INDICATIVE pending agronomist sign-off.
+  UG: [
+    { code: 'FIRST', name: 'First season (MAM rains)', months: 'Mar–Aug' },
+    { code: 'SECOND', name: 'Second season (SOND rains)', months: 'Aug–Jan' },
+    { code: 'NORTH', name: 'Northern single season', months: 'Apr–Oct' },
+  ],
+  TZ: [
+    { code: 'MSIMU', name: 'Msimu (unimodal: central, southern, western)', months: 'Nov–Jul' },
+    { code: 'MASIKA', name: 'Masika long rains (bimodal: north, north-east, coast, Lake)', months: 'Feb–Aug' },
+    { code: 'VULI', name: 'Vuli short rains (bimodal)', months: 'Oct–Feb' },
+  ],
+  ZM: [{ code: 'MAIN', name: 'Main rainy season (unimodal)', months: 'Nov–Jun' }],
+  NG: [
+    { code: 'MAJOR_SOUTH', name: 'Main season (south, bimodal)', months: 'Mar–Aug' },
+    { code: 'MINOR_SOUTH', name: 'Second season (south, bimodal)', months: 'Aug–Dec' },
+    { code: 'MAJOR_NORTH', name: 'Main season (north, unimodal)', months: 'May–Nov' },
+  ],
+  RW: [
+    { code: 'SEASON_A', name: 'Season A (short rains)', months: 'Sep–Feb' },
+    { code: 'SEASON_B', name: 'Season B (long rains)', months: 'Mar–Jul' },
   ],
 };
 
@@ -68,10 +90,14 @@ export function livestockUnitsOffered(countryCode: string | null | undefined): b
 // ---------------------------------------------------------------------------
 
 /**
- * Markets whose unit codes MUST carry the country prefix. Ghana's do (the backend refuses a Ghana
- * unit without `GH-`); Kenya's legacy codes predate the convention, so it is a hint there only.
+ * Markets whose unit codes MUST carry the country prefix: EVERY market except Kenya, matching the
+ * backend's `requiredUnitCodePrefix` (it exempts only DEFAULT_COUNTRY_CODE). Kenya's legacy
+ * codes predate the convention, so it is a hint there only. Derived rather than listed, so a new
+ * market cannot be added without it.
  */
-const REQUIRED_UNIT_CODE_PREFIX: Partial<Record<CountryCode, string>> = { GH: 'GH-' };
+const REQUIRED_UNIT_CODE_PREFIX: Partial<Record<CountryCode, string>> = Object.fromEntries(
+  SUPPORTED_COUNTRY_CODES.filter((cc) => cc !== DEFAULT_COUNTRY_CODE).map((cc) => [cc, `${cc}-`]),
+);
 
 export function unitCodePlaceholder(countryCode: CountryCode): string {
   return `${countryCode}-…`;
