@@ -539,6 +539,11 @@ class ApiClient {
   }
 
   // Per-org treasury (v3): provision the org's wallet (reserve key) + set its reserve ratio.
+  // BASE-ONLY, RETIRED (phase 1, 2026-10-19). Both are Base writes (a Privy wallet, the
+  // PlatformTreasury reserve ratio). Kept for the VITE_BASE_SETTLEMENT_ENABLED switch; the UI
+  // calls them only with that switch on, and the backend answers 409 BASE_RETIRED otherwise.
+  // Removed in phase 2 with the rest of the EVM code. The same applies to getTreasuryStats,
+  // getTreasuryBalance and getOrgReserve, which read Base contracts.
   async platformProvisionWallet(orgId: string) {
     return this.request<{ walletAddress: string; privyWalletId: string; alreadyProvisioned: boolean }>(
       `/platform/organizations/${encodeURIComponent(orgId)}/provision-wallet`,

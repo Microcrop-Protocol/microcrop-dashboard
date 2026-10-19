@@ -37,6 +37,7 @@ import {
   PackageSearch,
 } from "lucide-react";
 import { docsUrl } from "@/lib/docs";
+import { isBaseSettlementEnabled } from "@/lib/explorer";
 import {
   Collapsible,
   CollapsibleContent,
@@ -64,6 +65,11 @@ interface NavItem {
    * the line is not offered there at all, so a nav entry would only lead to a "not offered" page.
    */
   livestock?: boolean;
+  /**
+   * A Base-only surface (the PlatformTreasury contract). Hidden while Base settlement is retired
+   * (VITE_BASE_SETTLEMENT_ENABLED unset): its data is read from a chain MicroCrop no longer runs.
+   */
+  baseOnly?: boolean;
 }
 
 const platformNavItems: NavItem[] = [
@@ -71,7 +77,7 @@ const platformNavItems: NavItem[] = [
   { title: "Organizations", href: "/platform/organizations", icon: Building2 },
   { title: "Insurance Units", href: "/platform/insurance-units", icon: MapPin },
   { title: "Product Catalogue", href: "/platform/catalogue", icon: PackageSearch },
-  { title: "Treasury", href: "/platform/treasury", icon: Landmark },
+  { title: "Treasury", href: "/platform/treasury", icon: Landmark, baseOnly: true },
   { title: "KYB Review", href: "/platform/kyb-review", icon: ClipboardCheck },
   { title: "Invitations", href: "/platform/invitations", icon: Mail },
   { title: "Blog", href: "/platform/blog", icon: Newspaper },
@@ -151,6 +157,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const navItems = withDocsLink(
     (isPlatformAdmin() ? platformNavItems : orgNavItems).filter((item) => {
       if (item.livestock && livestockNotOffered) return false;
+      if (item.baseOnly && !isBaseSettlementEnabled()) return false;
       if (item.adminOnly) return perms.isAdmin;
       if (item.can) return perms.can[item.can];
       if (item.permission) return perms.has(item.permission);

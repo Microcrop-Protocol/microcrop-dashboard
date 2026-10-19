@@ -14,9 +14,43 @@ import {
   Loader2,
   Percent,
   Construction,
+  Landmark,
 } from "lucide-react";
+import { isBaseSettlementEnabled } from "@/lib/explorer";
 
+/**
+ * The platform treasury is Base's PlatformTreasury contract. Base is retired (2026-10-19) and
+ * MicroCrop holds no funds on Stellar, so with VITE_BASE_SETTLEMENT_ENABLED unset (the default)
+ * this page says so and queries nothing. The nav entry is hidden too; this covers a bookmark.
+ */
 export default function TreasuryPage() {
+  if (!isBaseSettlementEnabled()) return <BaseRetiredTreasury />;
+  return <BaseTreasury />;
+}
+
+function BaseRetiredTreasury() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Platform Treasury</h1>
+        <p className="text-muted-foreground">Retired with Base settlement</p>
+      </div>
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Landmark className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden="true" />
+          <h2 className="mb-2 text-lg font-semibold">There is no platform treasury</h2>
+          <p className="max-w-md text-center text-muted-foreground">
+            The treasury was a contract on Base, which MicroCrop no longer uses. On Stellar, MicroCrop never
+            holds funds: insurers collect premiums and settle claims themselves, and MicroCrop verifies and
+            records the outcome.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function BaseTreasury() {
   const { data: treasury, isLoading, error } = useQuery({
     queryKey: ["treasury"],
     queryFn: () => api.getTreasuryStats(),

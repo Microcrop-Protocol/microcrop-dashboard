@@ -16,8 +16,9 @@ import { EvidencePackageActions } from './EvidencePackageActions';
 import { determinationKindLabel } from '@/lib/determinations';
 import { formatBasisPoints } from '@/lib/money-minor';
 import { formatDate } from '@/lib/utils';
-import { BadgeCheck, ScrollText, ShieldCheck } from 'lucide-react';
-import type { DeterminedFact } from '@/types';
+import { BadgeCheck, ExternalLink, ScrollText, ShieldCheck } from 'lucide-react';
+import { stellarNetworkLabel, stellarTxUrl } from '@/lib/explorer';
+import type { DeterminationNotary, DeterminedFact } from '@/types';
 
 /** A `dt`/`dd` pair. Long hashes wrap and break rather than forcing the page to scroll. */
 function Field({
@@ -34,6 +35,39 @@ function Field({
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className={mono ? 'break-all font-mono text-xs' : 'text-sm'}>{children ?? '—'}</dd>
     </div>
+  );
+}
+
+/** Stellar anchors name their chain and network; any other provider keeps its own name. */
+function isStellarNotary(notary: DeterminationNotary): boolean {
+  return notary.provider?.toLowerCase() === 'stellar';
+}
+
+function notaryLabel(notary: DeterminationNotary): string {
+  if (isStellarNotary(notary)) return `Notary (${stellarNetworkLabel(notary.network)})`;
+  return `Notary${notary.provider ? ` (${notary.provider})` : ''}`;
+}
+
+/**
+ * The anchor reference. A Stellar anchor links to its transaction on stellar.expert, on the
+ * network the RECEIPT names (a testnet anchor looked up on mainnet is a 404 that reads as "not
+ * anchored"). Anything else — the private-log provider, a receipt with no tx hash — is text.
+ */
+function NotaryAnchor({ notary }: { notary: DeterminationNotary }) {
+  const text = notary.reference ?? notary.txHash ?? '—';
+  const href = isStellarNotary(notary) ? stellarTxUrl(notary.txHash, notary.network) : null;
+  if (!href) return <>{text}</>;
+  return (
+    <a
+      className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={`View the anchoring transaction on ${stellarNetworkLabel(notary.network)} (stellar.expert)`}
+    >
+      {text}
+      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+    </a>
   );
 }
 
@@ -94,8 +128,8 @@ export function DeterminedFactCard({
             </Field>
             {notary && (
               <>
-                <Field label={`Notary${notary.provider ? ` (${notary.provider})` : ''}`} mono>
-                  {notary.reference ?? notary.txHash ?? '—'}
+                <Field label={notaryLabel(notary)} mono>
+                  <NotaryAnchor notary={notary} />
                 </Field>
                 <Field label="Anchored">
                   {notary.anchoredAt ? formatDate(notary.anchoredAt, 'MMM d, yyyy HH:mm') : '—'}

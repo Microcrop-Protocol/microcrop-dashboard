@@ -22,7 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { SettlementFactBadge } from './FactBadges';
 import { formatMoneyMinor } from '@/lib/money-minor';
 import { AlertTriangle, Banknote, ExternalLink } from 'lucide-react';
-import { explorerTxUrl } from '@/lib/explorer';
+import { baseExplorerTxUrl, isBaseChainId, stellarNetworkLabel, stellarTxUrl } from '@/lib/explorer';
 import type { SettlementFact } from '@/types';
 
 export function SettlementFactCard({ settlement }: { settlement: SettlementFact }) {
@@ -104,36 +104,62 @@ export function SettlementFactCard({ settlement }: { settlement: SettlementFact 
         )}
 
         {/* Tier 2 only — the block is absent entirely on a Tier 1 response, not nulled, so this
-            renders nothing at all for a Determination-tier policy. */}
-        {settlement.onChain && (
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                Settlement transaction
-              </dt>
-              <dd className="break-all font-mono text-xs">
-                {settlement.onChain.submittedTxHash ? (
-                  <a
-                    className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-                    href={explorerTxUrl(settlement.onChain.submittedTxHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {settlement.onChain.submittedTxHash}
-                    <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
-                  </a>
-                ) : (
-                  '—'
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Block</dt>
-              <dd className="font-mono text-xs">{settlement.onChain.blockNumber ?? '—'}</dd>
-            </div>
-          </dl>
-        )}
+            renders nothing at all for a Determination-tier policy. Every Tier 2 row today is a
+            LEGACY Base settlement: Base is retired, so the record stays readable but the hash is
+            plain text, not a BaseScan link (that comes back only with VITE_BASE_SETTLEMENT_ENABLED). */}
+        {settlement.onChain && <OnChainSettlement onChain={settlement.onChain} />}
       </CardContent>
     </Card>
+  );
+}
+
+function OnChainSettlement({ onChain }: { onChain: NonNullable<SettlementFact['onChain']> }) {
+  const legacyBase = isBaseChainId(onChain.chainId);
+  // No chain id plus a Stellar-shaped hash (64 hex, no 0x) is a Stellar record: label and link
+  // it on stellar.expert. Not reachable today (Stellar cover is Tier 1, which has no onChain
+  // block), but it keeps a future Stellar row from rendering as "Network —".
+  const stellarHref =
+    !legacyBase && onChain.chainId == null ? stellarTxUrl(onChain.submittedTxHash) : null;
+  const href = legacyBase ? baseExplorerTxUrl(onChain.submittedTxHash) : stellarHref;
+
+  return (
+    <dl className="grid gap-3 text-sm sm:grid-cols-2">
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Network</dt>
+        <dd className="text-xs">
+          {legacyBase
+            ? 'Base (retired) — legacy settlement record'
+            : onChain.chainId != null
+              ? `Chain ${onChain.chainId}`
+              : stellarHref
+                ? stellarNetworkLabel()
+                : '—'}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+          Settlement transaction
+        </dt>
+        <dd className="break-all font-mono text-xs">
+          {onChain.submittedTxHash && href ? (
+            <a
+              className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {onChain.submittedTxHash}
+              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+            </a>
+          ) : (
+            (onChain.submittedTxHash ?? '—')
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Block</dt>
+        <dd className="font-mono text-xs">{onChain.blockNumber ?? '—'}</dd>
+      </div>
+    </dl>
   );
 }

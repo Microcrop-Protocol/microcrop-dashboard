@@ -11,6 +11,7 @@ import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { Granularity } from "@/types";
 import { useMarketFilter } from "@/hooks/useMarketFilter";
+import { isBaseSettlementEnabled } from "@/lib/explorer";
 import { formatMoneyCompact, withCurrencySuffix } from "@/lib/market";
 import {
   confirmedMarket,
@@ -80,9 +81,9 @@ export default function RevenueAnalyticsPage() {
           icon={DollarSign}
         />
         <StatCard
-          title="Payouts (USDC)"
+          title={isBaseSettlementEnabled() ? "Payouts (USDC)" : "Legacy (Base) payouts (USDC)"}
           value={isLoading ? "—" : formatUsdcCompact(data?.totals.payoutsUsdc)}
-          subtitle="Settled on-chain in USDC"
+          subtitle={isBaseSettlementEnabled() ? "Settled on-chain in USDC" : "Settled on Base before it was retired"}
           icon={ArrowDownUp}
         />
         <StatCard

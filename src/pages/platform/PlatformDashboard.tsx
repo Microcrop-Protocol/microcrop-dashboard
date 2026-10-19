@@ -12,6 +12,7 @@ import { DateRange } from "react-day-picker";
 import { useMarketFilter } from "@/hooks/useMarketFilter";
 import { formatMoneyCompact, marketOrNull } from "@/lib/market";
 import { confirmedMarket, dateRangeParams, formatUsdcCompact } from "@/lib/platform-analytics";
+import { isBaseSettlementEnabled } from "@/lib/explorer";
 import type { PlatformCurrencyFinancials } from "@/types";
 
 const formatNumber = (value: number) =>
@@ -119,9 +120,11 @@ export default function PlatformDashboard() {
           icon={FileText}
         />
         <StatCard
-          title="Payouts Sent (USDC)"
+          // Every USDC payout is a legacy Base settlement. With Base retired MicroCrop moves no
+          // money, so the tile says it is history rather than a running "sent" figure.
+          title={isBaseSettlementEnabled() ? "Payouts Sent (USDC)" : "Legacy (Base) payouts (USDC)"}
           value={isLoading ? "—" : formatUsdcCompact(stats?.financials.totalPayoutsUsdc)}
-          subtitle={`${stats?.financials.totalPayoutCount ?? 0} payouts · settled in USDC`}
+          subtitle={`${stats?.financials.totalPayoutCount ?? 0} payouts · ${isBaseSettlementEnabled() ? "settled in USDC" : "settled on Base before it was retired"}`}
           icon={DollarSign}
         />
       </div>

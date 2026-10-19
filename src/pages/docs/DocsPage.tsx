@@ -104,7 +104,6 @@ const webhookPayloadJson = `{
     "payoutAmount": 50000.00,
     "currency": "KES",
     "triggerType": "DROUGHT_NDVI_THRESHOLD",
-    "transactionHash": "0x123abc...",
     "settlementProvider": "MPESA"
   }
 }`;
@@ -436,7 +435,7 @@ export default function DocsPage() {
               <div className="space-y-1">
                 <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider mb-2">Event Types Supported</h4>
                 <div className="border rounded-md px-4 py-2 bg-slate-50/50">
-                  <EventRow name="payout.executed" description="A claim payout was successfully processed and sent to the farmer's mobile money wallet." />
+                  <EventRow name="payout.executed" description="Legacy (Base settlement only): a payout MicroCrop settled on Base. Base is retired, so new cover does not emit it; paying the farmer is the insurer's obligation, settled off-platform." />
                   <EventRow name="policy.activated" description="A pending policy premium payment was verified and coverage has begun." />
                   <EventRow name="policy.expired" description="A policy's active term has completed without triggering a climate claim." />
                 </div>

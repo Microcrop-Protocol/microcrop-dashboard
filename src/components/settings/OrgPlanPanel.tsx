@@ -33,7 +33,8 @@ import {
   CAPABILITY_UNKNOWN_TITLE,
   capabilityLabel,
 } from '@/lib/capability';
-import { SERVICE_TIER_LABELS, TIER1_UPGRADE_BODY, tierLabel } from '@/lib/tier';
+import { SERVICE_TIER_LABELS, TIER2_RETIRED_NOTE, tier1UpgradeBody, tierLabel } from '@/lib/tier';
+import { isBaseSettlementEnabled } from '@/lib/explorer';
 import { Check, Lock, RefreshCw, ShieldQuestion } from 'lucide-react';
 
 export function OrgPlanPanel() {
@@ -66,14 +67,20 @@ export function OrgPlanPanel() {
         </CardHeader>
         {tier.state === 'determination' && (
           <CardContent className="text-sm text-muted-foreground">
-            {TIER1_UPGRADE_BODY}
+            {tier1UpgradeBody()}
           </CardContent>
         )}
         {tier.state === 'settlement' && (
           <CardContent className="text-sm text-muted-foreground">
-            MicroCrop determines whether the trigger fired and settles the payout to the farmer
-            for you. {SERVICE_TIER_LABELS.DETERMINATION_AND_SETTLEMENT} applies to cover sold
-            while the plan is in force.
+            {isBaseSettlementEnabled() ? (
+              <>
+                MicroCrop determines whether the trigger fired and settles the payout to the farmer
+                for you. {SERVICE_TIER_LABELS.DETERMINATION_AND_SETTLEMENT} applies to cover sold
+                while the plan is in force.
+              </>
+            ) : (
+              TIER2_RETIRED_NOTE
+            )}
           </CardContent>
         )}
       </Card>

@@ -7,7 +7,7 @@
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { PlatformStats } from '@/types';
 
 const mocks = vi.hoisted(() => ({
@@ -47,6 +47,10 @@ function renderPage(path = '/platform/dashboard') {
   );
 }
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 beforeEach(() => {
   mocks.getPlatformStats.mockReset().mockResolvedValue(STATS);
   mocks.getActivities.mockReset().mockResolvedValue({ data: [] });
@@ -71,7 +75,16 @@ describe('PlatformDashboard', () => {
     expect(screen.queryByText(/154\.2K/)).not.toBeInTheDocument();
   });
 
-  it('labels payouts USDC, never a local currency', async () => {
+  it('labels payouts USDC, never a local currency — and as legacy Base while Base is retired', async () => {
+    vi.stubEnv('VITE_BASE_SETTLEMENT_ENABLED', '');
+    renderPage();
+    expect(await screen.findByText('USDC 5.1K')).toBeInTheDocument();
+    expect(screen.getByText('Legacy (Base) payouts (USDC)')).toBeInTheDocument();
+    expect(screen.queryByText('Payouts Sent (USDC)')).not.toBeInTheDocument();
+  });
+
+  it('restores the "Payouts Sent" label with the Base switch on', async () => {
+    vi.stubEnv('VITE_BASE_SETTLEMENT_ENABLED', 'true');
     renderPage();
     expect(await screen.findByText('USDC 5.1K')).toBeInTheDocument();
     expect(screen.getByText('Payouts Sent (USDC)')).toBeInTheDocument();

@@ -11,7 +11,7 @@ const META: Record<
   RECEIVED: { label: "Received", variant: "pending", help: "Determination received; awaiting on-chain submission." },
   SUBMITTING: { label: "Submitting", variant: "processing", help: "On-chain settlement transaction in flight." },
   CONFIRMED: { label: "Confirmed", variant: "completed", help: "Settled on-chain." },
-  FAILED: { label: "Failed", variant: "failed", help: "On-chain submission failed; it will be retried." },
+  FAILED: { label: "Failed", variant: "failed", help: "Settlement did not complete. See the failure reason on the determination." },
   UNDERFUNDED: {
     label: "Underfunded",
     variant: "error",
