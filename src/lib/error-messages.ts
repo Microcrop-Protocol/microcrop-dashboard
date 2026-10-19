@@ -59,6 +59,10 @@ const CODE_MESSAGES: Record<string, string> = {
     "That product isn't offered in your market, so it can't be quoted or sold.",
   PRODUCT_NOT_IN_MARKET:
     "That crop or livestock type isn't in your market's product list. Choose one from the list.",
+  // Base settlement is retired (2026-10-19): Stellar is the only chain. A Base-only action or
+  // an on-chain (Tier 2) sale on Base answers 409 BASE_RETIRED. Not a fault to retry.
+  BASE_RETIRED:
+    "Base settlement has been retired. MicroCrop now records on Stellar only, so this Base action is no longer available.",
   PRICING_NOT_CONFIGURED:
     "Pricing for that product isn't configured in your market yet, so no quote can be given. Contact MicroCrop.",
 };
