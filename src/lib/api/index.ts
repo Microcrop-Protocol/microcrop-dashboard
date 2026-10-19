@@ -478,6 +478,7 @@ export const api = {
   // ============================================
   // PLATFORM — PER-ORG TREASURY (v3)
   // ============================================
+  // Base-only and retired (phase 1): called only with VITE_BASE_SETTLEMENT_ENABLED=true.
 
   platformProvisionWallet: async (orgId: string): Promise<{ walletAddress: string; privyWalletId: string; alreadyProvisioned: boolean }> => {
     return apiClient.platformProvisionWallet(orgId);

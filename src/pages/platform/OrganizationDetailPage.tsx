@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { explorerAddressUrl } from "@/lib/explorer";
+import { baseExplorerAddressUrl, isBaseSettlementEnabled } from "@/lib/explorer";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -30,10 +30,12 @@ import { OrgCapabilitiesCard } from "@/components/platform/OrgCapabilitiesCard";
 import type { Policy, Payout, OnboardingStep } from "@/types";
 
 // Keys MUST match the backend OnboardingStep enum; labels are human-friendly.
-const onboardingSteps: { key: OnboardingStep; label: string }[] = [
+// POOL_DEPLOYMENT is a legacy enum name. With Base retired there is no platform wallet to set
+// up, so the step is labelled for what is left of it (the org's off-platform reserve).
+const onboardingSteps = (baseOn: boolean): { key: OnboardingStep; label: string }[] => [
   { key: 'APPLICATION', label: 'Application' },
   { key: 'KYB_VERIFICATION', label: 'KYB Verification' },
-  { key: 'POOL_DEPLOYMENT', label: 'Wallet & Reserve Setup' },
+  { key: 'POOL_DEPLOYMENT', label: baseOn ? 'Wallet & Reserve Setup' : 'Reserve Setup' },
   { key: 'ADMIN_SETUP', label: 'Admin Setup' },
   { key: 'COMPLETED', label: 'Activated' },
 ];
@@ -41,6 +43,11 @@ const onboardingSteps: { key: OnboardingStep; label: string }[] = [
 export default function OrganizationDetailPage() {
   const { orgId } = useParams();
   const queryClient = useQueryClient();
+  // BASE RETIRED. The org wallet (Privy, on Base), the on-chain reserve ratio and the reserve
+  // read all live on Base's PlatformTreasury, so with the switch off (the default) none of them
+  // is shown or queried: each would be a dead action answering 409 BASE_RETIRED.
+  const baseOn = isBaseSettlementEnabled();
+  const steps = onboardingSteps(baseOn);
 
   const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
   const [ratioPct, setRatioPct] = useState("");
@@ -108,7 +115,7 @@ export default function OrganizationDetailPage() {
   const { data: reserve, isLoading: reserveLoading, isError: reserveError } = useQuery({
     queryKey: ["orgReserve", orgId],
     queryFn: () => api.getOrgReserve(orgId!),
-    enabled: !!orgId && !!org?.walletAddress,
+    enabled: baseOn && !!orgId && !!org?.walletAddress,
     retry: 1,
   });
 
@@ -149,7 +156,7 @@ export default function OrganizationDetailPage() {
   const market = useMarketFor(org);
   const formatCurrency = (value: number) => formatMoneyCompact(value, market);
 
-  const currentStepIndex = onboardingSteps.findIndex(s => s.key === org?.onboardingStep);
+  const currentStepIndex = steps.findIndex(s => s.key === org?.onboardingStep);
 
   // Derive chart data from API responses
   const policyStatusData = (() => {
@@ -210,30 +217,32 @@ export default function OrganizationDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          {!org.walletAddress ? (
-            <Button onClick={() => provisionWalletMutation.mutate()} disabled={provisionWalletMutation.isPending}>
-              {provisionWalletMutation.isPending ? "Provisioning…" : "Provision Wallet"}
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={() => setReserveDialogOpen(true)}>
-                <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
-                Set Reserve Ratio
+        {baseOn && (
+          <div className="flex gap-2">
+            {!org.walletAddress ? (
+              <Button onClick={() => provisionWalletMutation.mutate()} disabled={provisionWalletMutation.isPending}>
+                {provisionWalletMutation.isPending ? "Provisioning…" : "Provision Wallet"}
               </Button>
-              <Button variant="outline" asChild>
-                <a
-                  href={explorerAddressUrl(org.walletAddress)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View Wallet
-                  <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
-                </a>
-              </Button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setReserveDialogOpen(true)}>
+                  <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Set Reserve Ratio
+                </Button>
+                <Button variant="outline" asChild>
+                  <a
+                    href={baseExplorerAddressUrl(org.walletAddress) ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View Wallet
+                    <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
+                  </a>
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* KPI Row */}
@@ -257,7 +266,7 @@ export default function OrganizationDetailPage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between overflow-x-auto pb-2">
-            {onboardingSteps.map((step, index) => (
+            {steps.map((step, index) => (
               <div key={step.key} className="flex min-w-0 flex-1 items-center">
                 <div className="flex flex-col items-center">
                   {index <= currentStepIndex ? (
@@ -267,7 +276,7 @@ export default function OrganizationDetailPage() {
                   )}
                   <span className="mt-1 max-w-[60px] truncate text-center text-[10px] text-muted-foreground sm:mt-2 sm:max-w-none sm:text-xs">{step.label}</span>
                 </div>
-                {index < onboardingSteps.length - 1 && (
+                {index < steps.length - 1 && (
                   <div className={`mx-1 h-0.5 flex-1 sm:mx-2 ${index < currentStepIndex ? "bg-success" : "bg-muted"}`} />
                 )}
               </div>
@@ -276,68 +285,91 @@ export default function OrganizationDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Reserve & Solvency (per-org treasury v3) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Percent className="h-4 w-4" aria-hidden="true" />
-            Reserve & Solvency
-          </CardTitle>
-          <CardDescription>
-            The reserve ratio is MicroCrop's solvency lever over this org's capital — it sets how much reserve the
-            org must hold against outstanding coverage. Setting it never moves funds.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!org.walletAddress ? (
+      {!baseOn && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Percent className="h-4 w-4" aria-hidden="true" />
+              Reserve & Solvency
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
               <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
-                Provision the org's wallet first — the reserve and its solvency are enforced on-chain against that wallet.
+                Base settlement is retired. MicroCrop holds no funds for this organization: its capital and reserve
+                sit off-platform, and on-chain records are made on Stellar. There is no wallet to provision and no
+                on-chain reserve ratio to set here.
               </span>
             </div>
-          ) : reserveLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading reserve status…
-            </div>
-          ) : reserveError || !reserve?.walletAddress ? (
-            <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{reserve?.message ?? "Reserve status is not available for this organization yet."}</span>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Coverage of the required reserve against outstanding policies.
-                </p>
-                <StatusBadge variant={reserve.solvent ? "active" : "failed"}>
-                  {reserve.solvent ? "Solvent" : "Underfunded"}
-                </StatusBadge>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <StatCard title="Reserve balance" value={`$${reserve.reserveUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={Wallet} />
-                <StatCard title="Required reserve" value={`$${reserve.requiredUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={Percent} />
-                <StatCard title="Headroom" value={`$${reserve.headroomUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={TrendingDown} />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Coverage ratio:{" "}
-                <span className="font-medium text-foreground">
-                  {reserve.requiredUsdc > 0
-                    ? `${((reserve.reserveUsdc / reserve.requiredUsdc) * 100).toFixed(0)}%`
-                    : "n/a (no outstanding coverage)"}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reserve & Solvency (per-org treasury v3, on Base). Shown only with the Base switch on. */}
+      {baseOn && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Percent className="h-4 w-4" aria-hidden="true" />
+              Reserve & Solvency
+            </CardTitle>
+            <CardDescription>
+              The reserve ratio is MicroCrop's solvency lever over this org's capital — it sets how much reserve the
+              org must hold against outstanding coverage. Setting it never moves funds.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!org.walletAddress ? (
+              <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  Provision the org's wallet first — the reserve and its solvency are enforced on-chain against that wallet.
                 </span>
-              </p>
-            </>
-          )}
-          {org.walletAddress && (
-            <Button variant="outline" onClick={() => setReserveDialogOpen(true)}>
-              <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
-              Set Reserve Ratio
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            ) : reserveLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading reserve status…
+              </div>
+            ) : reserveError || !reserve?.walletAddress ? (
+              <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{reserve?.message ?? "Reserve status is not available for this organization yet."}</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Coverage of the required reserve against outstanding policies.
+                  </p>
+                  <StatusBadge variant={reserve.solvent ? "active" : "failed"}>
+                    {reserve.solvent ? "Solvent" : "Underfunded"}
+                  </StatusBadge>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <StatCard title="Reserve balance" value={`$${reserve.reserveUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={Wallet} />
+                  <StatCard title="Required reserve" value={`$${reserve.requiredUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={Percent} />
+                  <StatCard title="Headroom" value={`$${reserve.headroomUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} icon={TrendingDown} />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Coverage ratio:{" "}
+                  <span className="font-medium text-foreground">
+                    {reserve.requiredUsdc > 0
+                      ? `${((reserve.reserveUsdc / reserve.requiredUsdc) * 100).toFixed(0)}%`
+                      : "n/a (no outstanding coverage)"}
+                  </span>
+                </p>
+              </>
+            )}
+            {org.walletAddress && (
+              <Button variant="outline" onClick={() => setReserveDialogOpen(true)}>
+                <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
+                Set Reserve Ratio
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-org capability toggles. Platform-admin only; the whole page already is. */}
       {orgId && <OrgCapabilitiesCard orgId={orgId} />}
@@ -409,8 +441,8 @@ export default function OrganizationDetailPage() {
         </Card>
       </div>
 
-      {/* Set reserve ratio dialog */}
-      <Dialog open={reserveDialogOpen} onOpenChange={setReserveDialogOpen}>
+      {/* Set reserve ratio dialog (Base only) */}
+      <Dialog open={baseOn && reserveDialogOpen} onOpenChange={setReserveDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Set reserve ratio</DialogTitle>
