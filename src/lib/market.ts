@@ -337,7 +337,7 @@ export function resolveMarketState(
  * `options.decimals` is capped at the market's `currencyMinorExponent`.
  *
  * Grouping uses `en-US` separators deliberately rather than a locale derived from the market:
- * every market group in thousands with a comma and use a dot for the decimal, and deriving
+ * every market groups thousands with a comma and uses a dot for the decimal, and deriving
  * a locale from a country code would silently change the separator for a future market without
  * anyone deciding to.
  */

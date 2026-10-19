@@ -26,6 +26,9 @@ import { useOrgMarket } from '@/hooks/useOrgMarket';
 import { formatMoney } from '@/lib/market';
 import { AlertTriangle, Globe } from 'lucide-react';
 
+/** What a hidden market shows for premium collection: it has no confirmed rail yet. */
+const HIDDEN_MARKET_RAIL = 'Not yet available';
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-baseline sm:gap-4">
@@ -136,10 +139,15 @@ export function OrgMarketPanel() {
                 label="Currency"
                 value={`${market.currency} (${market.currencySymbol})`}
               />
-              <Row label="Premium collection" value={market.mobileMoneyLabel} />
+              {/* A hidden market has no confirmed collect-and-pay rail yet (NG's BANK is a placeholder),
+                  so its configured networks are not shown as if premiums could be collected. */}
+              <Row
+                label="Premium collection"
+                value={market.signupOpen ? market.mobileMoneyLabel : HIDDEN_MARKET_RAIL}
+              />
               <Row
                 label="Mobile money networks"
-                value={market.mobileMoneyNetworks.join(', ')}
+                value={market.signupOpen ? market.mobileMoneyNetworks.join(', ') : HIDDEN_MARKET_RAIL}
               />
               <Row label="Insurance regulator" value={market.regulator} />
               <Row label="Phone number format" value={market.phoneExample} />
