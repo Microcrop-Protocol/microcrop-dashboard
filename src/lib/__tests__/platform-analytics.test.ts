@@ -53,7 +53,7 @@ describe('confirmedMarket — the gate on printing a currency', () => {
   });
 
   it('refuses a market this build does not know', () => {
-    expect(confirmedMarket({ countryCode: 'UG', currency: 'UGX' })).toBeNull();
+    expect(confirmedMarket({ countryCode: 'ZZ', currency: 'XXX' })).toBeNull();
   });
 
   it('confirms a per-currency row on its own when no market was asked for', () => {

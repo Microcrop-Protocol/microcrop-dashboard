@@ -19,6 +19,7 @@
  */
 import {
   MARKETS,
+  SIGNUP_COUNTRY_CODES,
   SUPPORTED_COUNTRY_CODES,
   isSupportedCountry,
   type CountryCode,
@@ -84,10 +85,13 @@ export function pluralDivisionLabel(label: string): string {
 
 /**
  * What to call the `county` column on a screen that may span markets. One market → its own label
- * (County / Region). All markets → both, because a single label would be wrong for one of them.
+ * (County / Region / District …). All markets → the OPEN markets' labels, because a single label
+ * would be wrong for one of them. Hidden markets are left out of the union: they hold at most a
+ * deliberately onboarded design partner, and five more words in every cross-market header would
+ * be noise; selecting the market gives its own label.
  */
 export function divisionLabelForFilter(filter: MarketFilter): string {
   if (filter !== ALL_MARKETS) return MARKETS[filter].adminDivisionLabels.level1;
-  const labels = SUPPORTED_COUNTRY_CODES.map((c) => MARKETS[c].adminDivisionLabels.level1);
+  const labels = SIGNUP_COUNTRY_CODES.map((c) => MARKETS[c].adminDivisionLabels.level1);
   return Array.from(new Set(labels)).join(' / ');
 }

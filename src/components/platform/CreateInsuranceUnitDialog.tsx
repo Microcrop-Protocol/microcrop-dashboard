@@ -304,7 +304,7 @@ export function CreateInsuranceUnitDialog({ onSubmit, isLoading }: Props) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {countryOptions().map((option) => (
+                        {countryOptions({ includeHidden: true }).map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>

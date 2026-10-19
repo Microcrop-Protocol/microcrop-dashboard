@@ -44,9 +44,9 @@ describe('kybReviewMarket', () => {
   });
 
   it('shows an unrecognised country as its code, not as a known market', () => {
-    const market = kybReviewMarket({ countryCode: 'ug' });
+    const market = kybReviewMarket({ countryCode: 'zz' });
     expect(market.known).toBe(false);
-    expect(market.countryName).toBe('UG');
+    expect(market.countryName).toBe('ZZ');
     expect(market.regulator).toBeNull();
     expect(market.level1Label).not.toBe('County');
   });

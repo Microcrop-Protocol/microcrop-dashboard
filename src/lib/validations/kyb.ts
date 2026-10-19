@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   DEFAULT_COUNTRY_CODE,
+  SIGNUP_COUNTRY_CODES,
   SUPPORTED_COUNTRY_CODES,
   isValidPhoneForAnyMarket,
   isValidPhoneForMarket,
@@ -100,7 +101,9 @@ export type OrganizationRegistrationFormData = z.infer<typeof organizationRegist
  */
 const orgSignupBase = {
   organizationName: z.string().min(2, 'Organization name must be at least 2 characters').max(100),
-  countryCode: z.enum(SUPPORTED_COUNTRY_CODES as unknown as [CountryCode, ...CountryCode[]], {
+  // OPEN markets only (`signupOpen`), as the backend's registerOrganizationSchema: a hidden
+  // market is refused at self-signup. The admin create schema below keeps every market.
+  countryCode: z.enum(SIGNUP_COUNTRY_CODES as unknown as [CountryCode, ...CountryCode[]], {
     required_error: 'Please select the country your organization operates in',
   }),
   county: z.string().max(100).optional(),

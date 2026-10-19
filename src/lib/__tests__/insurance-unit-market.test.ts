@@ -30,8 +30,12 @@ describe('which markets can have a unit', () => {
   });
 
   it('offers none for an unknown or missing market', () => {
-    expect(livestockUnitsOffered('UG')).toBe(false);
+    expect(livestockUnitsOffered('ZZ')).toBe(false);
     expect(livestockUnitsOffered(null)).toBe(false);
+  });
+
+  it('offers none in the hidden markets, none of which lists livestock', () => {
+    for (const code of ['UG', 'TZ', 'ZM', 'NG', 'RW']) expect(livestockUnitsOffered(code)).toBe(false);
   });
 });
 
@@ -52,6 +56,21 @@ describe('seasons per market', () => {
   it("lists Ghana's crop seasons by zone", () => {
     expect(CROP_SEASONS.GH?.map((s) => s.code)).toEqual(['MAIN', 'MAJOR', 'MINOR']);
   });
+
+  it("lists each hidden market's crop seasons with exactly the backend seasonCodes", () => {
+    expect(CROP_SEASONS.UG?.map((s) => s.code)).toEqual(['FIRST', 'SECOND', 'NORTH']);
+    expect(CROP_SEASONS.TZ?.map((s) => s.code)).toEqual(['MSIMU', 'MASIKA', 'VULI']);
+    expect(CROP_SEASONS.ZM?.map((s) => s.code)).toEqual(['MAIN']);
+    expect(CROP_SEASONS.NG?.map((s) => s.code)).toEqual(['MAJOR_SOUTH', 'MINOR_SOUTH', 'MAJOR_NORTH']);
+    expect(CROP_SEASONS.RW?.map((s) => s.code)).toEqual(['SEASON_A', 'SEASON_B']);
+  });
+
+  it('has no livestock seasons and no unit defaults in a hidden market', () => {
+    for (const code of ['UG', 'TZ', 'ZM', 'NG', 'RW'] as const) {
+      expect(LIVESTOCK_SEASONS[code]).toBeUndefined();
+      expect(Object.values(unitDefaultsFor(code)).every((v) => v === undefined)).toBe(true);
+    }
+  });
 });
 
 describe('unit codes', () => {
@@ -63,6 +82,15 @@ describe('unit codes', () => {
 
   it('does not enforce a prefix on Kenya, whose legacy codes predate it', () => {
     expect(unitCodePrefixError('KE', 'TURKANA')).toBeNull();
+  });
+
+  it('requires its own prefix in every other market, as the backend requiredUnitCodePrefix does', () => {
+    for (const code of ['UG', 'TZ', 'ZM', 'NG', 'RW'] as const) {
+      expect(unitCodePrefixError(code, `${code}-NORTH-01`)).toBeNull();
+      expect(unitCodePrefixError(code, 'GH-NORTH-01')).toMatch(new RegExp(`unit codes must start with ${code}-`));
+    }
+    expect(unitCodeHint('UG')).toBe('Uganda unit codes must start with UG-');
+    expect(unitCodePrefixError('NG', 'KADUNA')).toBe('Nigeria unit codes must start with NG- (for example NG-NP-01).');
   });
 
   it('hints and placeholds per market, with no Kenyan place in it', () => {

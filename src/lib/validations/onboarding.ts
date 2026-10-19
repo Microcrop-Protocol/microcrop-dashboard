@@ -7,7 +7,7 @@ import {
   level2Label,
   MARKETS,
   phoneHint,
-  SUPPORTED_COUNTRY_CODES,
+  SIGNUP_COUNTRY_CODES,
   type Market,
 } from '@/lib/market';
 import type { CatalogueItem } from '@/types/catalogue';
@@ -103,9 +103,14 @@ export const plotCreationSchema = plotCreationSchemaFor(null);
 
 export type PlotCreationData = z.infer<typeof plotCreationSchema>;
 
-/** The widest bounds any supported market accepts, for a form with no market in hand. */
-const ANY_MARKET_MIN = Math.min(...SUPPORTED_COUNTRY_CODES.map((c) => MARKETS[c].minSumInsuredLocal));
-const ANY_MARKET_MAX = Math.max(...SUPPORTED_COUNTRY_CODES.map((c) => MARKETS[c].maxSumInsuredLocal));
+/**
+ * The widest bounds any OPEN market accepts, for a form with no market in hand. Hidden markets
+ * are left out: an organization whose country the dashboard cannot resolve is priced by the
+ * backend as the default market (Kenya), never as a hidden one, so their bounds (UGX 30m, ZMW
+ * 200) would only widen the hint past anything the server could accept.
+ */
+const ANY_MARKET_MIN = Math.min(...SIGNUP_COUNTRY_CODES.map((c) => MARKETS[c].minSumInsuredLocal));
+const ANY_MARKET_MAX = Math.max(...SIGNUP_COUNTRY_CODES.map((c) => MARKETS[c].maxSumInsuredLocal));
 
 /**
  * MARKET-DRIVEN sum-insured bounds.
@@ -121,10 +126,16 @@ const ANY_MARKET_MAX = Math.max(...SUPPORTED_COUNTRY_CODES.map((c) => MARKETS[c]
 export const policyConfigSchemaFor = (market: Market | null) => {
   const min = market?.minSumInsuredLocal ?? ANY_MARKET_MIN;
   const max = market?.maxSumInsuredLocal ?? ANY_MARKET_MAX;
+  let sumInsured = z.number()
+    .min(min, `Minimum sum insured is ${formatMoney(min, market)}`)
+    .max(max, `Maximum sum insured is ${formatMoney(max, market)}`);
+  // A 0-exponent currency (UGX, RWF) has no fractional unit, and the backend refuses a
+  // fractional sum insured in one; say so here rather than submit into that refusal.
+  if (market?.currencyMinorExponent === 0) {
+    sumInsured = sumInsured.int(`${market.currency} has no fractional unit`);
+  }
   return z.object({
-    sumInsured: z.number()
-      .min(min, `Minimum sum insured is ${formatMoney(min, market)}`)
-      .max(max, `Maximum sum insured is ${formatMoney(max, market)}`),
+    sumInsured,
     coverageType: z.enum(['DROUGHT', 'FLOOD', 'BOTH', 'COMPREHENSIVE']),
     durationDays: z.number()
       .min(30, 'Minimum duration is 30 days')
@@ -133,5 +144,18 @@ export const policyConfigSchemaFor = (market: Market | null) => {
 };
 
 export const policyConfigSchema = policyConfigSchemaFor(null);
+
+/** The sum insured the coverage form opens with. */
+export const DEFAULT_SUM_INSURED = 10000;
+
+/**
+ * The coverage form's opening sum insured, clamped into the market's bounds. 10,000 sits inside
+ * Kenya's and Ghana's bounds, so it is unchanged there; in a market whose minimum is higher
+ * (UGX 30,000, TZS 20,000, NGN 15,000, RWF 12,000) the form would otherwise open already invalid.
+ */
+export const defaultSumInsuredFor = (market: Market | null): number =>
+  market
+    ? Math.min(Math.max(DEFAULT_SUM_INSURED, market.minSumInsuredLocal), market.maxSumInsuredLocal)
+    : DEFAULT_SUM_INSURED;
 
 export type PolicyConfigData = z.infer<typeof policyConfigSchema>;

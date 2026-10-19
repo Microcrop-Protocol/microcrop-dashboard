@@ -25,7 +25,7 @@ import type {
   Farmer, Plot, PolicyQuote, Policy, PaymentInstructions, GpsTrackResponse, CoverageType,
 } from '@/types';
 import {
-  farmerRegistrationSchemaFor, plotCreationSchemaFor, policyConfigSchemaFor,
+  farmerRegistrationSchemaFor, plotCreationSchemaFor, policyConfigSchemaFor, defaultSumInsuredFor,
   type FarmerRegistrationData, type PlotCreationData, type PolicyConfigData,
 } from '@/lib/validations/onboarding';
 import { BoundaryWalkStep } from './BoundaryWalkStep';
@@ -214,12 +214,22 @@ export function OnboardingWizard() {
     // Sum-insured bounds are the market's (a hint — the server enforces them at purchase).
     resolver: zodResolver(policyConfigSchemaFor(market)),
     defaultValues: {
-      sumInsured: 10000,
+      sumInsured: defaultSumInsuredFor(market),
       coverageType: 'DROUGHT',
       durationDays: 90,
     },
     mode: 'onChange',
   });
+
+  // The market can resolve after the form mounts. Re-seed the opening sum insured into its
+  // bounds then, but never over a value the agent has already typed.
+  useEffect(() => {
+    if (!market || quoteForm.formState.dirtyFields.sumInsured) return;
+    const seeded = defaultSumInsuredFor(market);
+    if (quoteForm.getValues('sumInsured') !== seeded) {
+      quoteForm.setValue('sumInsured', seeded, { shouldValidate: true });
+    }
+  }, [market, quoteForm]);
 
   /**
    * The quote, while it still prices what the coverage form says. Editing the form after a

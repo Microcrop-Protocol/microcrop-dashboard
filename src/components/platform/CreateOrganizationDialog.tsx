@@ -149,7 +149,7 @@ export function CreateOrganizationDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {countryOptions().map((option) => (
+                        {countryOptions({ includeHidden: true }).map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -158,7 +158,11 @@ export function CreateOrganizationDialog({
                     </Select>
                     <FormDescription>
                       {selectedMarket
-                        ? `Currency ${selectedMarket.currency} · premiums via ${selectedMarket.mobileMoneyLabel} · ${selectedMarket.regulator} licence required at KYB.`
+                        ? selectedMarket.signupOpen
+                          ? `Currency ${selectedMarket.currency} · premiums via ${selectedMarket.mobileMoneyLabel} · ${selectedMarket.regulator} licence required at KYB.`
+                          // A hidden market: no confirmed premium rail yet, and the regulator code is
+                          // qualified by country because Uganda's IRA shares Kenya's code.
+                          : `Currency ${selectedMarket.currency} · not yet open: premium collection not yet available · ${selectedMarket.regulator} (${selectedMarket.countryName}) licence required at KYB.`
                         : 'Sets the currency, premium limits, payment provider and KYB document set.'}
                     </FormDescription>
                     <FormMessage />

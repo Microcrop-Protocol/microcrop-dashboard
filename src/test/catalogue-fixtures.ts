@@ -77,3 +77,49 @@ export const GH_CATALOGUE: CatalogueMarket = {
     LIVESTOCK: [],
   },
 };
+
+/**
+ * The hidden markets, as the backend catalogue lists them: every crop COMING_SOON (so nothing is
+ * sellable) and no livestock line. Listed crops can still be registered on a plot.
+ */
+function hiddenMarket(
+  countryCode: string,
+  countryName: string,
+  currency: string,
+  crops: [string, string][],
+): CatalogueMarket {
+  return {
+    countryCode,
+    countryName,
+    currency,
+    lines: {
+      CROP: crops.map(([code, label]) => crop(code, label, 'COMING_SOON', 'To be set')),
+      LIVESTOCK: [],
+    },
+  };
+}
+
+export const UG_CATALOGUE = hiddenMarket('UG', 'Uganda', 'UGX', [
+  ['MAIZE', 'Maize'], ['BEANS', 'Beans'], ['SORGHUM', 'Sorghum'], ['SOYBEAN', 'Soybean'],
+  ['GROUNDNUT', 'Groundnut'], ['RICE', 'Rice'], ['COFFEE', 'Coffee'],
+]);
+
+export const TZ_CATALOGUE = hiddenMarket('TZ', 'Tanzania', 'TZS', [
+  ['MAIZE', 'Maize'], ['BEANS', 'Beans'], ['SORGHUM', 'Sorghum'], ['WHEAT', 'Wheat'],
+  ['COFFEE', 'Coffee'], ['POTATOES', 'Potatoes'], ['RICE', 'Rice'], ['MILLET', 'Millet'],
+]);
+
+export const ZM_CATALOGUE = hiddenMarket('ZM', 'Zambia', 'ZMW', [
+  ['MAIZE', 'Maize'], ['SOYBEAN', 'Soybean'], ['GROUNDNUT', 'Groundnut'], ['SORGHUM', 'Sorghum'],
+  ['MILLET', 'Millet'], ['BEANS', 'Beans'], ['WHEAT', 'Wheat'], ['RICE', 'Rice'],
+]);
+
+export const NG_CATALOGUE = hiddenMarket('NG', 'Nigeria', 'NGN', [
+  ['MAIZE', 'Maize'], ['RICE', 'Rice'], ['SORGHUM', 'Sorghum'], ['MILLET', 'Millet'],
+  ['SOYBEAN', 'Soybean'], ['GROUNDNUT', 'Groundnut'], ['COWPEA', 'Cowpea'],
+]);
+
+export const RW_CATALOGUE = hiddenMarket('RW', 'Rwanda', 'RWF', [
+  ['MAIZE', 'Maize'], ['BEANS', 'Beans'], ['RICE', 'Rice'], ['POTATOES', 'Irish potato'],
+  ['SOYBEAN', 'Soybean'], ['SORGHUM', 'Sorghum'],
+]);

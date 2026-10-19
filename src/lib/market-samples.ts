@@ -16,7 +16,7 @@ import type { CountryCode, Market } from '@/lib/market';
 
 export interface MarketSamples {
   lastName: string;
-  /** A level-1 division (KE county / GH region). */
+  /** A level-1 division (KE county / GH region / the market's `adminDivisionLabels.level1`). */
   level1: string;
   /** A level-2 division inside `level1` (KE sub-county / GH district). */
   level2: string;
@@ -31,7 +31,8 @@ export interface MarketSamples {
   longitude: string;
   /**
    * A planting date inside the market's main crop season (KE long rains, March–May; GH major
-   * season, April–July), ISO `YYYY-MM-DD`, for the plot import template.
+   * season, April–July; the hidden markets per the comment on each), ISO `YYYY-MM-DD`, for the
+   * plot import template.
    */
   plantingDate: string;
 }
@@ -60,6 +61,75 @@ const SAMPLES: Readonly<Record<CountryCode, MarketSamples>> = Object.freeze({
     latitude: '6.6885',
     longitude: '-1.6244',
     plantingDate: '2026-04-15',
+  },
+  // The hidden markets. Coordinates are approximate town points; ward, village and the pastoral
+  // pair are empty because none of these markets offers livestock. Each planting date sits in
+  // the backend's INDICATIVE season window for the zone the sample place is in.
+  UG: {
+    lastName: 'Okello',
+    level1: 'Masindi',
+    // Sub-county of Masindi district; not checked against the current UBOS list.
+    level2: 'Pakanyi',
+    ward: '',
+    village: '',
+    pastoralLevel1: '',
+    pastoralLevel2: '',
+    latitude: '1.6744',
+    longitude: '31.715',
+    // FIRST season (MAM rains), planted Mar-Apr.
+    plantingDate: '2026-03-20',
+  },
+  TZ: {
+    lastName: 'Mushi',
+    level1: 'Iringa',
+    level2: 'Kilolo',
+    ward: '',
+    village: '',
+    pastoralLevel1: '',
+    pastoralLevel2: '',
+    latitude: '-7.77',
+    longitude: '35.69',
+    // Iringa is unimodal: MSIMU, planted Nov-Dec.
+    plantingDate: '2025-12-01',
+  },
+  ZM: {
+    lastName: 'Phiri',
+    level1: 'Eastern',
+    level2: 'Chipata',
+    ward: '',
+    village: '',
+    pastoralLevel1: '',
+    pastoralLevel2: '',
+    latitude: '-13.64',
+    longitude: '32.65',
+    // MAIN rainy season, planted Nov-Dec.
+    plantingDate: '2025-11-20',
+  },
+  NG: {
+    lastName: 'Ibrahim',
+    level1: 'Kaduna',
+    level2: 'Zaria',
+    ward: '',
+    village: '',
+    pastoralLevel1: '',
+    pastoralLevel2: '',
+    latitude: '11.085',
+    longitude: '7.719',
+    // Kaduna is in the north: MAJOR_NORTH, planted May-Jul.
+    plantingDate: '2026-06-01',
+  },
+  RW: {
+    lastName: 'Mugisha',
+    level1: 'Eastern',
+    level2: 'Nyagatare',
+    ward: '',
+    village: '',
+    pastoralLevel1: '',
+    pastoralLevel2: '',
+    latitude: '-1.3',
+    longitude: '30.33',
+    // SEASON_B (long rains), planted in March.
+    plantingDate: '2026-03-10',
   },
 });
 

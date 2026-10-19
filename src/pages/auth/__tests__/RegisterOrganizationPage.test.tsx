@@ -169,6 +169,14 @@ describe('step two — details', () => {
     expect(mocks.registerOrganization.mock.calls[0][0].countryCode).toBe('GH');
   });
 
+  it('offers only the OPEN markets — a hidden market is not a signup choice', async () => {
+    renderPage();
+    await completeEmailStep();
+    fireEvent.click(screen.getByRole('combobox', { name: /country of operation/i }));
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(options).toEqual(['Kenya', 'Ghana']);
+  });
+
   it('will not submit without a country, rather than defaulting to Kenya', async () => {
     renderPage();
     await completeEmailStep();
