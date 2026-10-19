@@ -25,7 +25,7 @@ import {
   TIER1_LOCKED_BODY,
   TIER1_LOCKED_NEXT,
   TIER1_LOCKED_TITLE,
-  TIER1_UPGRADE_BODY,
+  tier1UpgradeBody,
   TIER_UNKNOWN_BODY,
   TIER_UNKNOWN_TITLE,
   type TierState,
@@ -59,7 +59,7 @@ export function SettlementNotOnPlanCard({ className }: { className?: string }) {
           </Button>
         </div>
         <div className="rounded-lg border border-dashed p-3 text-muted-foreground">
-          {TIER1_UPGRADE_BODY}
+          {tier1UpgradeBody()}
         </div>
       </CardContent>
     </Card>

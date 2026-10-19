@@ -34,6 +34,7 @@
  * never shown a settlement feature as if it were broken.
  */
 import type { Organization, Policy, ServiceTier } from '@/types';
+import { isBaseSettlementEnabled } from '@/lib/explorer';
 
 export const SERVICE_TIER = {
   DETERMINATION: 'DETERMINATION',
@@ -155,6 +156,24 @@ export const TIER1_UPGRADE_BODY =
   'On the Determination & Settlement plan MicroCrop originates and settles the payout to the ' +
   'farmer for you. Talk to MicroCrop to change your plan — it is not a self-service switch, ' +
   'because a change only applies to cover sold after it.';
+
+/**
+ * BASE RETIRED. Determination & Settlement was a Base plan: MicroCrop settled on Base. With Base
+ * switched off the backend refuses Tier 2 upgrades, quotes and sales (409 BASE_RETIRED), so the
+ * upsell above would sell a product that cannot be bought. These replace it while the switch is
+ * off; VITE_BASE_SETTLEMENT_ENABLED=true restores the original copy.
+ */
+export const TIER1_NO_SETTLEMENT_BODY =
+  'MicroCrop does not settle payouts. Paying the farmer is the insurer\'s obligation, settled ' +
+  'off-platform; MicroCrop verifies and records it on Stellar.';
+export const TIER2_RETIRED_NOTE =
+  'Determination & Settlement was a Base plan. Base is retired, so no new cover can be sold ' +
+  'under it; existing cover stays readable.';
+
+/** The Tier 1 upgrade copy for the current build: the upsell only while Base settlement is on. */
+export function tier1UpgradeBody(): string {
+  return isBaseSettlementEnabled() ? TIER1_UPGRADE_BODY : TIER1_NO_SETTLEMENT_BODY;
+}
 
 /** Honest copy for the 'unknown' state. Never claims the feature is unavailable to them. */
 export const TIER_UNKNOWN_TITLE = "We couldn't confirm your plan";

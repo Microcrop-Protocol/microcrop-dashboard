@@ -43,4 +43,11 @@ describe('DeterminationStatusBadge', () => {
     render(<DeterminationStatusBadge status="UNDERFUNDED" />);
     expect(screen.getByText('Underfunded')).toBeInTheDocument();
   });
+
+  it('does not promise a retry on FAILED — a Base row parked by the kill switch is not retried', () => {
+    render(<DeterminationStatusBadge status="FAILED" />);
+    const title = screen.getByText('Failed').closest('[title]')?.getAttribute('title') ?? '';
+    expect(title).not.toMatch(/retried|on-chain/i);
+    expect(title).toMatch(/failure reason/i);
+  });
 });

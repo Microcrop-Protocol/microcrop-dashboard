@@ -16,6 +16,7 @@ import { notifySuccess, notifyError } from "@/lib/notify";
 import { DeterminationStatusBadge } from "@/components/payouts/DeterminationStatusBadge";
 import { useOrgMarket } from "@/hooks/useOrgMarket";
 import { formatMoney } from "@/lib/market";
+import { isBaseSettlementEnabled } from "@/lib/explorer";
 
 export default function PayoutsPage() {
   const { user } = useAuthStore();
@@ -76,8 +77,11 @@ export default function PayoutsPage() {
     { accessorKey: "createdAt", header: "Date", cell: ({ row }) => formatDate(row.getValue("createdAt")) },
     {
       id: "actions",
+      // Retry re-submits a Base settlement. With Base retired the backend refuses it with 409
+      // BASE_RETIRED, and the kill switch itself parks Base rows as FAILED, so the button would
+      // appear on exactly the rows it cannot help. Shown only with VITE_BASE_SETTLEMENT_ENABLED.
       cell: ({ row }) =>
-        row.original.status === "FAILED" && can.retryPayouts && (
+        row.original.status === "FAILED" && can.retryPayouts && isBaseSettlementEnabled() && (
           <Button
             size="sm"
             variant="outline"

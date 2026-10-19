@@ -1,5 +1,12 @@
 # API Integration Status
 
+> **HISTORICAL — BASE IS RETIRED (2026-10-19).** The pool, deploy-pool and wallet endpoints
+> listed below belong to the Base (EVM) design and are not live: the backend answers them with
+> 409 `BASE_RETIRED`. Stellar (Soroban) is the only settlement chain, and on Stellar MicroCrop
+> never handles funds: the insurer collects premiums and settles claims, and MicroCrop verifies
+> and records. The dashboard hides every Base surface unless `VITE_BASE_SETTLEMENT_ENABLED=true`
+> (see `.env.example`). Kept for reference until the EVM code is removed (phase 2).
+
 **Generated:** 2026-01-28
 **Frontend Config:** `VITE_USE_MOCK_API=false` (using real backend)
 **All pages now use the unified API service** - No direct mock data imports in pages.

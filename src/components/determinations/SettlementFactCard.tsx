@@ -22,7 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { SettlementFactBadge } from './FactBadges';
 import { formatMoneyMinor } from '@/lib/money-minor';
 import { AlertTriangle, Banknote, ExternalLink } from 'lucide-react';
-import { baseExplorerTxUrl, isBaseChainId } from '@/lib/explorer';
+import { baseExplorerTxUrl, isBaseChainId, stellarNetworkLabel, stellarTxUrl } from '@/lib/explorer';
 import type { SettlementFact } from '@/types';
 
 export function SettlementFactCard({ settlement }: { settlement: SettlementFact }) {
@@ -115,7 +115,12 @@ export function SettlementFactCard({ settlement }: { settlement: SettlementFact 
 
 function OnChainSettlement({ onChain }: { onChain: NonNullable<SettlementFact['onChain']> }) {
   const legacyBase = isBaseChainId(onChain.chainId);
-  const href = legacyBase ? baseExplorerTxUrl(onChain.submittedTxHash) : null;
+  // No chain id plus a Stellar-shaped hash (64 hex, no 0x) is a Stellar record: label and link
+  // it on stellar.expert. Not reachable today (Stellar cover is Tier 1, which has no onChain
+  // block), but it keeps a future Stellar row from rendering as "Network —".
+  const stellarHref =
+    !legacyBase && onChain.chainId == null ? stellarTxUrl(onChain.submittedTxHash) : null;
+  const href = legacyBase ? baseExplorerTxUrl(onChain.submittedTxHash) : stellarHref;
 
   return (
     <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -126,7 +131,9 @@ function OnChainSettlement({ onChain }: { onChain: NonNullable<SettlementFact['o
             ? 'Base (retired) — legacy settlement record'
             : onChain.chainId != null
               ? `Chain ${onChain.chainId}`
-              : '—'}
+              : stellarHref
+                ? stellarNetworkLabel()
+                : '—'}
         </dd>
       </div>
       <div>

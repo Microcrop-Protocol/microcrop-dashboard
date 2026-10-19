@@ -67,6 +67,30 @@ describe('legacy Base settlement', () => {
   });
 });
 
+describe('settlement record with no chain id', () => {
+  it('labels and links a Stellar-shaped hash on stellar.expert', () => {
+    vi.stubEnv('VITE_STELLAR_NETWORK', 'testnet');
+    render(
+      <SettlementFactCard
+        settlement={{ ...tier2, onChain: { ...tier2.onChain!, chainId: null, submittedTxHash: STELLAR_TX } }}
+      />,
+    );
+    expect(screen.getByText('Stellar testnet')).toBeInTheDocument();
+    expect(screen.getByRole('link')).toHaveAttribute(
+      'href',
+      `https://stellar.expert/explorer/testnet/tx/${STELLAR_TX}`,
+    );
+  });
+
+  it('leaves a non-Stellar hash as text', () => {
+    render(
+      <SettlementFactCard settlement={{ ...tier2, onChain: { ...tier2.onChain!, chainId: null } }} />,
+    );
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getByText(BASE_TX)).toBeInTheDocument();
+  });
+});
+
 describe('notary anchor', () => {
   it('links a Stellar anchor to stellar.expert on the receipt network', () => {
     vi.stubEnv('VITE_STELLAR_NETWORK', 'public');
