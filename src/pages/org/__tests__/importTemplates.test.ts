@@ -8,7 +8,15 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MARKETS } from '@/lib/market';
-import { GH_CATALOGUE, KE_CATALOGUE } from '@/test/catalogue-fixtures';
+import {
+  GH_CATALOGUE,
+  KE_CATALOGUE,
+  NG_CATALOGUE,
+  RW_CATALOGUE,
+  TZ_CATALOGUE,
+  UG_CATALOGUE,
+  ZM_CATALOGUE,
+} from '@/test/catalogue-fixtures';
 import {
   BLANKET_CONSENT_MESSAGE,
   csvToJsonExample,
@@ -64,6 +72,32 @@ describe('templates', () => {
     expect(herdCsvTemplate(MARKETS.GH, null)).toBe('');
   });
 
+  it.each([
+    ['UG', UG_CATALOGUE, 'John,Doe,+256770000123,12345678,Masindi,Pakanyi,,,PENDING,,,,,', '+256770000123,Plot A,1.6744,31.715,2.5,MAIZE,2026-03-20'],
+    ['TZ', TZ_CATALOGUE, 'John,Doe,+255754000000,12345678,Iringa,Kilolo,,,PENDING,,,,,', '+255754000000,Plot A,-7.77,35.69,2.5,MAIZE,2025-12-01'],
+    ['ZM', ZM_CATALOGUE, 'John,Doe,+260970000001,12345678,Eastern,Chipata,,,PENDING,,,,,', '+260970000001,Plot A,-13.64,32.65,2.5,MAIZE,2025-11-20'],
+    ['NG', NG_CATALOGUE, 'John,Doe,+2348030000001,12345678,Kaduna,Zaria,,,PENDING,,,,,', '+2348030000001,Plot A,11.085,7.719,2.5,MAIZE,2026-06-01'],
+    ['RW', RW_CATALOGUE, 'John,Doe,+250788000001,12345678,Eastern,Nyagatare,,,PENDING,,,,,', '+250788000001,Plot A,-1.3,30.33,2.5,MAIZE,2026-03-10'],
+  ] as const)(
+    "uses %s's own values, and a LISTED crop although nothing there is sellable yet",
+    (code, catalogue, farmerRow, plotRow) => {
+      const market = MARKETS[code];
+      expect(farmerCsvTemplate(market).split('\n')[1]).toBe(farmerRow);
+      expect(plotCsvTemplate(market, catalogue).split('\n')[1]).toBe(plotRow);
+      // No livestock line in a hidden market: no herds template.
+      expect(herdCsvTemplate(market, catalogue)).toBe('');
+    },
+  );
+
+  it('still prefers a sellable crop where one exists', () => {
+    // Coming-soon crops listed FIRST must not displace the first sellable one (GROUNDNUT, pilot).
+    const comingSoonFirst = {
+      ...GH_CATALOGUE,
+      lines: { ...GH_CATALOGUE.lines, CROP: [...GH_CATALOGUE.lines.CROP].reverse() },
+    };
+    expect(plotCsvTemplate(MARKETS.GH, comingSoonFirst).split('\n')[1].split(',')[5]).toBe('GROUNDNUT');
+  });
+
   it('leaves unknown values EMPTY rather than falling back to Kenya', () => {
     expect(farmerCsvTemplate(null).split('\n')[1]).toBe('John,Doe,,12345678,,,,,PENDING,,,,,');
     expect(plotCsvTemplate(null, null).split('\n')[1]).toBe(',Plot A,,,2.5,,');
@@ -107,6 +141,11 @@ describe('templates', () => {
 describe.each([
   ['KE', MARKETS.KE, KE_CATALOGUE],
   ['GH', MARKETS.GH, GH_CATALOGUE],
+  ['UG', MARKETS.UG, UG_CATALOGUE],
+  ['TZ', MARKETS.TZ, TZ_CATALOGUE],
+  ['ZM', MARKETS.ZM, ZM_CATALOGUE],
+  ['NG', MARKETS.NG, NG_CATALOGUE],
+  ['RW', MARKETS.RW, RW_CATALOGUE],
 ] as const)('templates round-trip in %s', (_code, market, catalogue) => {
   it('farmers template parses, prepares cleanly, and its JSON example parses', () => {
     const csv = farmerCsvTemplate(market);

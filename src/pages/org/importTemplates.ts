@@ -32,7 +32,8 @@ import {
  * plan, and now the crop against its product catalogue — so a template carrying another
  * market's values hands back a file in which EVERY row fails.
  *
- * The sample crop is the market catalogue's first AVAILABLE crop (else its first sellable one),
+ * The sample crop is the market catalogue's first AVAILABLE crop (else its first sellable one,
+ * else — in a market with nothing sellable yet — its first listed one),
  * written as the CODE the API takes (`MAIZE`, not `Maize`): the backend's validator matches the
  * enum exactly, so the old `Maize` sample was itself a refused value.
  *
@@ -69,7 +70,10 @@ const FARMER_TEMPLATE_HEADER = [
 export function plotCsvTemplate(market: Market | null, catalogue: CatalogueMarket | null): string {
   const samples = marketSamples(market);
   const phone = market?.phoneExample ?? "";
-  const crop = exampleItem(catalogue, "CROP")?.code ?? "";
+  // Plot registration takes any LISTED crop, sellable or not, so a market with nothing sellable
+  // yet (a hidden market, every crop COMING_SOON) still gets a template that imports: its first
+  // listed crop. Where something is sellable the example stays a crop that can be insured.
+  const crop = (exampleItem(catalogue, "CROP") ?? catalogueItems(catalogue, "CROP")[0])?.code ?? "";
   // Coordinates inside the market, so a partner that imports the sample unedited does not create
   // a plot in the wrong country and then wonder why its satellite readings are empty.
   const lat = samples?.latitude ?? "";
