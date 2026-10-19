@@ -1,5 +1,12 @@
 # Pool & Liquidity Management API
 
+> **HISTORICAL — BASE IS RETIRED (2026-10-19).** Everything below describes the Base (EVM)
+> design: risk pools, Privy org wallets, M-Pesa wallet funding, USDC deposits and BaseScan links.
+> None of it is live. Stellar (Soroban) is the only settlement chain, and on Stellar MicroCrop
+> never handles funds: the insurer collects premiums and settles claims, and MicroCrop verifies
+> and records. The dashboard hides every Base surface unless `VITE_BASE_SETTLEMENT_ENABLED=true`
+> (see `.env.example`). Kept for reference until the EVM code is removed (phase 2).
+
 This document describes the API endpoints for managing risk pools and liquidity.
 
 ## Overview

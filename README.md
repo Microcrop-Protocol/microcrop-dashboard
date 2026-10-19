@@ -50,6 +50,24 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Settlement chain: Stellar (Base is retired)
+
+As of 2026-10-19 MicroCrop no longer uses Base. Stellar (Soroban) is the only chain MicroCrop
+records on, and MicroCrop never handles funds: the insurer collects premiums and settles claims,
+and MicroCrop verifies and records the outcome.
+
+Phase 1 switches Base off reversibly. Nothing EVM is deleted and legacy Base records stay
+readable, but every Base-only surface is hidden behind one build-time switch:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `VITE_BASE_SETTLEMENT_ENABLED` | unset (off) | `"true"` restores the Base surfaces: org wallet provisioning, the on-chain reserve ratio and reserve read, the platform Treasury page, BaseScan links. Turn it on only together with the backend's `BASE_SETTLEMENT_ENABLED`, or every Base action answers `409 BASE_RETIRED`. |
+| `VITE_STELLAR_NETWORK` | `testnet` | `testnet` or `public`: the stellar.expert network used when a record does not name its own. A notary receipt's own network always wins. |
+| `VITE_EXPLORER_BASE_URL` | `https://basescan.org` | BaseScan origin for legacy links; used only with the switch on. |
+
+Explorer links live in `src/lib/explorer.ts`. The EVM-era guides under `docs/` (pools, wallets,
+deposits) are marked historical.
+
 ## What technologies are used for this project?
 
 This project is built with:
